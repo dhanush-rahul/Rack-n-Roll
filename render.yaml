@@ -1,0 +1,27 @@
+# Render Blueprint — deploy from repo root via Dashboard → New → Blueprint
+# Set secret env vars in the Render dashboard after the service is created.
+services:
+  - type: web
+    name: rack-n-roll-api
+    runtime: node
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      - key: SKIP_DB
+        value: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: MONGODB_URI
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: MAIL_DELIVERY_MODE
+        value: log
+      - key: JWT_EXPIRES_IN
+        value: 7d

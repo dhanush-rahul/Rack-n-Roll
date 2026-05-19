@@ -1,0 +1,42 @@
+import React from 'react';
+import { Modal, Pressable, Text, View } from 'react-native';
+import { tournamentUi } from '../styles/tournamentUi';
+
+export function FeedbackModal({ visible, title, message, onDismiss, emoji = '🤔' }) {
+  const displayMessage = String(message || '').trim();
+  const displayTitle = String(title || '').trim();
+
+  return (
+    <Modal
+      animationType="fade"
+      transparent
+      visible={Boolean(visible)}
+      onRequestClose={onDismiss}
+    >
+      <View style={tournamentUi.modalOverlay}>
+        <Pressable style={tournamentUi.modalBackdrop} onPress={onDismiss} />
+        <View style={tournamentUi.modalCard}>
+          {Boolean(displayTitle) && <Text style={tournamentUi.modalTitle}>{displayTitle}</Text>}
+          {Boolean(displayMessage) && (
+            <Text style={[tournamentUi.modalMessage, { color: '#000000' }]}>
+              {`${displayMessage} ${emoji}`}
+            </Text>
+          )}
+          <Pressable
+            onPress={onDismiss}
+            style={({ pressed }) => [
+              tournamentUi.primaryButton,
+              {
+                width: '50%',
+                alignSelf: 'center',
+                opacity: pressed ? 0.85 : 1,
+              },
+            ]}
+          >
+            <Text style={tournamentUi.primaryButtonText}>Sure!</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
