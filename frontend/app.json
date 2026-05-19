@@ -25,6 +25,14 @@
           "backgroundColor": "#ffffff"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "36a3387c-fc35-4a53-93a6-306f4dd04fab"
+      }
+    },
+    "android": {
+      "package": "com.dhanushcharipally.racknroll"
+    }
   }
 }
