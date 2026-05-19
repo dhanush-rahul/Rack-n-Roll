@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+
+# Secrets and local env (keep .env.example committed)
+.env
+.env.local
+.env.*.local
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native build outputs (from `expo prebuild` / local runs)
+android/
+ios/
+.kotlin/
+
+# Signing / credentials
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+*.orig.*
+
+# Metro
+.metro-health-check*
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Test / coverage
+coverage/
+
+# TypeScript
+*.tsbuildinfo
+
+# Runtime / OS
+.DS_Store
+Thumbs.db
+
+# Optional local tooling
+.idea/
+.vscode/
+package-lock.json
