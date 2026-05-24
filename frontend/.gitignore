@@ -48,3 +48,4 @@ Thumbs.db
 .idea/
 .vscode/
 package-lock.json
+eas.json

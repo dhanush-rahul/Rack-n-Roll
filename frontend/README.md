@@ -26,4 +26,5 @@ npx expo start
 - All HTTP requests are centralized in `src/services/api.js`.
 - Example API usage is in `src/services/systemService.js` and `src/screens/HomeScreen.js`.
 - Required env var: `EXPO_PUBLIC_API_BASE_URL` (see `.env.example`).
+- **EAS builds:** local `.env` is gitignored and is not uploaded. Set production URL in `eas.json` (`build.production.env`) or via `eas env:create`.
 - Release smoke and rollback guidance: `../.github/release-readiness.md`.
