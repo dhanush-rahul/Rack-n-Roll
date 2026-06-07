@@ -13,15 +13,118 @@ const getDeliveryMode = () => {
   return process.env.SMTP_HOST ? 'smtp' : 'log';
 };
 
-const getSmtpConfig = () => ({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT || 587),
-  secure: String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true',
-  user: process.env.SMTP_USER,
-  pass: process.env.SMTP_PASS,
-  fromEmail: process.env.SMTP_FROM_EMAIL,
-  fromName: process.env.SMTP_FROM_NAME || 'Rack-N-Roll',
-});
+const normalizeEnvValue = (value) => {
+  const trimmed = String(value || '').trim();
+
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1).trim();
+  }
+
+  return trimmed;
+};
+
+const normalizeSmtpPassword = (value) => normalizeEnvValue(value).replace(/\s+/g, '');
+
+const getSmtpConfig = () => {
+  const host = normalizeEnvValue(process.env.SMTP_HOST);
+  const user = normalizeEnvValue(process.env.SMTP_USER);
+  const pass = normalizeSmtpPassword(process.env.SMTP_PASS);
+  const fromEmail = normalizeEnvValue(process.env.SMTP_FROM_EMAIL);
+  const port = Number(process.env.SMTP_PORT || 587);
+  const secure = String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true';
+
+  return {
+    host,
+    port,
+    secure,
+    user,
+    pass,
+    fromEmail,
+    fromName: normalizeEnvValue(process.env.SMTP_FROM_NAME) || 'Rack-N-Roll',
+    isGmail: /gmail\.com/i.test(host) || /@gmail\.com$/i.test(user),
+  };
+};
+
+const buildTransportOptions = (smtp) => {
+  if (smtp.isGmail) {
+    return {
+      service: 'gmail',
+      auth: {
+        user: smtp.user,
+        pass: smtp.pass,
+      },
+    };
+  }
+
+  return {
+    host: smtp.host,
+    port: smtp.port,
+    secure: smtp.secure,
+    requireTLS: !smtp.secure,
+    auth: {
+      user: smtp.user,
+      pass: smtp.pass,
+    },
+  };
+};
+
+const mapSmtpError = (error, fallbackMessage, smtp = null) => {
+  if (error instanceof ApiError) {
+    return error;
+  }
+
+  const smtpCode = String(error?.code || '').trim();
+
+  if (smtpCode === 'EAUTH') {
+    if (smtp?.isGmail) {
+      const passHint =
+        smtp.pass.length === 16
+          ? 'Gmail rejected the App Password. Create a new one at https://myaccount.google.com/apppasswords (requires 2-Step Verification), update SMTP_PASS, then restart the backend.'
+          : 'Gmail App Passwords are 16 characters. Enable 2-Step Verification, create an App Password at https://myaccount.google.com/apppasswords, paste it in SMTP_PASS without spaces, then restart the backend.';
+
+      return new ApiError(502, 'EMAIL_SEND_FAILED', passHint);
+    }
+
+    return new ApiError(
+      502,
+      'EMAIL_SEND_FAILED',
+      'SMTP authentication failed. Check SMTP_USER and SMTP_PASS, then restart the backend.'
+    );
+  }
+
+  if (smtpCode === 'ESOCKET' || smtpCode === 'ECONNECTION' || smtpCode === 'ETIMEDOUT') {
+    return new ApiError(
+      502,
+      'EMAIL_SEND_FAILED',
+      'Unable to connect to the SMTP server. Check SMTP_HOST, SMTP_PORT, and SMTP_SECURE.'
+    );
+  }
+
+  return new ApiError(502, 'EMAIL_SEND_FAILED', error?.message || fallbackMessage);
+};
+
+const normalizeAttachmentBuffer = (buffer) => {
+  if (!buffer) {
+    throw new ApiError(500, 'EXPORT_ATTACHMENT_EMPTY', 'Tournament export file could not be generated');
+  }
+
+  if (Buffer.isBuffer(buffer)) {
+    return buffer;
+  }
+
+  if (buffer instanceof ArrayBuffer) {
+    return Buffer.from(buffer);
+  }
+
+  if (ArrayBuffer.isView(buffer)) {
+    return Buffer.from(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  }
+
+  return Buffer.from(buffer);
+};
 
 const createTransporter = async () => {
   const smtp = getSmtpConfig();
@@ -30,21 +133,18 @@ const createTransporter = async () => {
     throw new ApiError(
       503,
       'EMAIL_NOT_CONFIGURED',
-      'Password reset email delivery is not configured on the server'
+      'Email delivery is not configured on the server'
     );
   }
 
-  const transporter = nodemailer.createTransport({
-    host: smtp.host,
-    port: smtp.port,
-    secure: smtp.secure,
-    auth: {
-      user: smtp.user,
-      pass: smtp.pass,
-    },
-  });
+  const transporter = nodemailer.createTransport(buildTransportOptions(smtp));
 
-  await transporter.verify();
+  try {
+    await transporter.verify();
+  } catch (error) {
+    throw mapSmtpError(error, 'SMTP verification failed', smtp);
+  }
+
   return transporter;
 };
 
@@ -91,6 +191,44 @@ const buildResetEmailHtml = ({ name, pin, ttlMinutes }) => {
   `;
 };
 
+const maskEmailAddress = (email) => {
+  const normalized = String(email || '').trim();
+  const atIndex = normalized.indexOf('@');
+
+  if (atIndex <= 1) {
+    return normalized;
+  }
+
+  const local = normalized.slice(0, atIndex);
+  const domain = normalized.slice(atIndex + 1);
+  return `${local.charAt(0)}***@${domain}`;
+};
+
+const buildTournamentExportEmailText = ({ name, tournamentName }) => {
+  const greetingName = name ? ` ${name}` : '';
+
+  return [
+    `Hello${greetingName},`,
+    '',
+    `Your Excel export for "${tournamentName}" is attached.`,
+    '',
+    'Rack-N-Roll',
+  ].join('\n');
+};
+
+const buildTournamentExportEmailHtml = ({ name, tournamentName }) => {
+  const safeName = String(name || 'there').replace(/[<>&"']/g, '');
+  const safeTournamentName = String(tournamentName || 'Tournament').replace(/[<>&"']/g, '');
+
+  return `
+    <div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.5;">
+      <p>Hello ${safeName},</p>
+      <p>Your Excel export for <strong>${safeTournamentName}</strong> is attached.</p>
+      <p>Rack-N-Roll</p>
+    </div>
+  `;
+};
+
 async function sendPasswordResetPinEmail({ toEmail, toName, pin, ttlMinutes }) {
   const deliveryMode = getDeliveryMode();
 
@@ -101,20 +239,67 @@ async function sendPasswordResetPinEmail({ toEmail, toName, pin, ttlMinutes }) {
     return { deliveryMode: 'log' };
   }
 
-  const transporter = await getTransporter();
   const smtp = getSmtpConfig();
+  const transporter = await getTransporter();
 
-  await transporter.sendMail({
-    from: `"${smtp.fromName}" <${smtp.fromEmail}>`,
-    to: toEmail,
-    subject: 'Your Rack-N-Roll password reset PIN',
-    text: buildResetEmailText({ name: toName, pin, ttlMinutes }),
-    html: buildResetEmailHtml({ name: toName, pin, ttlMinutes }),
-  });
+  try {
+    await transporter.sendMail({
+      from: `"${smtp.fromName}" <${smtp.fromEmail}>`,
+      to: toEmail,
+      subject: 'Your Rack-N-Roll password reset PIN',
+      text: buildResetEmailText({ name: toName, pin, ttlMinutes }),
+      html: buildResetEmailHtml({ name: toName, pin, ttlMinutes }),
+    });
+  } catch (error) {
+    throw mapSmtpError(error, 'Unable to send password reset email', smtp);
+  }
 
   return { deliveryMode: 'smtp' };
 }
 
+async function sendTournamentExportEmail({ toEmail, toName, tournamentName, filename, buffer }) {
+  const deliveryMode = getDeliveryMode();
+
+  if (deliveryMode === 'log') {
+    throw new ApiError(
+      503,
+      'EMAIL_NOT_CONFIGURED',
+      'Tournament export email requires SMTP. Set MAIL_DELIVERY_MODE=smtp and SMTP settings in backend/.env.'
+    );
+  }
+
+  const smtp = getSmtpConfig();
+  const transporter = await getTransporter();
+  const attachmentBuffer = normalizeAttachmentBuffer(buffer);
+
+  try {
+    await transporter.sendMail({
+      from: `"${smtp.fromName}" <${smtp.fromEmail}>`,
+      to: toEmail,
+      subject: `${tournamentName} — tournament export`,
+      text: buildTournamentExportEmailText({ name: toName, tournamentName }),
+      html: buildTournamentExportEmailHtml({ name: toName, tournamentName }),
+      attachments: [
+        {
+          filename,
+          content: attachmentBuffer,
+          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        },
+      ],
+    });
+  } catch (error) {
+    throw mapSmtpError(error, 'Unable to send tournament export email', smtp);
+  }
+
+  return {
+    deliveryMode: 'smtp',
+    sentTo: maskEmailAddress(toEmail),
+  };
+}
+
 module.exports = {
   sendPasswordResetPinEmail,
+  sendTournamentExportEmail,
+  getSmtpConfig,
+  buildTransportOptions,
 };

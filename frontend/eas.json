@@ -1,12 +1,14 @@
 {
   "cli": {
-    "version": ">= 14.4.0",
-    "appVersionSource": "remote"
+    "version": ">= 13.0.0"
   },
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "http://localhost:4000"
+      }
     },
     "preview": {
       "distribution": "internal",
@@ -15,7 +17,6 @@
       }
     },
     "production": {
-      "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://rack-n-roll.onrender.com"
       }

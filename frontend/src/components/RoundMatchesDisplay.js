@@ -1,7 +1,11 @@
 import React from 'react';
 import { getSeriesScoringMeta } from '../utils/seriesScoring';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { useTypography } from '../context/TypographyContext';
+import { ScaledText as Text } from './ui/ScaledText';
+import { ScaledTextInput as TextInput } from './ui/ScaledTextInput';
 import { discoverUi, tournamentColors, tournamentUi } from '../styles/tournamentUi';
+import { formatMatchScheduledAt } from './tournament/MatchScheduleModal';
 
 function MatchActionButton({ label, onPress, disabled, variant = 'primary' }) {
   const isPrimary = variant === 'primary';
@@ -48,7 +52,7 @@ const statusTone = (status) => {
     return { bg: '#fef3c7', text: '#b45309', label: 'In progress' };
   }
 
-  return { bg: '#f1f5f9', text: '#475569', label: 'Scheduled' };
+  return { bg: '#f1f5f9', text: '#475569', label: 'Not started' };
 };
 
 const renderRound = ({
@@ -65,8 +69,14 @@ const renderRound = ({
   showSaveButton,
   showAddSeriesButton,
   defaultSeriesMaxGames = 1,
+  useLiveSessionScoring = false,
+  onStartGame,
+  onScheduleMatch,
+  sp = (n) => n,
+  isWide = false,
 }) => {
   const roundKey = round.roundKey || `round-${round.roundNumber}`;
+  const matchPad = isWide ? sp(14) : 12;
   const isRoundOpen = expandedRoundKey === roundKey;
   const isRoundCompleted =
     (round.matches || []).length > 0 &&
@@ -146,16 +156,19 @@ const renderRound = ({
             matchId || `pending-${round.roundNumber}-${match.matchNumber}-${playerAKey}-${playerBKey}`;
           const isSavingThisMatch =
             savingGameId === scoreStateKey || (Boolean(matchId) && savingGameId === matchId);
+          const defaultSeriesMax = Math.max(
+            Number(match.bestOf || 1),
+            Number(defaultSeriesMaxGames || 1),
+            1
+          );
           const scoreInput = scoreInputsByGameId[scoreStateKey] || {
             status: match.status || 'scheduled',
-            seriesMaxGames: Math.max(Number(match.bestOf || 1), Number(defaultSeriesMaxGames || 1), 1),
-            entries: [
-              {
-                gameNumber: 1,
-                playerAScore: '',
-                playerBScore: '',
-              },
-            ],
+            seriesMaxGames: defaultSeriesMax,
+            entries: Array.from({ length: defaultSeriesMax }, (_, index) => ({
+              gameNumber: index + 1,
+              playerAScore: '',
+              playerBScore: '',
+            })),
           };
           const scoreInputEntries = (scoreInput.entries || []).map((entry, entryIndex) => ({
             gameNumber: Number(entry?.gameNumber || entryIndex + 1),
@@ -168,7 +181,36 @@ const renderRound = ({
             configuredBestOf: defaultSeriesMaxGames,
             entryCount: scoreInputEntries.length,
           });
+          while (scoreInputEntries.length < seriesTargetBestOf) {
+            scoreInputEntries.push({
+              gameNumber: scoreInputEntries.length + 1,
+              playerAScore: '',
+              playerBScore: '',
+            });
+          }
           const tone = statusTone(match.status);
+          const canEditThisMatch = match.canEditMatch ?? canEditPatternScores;
+          const hasSavedScores =
+            match.status === 'completed' ||
+            match.status === 'inProgress' ||
+            (Array.isArray(match.scoreEntries) &&
+              match.scoreEntries.some((entry) => {
+                const playerAScore = Number(entry?.playerAScore);
+                const playerBScore = Number(entry?.playerBScore);
+                return (
+                  Number.isFinite(playerAScore) &&
+                  Number.isFinite(playerBScore) &&
+                  !(playerAScore === 0 && playerBScore === 0)
+                );
+              }));
+          const showAppointmentInHeader =
+            Boolean(onScheduleMatch) &&
+            match.canScheduleMatch !== false &&
+            matchId &&
+            match.status === 'scheduled';
+          const appointmentLabel = match.scheduledStartAt
+            ? formatMatchScheduledAt(match.scheduledStartAt)
+            : 'Not scheduled';
 
           return (
             <View
@@ -176,12 +218,12 @@ const renderRound = ({
               style={{
                 borderTopWidth: 1,
                 borderTopColor: tournamentColors.borderLight,
-                padding: 12,
+                padding: matchPad,
                 backgroundColor: '#fafbfc',
               }}
             >
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                <View style={{ flex: 1, gap: 4 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: isWide ? sp(10) : 8 }}>
+                <View style={{ flex: 1, gap: isWide ? sp(6) : 4 }}>
                   <Text style={{ fontWeight: '800', fontSize: 14, color: tournamentColors.text }}>
                     Match {match.matchNumber}
                   </Text>
@@ -191,14 +233,71 @@ const renderRound = ({
                     {playerBName}
                   </Text>
                   <Text style={{ fontSize: 12, color: tournamentColors.textMuted }}>
-                    Best of {seriesTargetBestOf} · {scoreInputEntries.length}/{seriesTargetBestOf} games entered
+                    {useLiveSessionScoring
+                      ? `Best of ${seriesTargetBestOf} · Series ${Number(match.playerASeriesWins || 0)}–${Number(match.playerBSeriesWins || 0)}`
+                      : `Best of ${seriesTargetBestOf} · ${scoreInputEntries.length}/${seriesTargetBestOf} games entered`}
                   </Text>
                 </View>
-                <View style={{ backgroundColor: tone.bg, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 }}>
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: tone.text }}>{tone.label}</Text>
-                </View>
+                {showAppointmentInHeader ? (
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      fontWeight: '600',
+                      color: match.scheduledStartAt ? '#1d4ed8' : tournamentColors.textMuted,
+                      textAlign: 'right',
+                      maxWidth: '45%',
+                    }}
+                  >
+                    {appointmentLabel}
+                  </Text>
+                ) : (
+                  <View style={{ backgroundColor: tone.bg, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: tone.text }}>{tone.label}</Text>
+                  </View>
+                )}
               </View>
 
+              {onScheduleMatch && match.canScheduleMatch !== false && matchId ? (
+                <View style={{ marginTop: 10 }}>
+                  <MatchActionButton
+                    label={match.scheduledStartAt ? 'Reschedule' : 'Schedule match'}
+                    onPress={() =>
+                      onScheduleMatch({
+                        gameId: matchId,
+                        tournamentId: match.tournamentId,
+                        playerAName,
+                        playerBName,
+                        scheduledStartAt: match.scheduledStartAt || null,
+                      })
+                    }
+                    variant="secondary"
+                  />
+                </View>
+              ) : null}
+
+              {useLiveSessionScoring && onStartGame ? (
+                <View style={{ marginTop: 10 }}>
+                  {match.status === 'completed' ? (
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#166534' }}>
+                      Series complete · {Number(match.playerASeriesWins || 0)}–{Number(match.playerBSeriesWins || 0)}
+                    </Text>
+                  ) : (
+                    <MatchActionButton
+                      label={match.status === 'inProgress' ? 'Resume game' : 'Start game'}
+                      onPress={() =>
+                        onStartGame({
+                          gameId: matchId,
+                          tournamentId: match.tournamentId,
+                          playerAName,
+                          playerBName,
+                        })
+                      }
+                      disabled={!canEditPatternScores || !matchId}
+                    />
+                  )}
+                </View>
+              ) : (
+              <>
               <View
                 style={{
                   marginTop: 10,
@@ -261,7 +360,7 @@ const renderRound = ({
                           onChangeScoreInput(scoreStateKey, entryIndex, 'playerAScore', value)
                         }
                         keyboardType="numeric"
-                        editable={canEditPatternScores}
+                        editable={canEditThisMatch}
                       />
                       <TextInput
                         style={{ flex: 1, ...tournamentUi.input, paddingVertical: 8 }}
@@ -271,7 +370,7 @@ const renderRound = ({
                           onChangeScoreInput(scoreStateKey, entryIndex, 'playerBScore', value)
                         }
                         keyboardType="numeric"
-                        editable={canEditPatternScores}
+                        editable={canEditThisMatch}
                       />
                     </View>
                   );
@@ -285,7 +384,7 @@ const renderRound = ({
                     onPress={() =>
                       onAddSeriesGame({ scoreStateKey, scoreInput, seriesMaxGames: seriesTargetBestOf })
                     }
-                    disabled={!canEditPatternScores || isSeriesAtLimit}
+                    disabled={!canEditThisMatch || isSeriesAtLimit}
                     variant="secondary"
                   />
                 </View>
@@ -294,7 +393,13 @@ const renderRound = ({
               {showSaveButton && onSaveMatchScores ? (
                 <View style={{ marginTop: 10 }}>
                   <MatchActionButton
-                    label={isSavingThisMatch ? 'Saving…' : 'Save match scores'}
+                    label={
+                      isSavingThisMatch
+                        ? 'Saving…'
+                        : hasSavedScores
+                          ? 'Update scores'
+                          : 'Save match scores'
+                    }
                     onPress={() =>
                       onSaveMatchScores({
                         gameId: matchId,
@@ -305,10 +410,12 @@ const renderRound = ({
                         bestOf: seriesTargetBestOf,
                       })
                     }
-                    disabled={!canEditPatternScores || isSavingThisMatch}
+                    disabled={!canEditThisMatch || isSavingThisMatch}
                   />
                 </View>
               ) : null}
+              </>
+              )}
             </View>
           );
         })}
@@ -342,6 +449,9 @@ export function RoundMatchesDisplay({
   showAddSeriesButton = false,
   showFinaleActions = false,
   collapsibleSections = false,
+  useLiveSessionScoring = false,
+  onStartGame,
+  onScheduleMatch,
 }) {
   const resolvedExpandedRoundKey =
     expandedRoundKey !== undefined && expandedRoundKey !== null
@@ -350,6 +460,8 @@ export function RoundMatchesDisplay({
         ? `round-${expandedRoundNumber}`
         : null;
 
+  const { sp, isWide } = useTypography();
+
   const handleToggleRound = (roundKey) => {
     if (typeof onToggleRound === 'function') {
       onToggleRound(roundKey);
@@ -357,6 +469,8 @@ export function RoundMatchesDisplay({
   };
 
   const roundRendererProps = {
+    sp,
+    isWide,
     expandedRoundKey: resolvedExpandedRoundKey,
     onToggleRound: handleToggleRound,
     scoreInputsByGameId,
@@ -369,6 +483,9 @@ export function RoundMatchesDisplay({
     showSaveButton,
     showAddSeriesButton,
     defaultSeriesMaxGames,
+    useLiveSessionScoring,
+    onStartGame,
+    onScheduleMatch,
   };
 
   const sections =

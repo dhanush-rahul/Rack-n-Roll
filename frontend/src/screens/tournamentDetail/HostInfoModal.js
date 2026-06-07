@@ -5,11 +5,11 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  Text,
   ToastAndroid,
   useWindowDimensions,
   View,
 } from 'react-native';
+import { ScaledText as Text } from '../../components/ui/ScaledText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActionButton, formatProgressionLabel } from '../../components/tournament/TournamentChrome';
 import { tournamentColors, tournamentUi } from '../../styles/tournamentUi';
@@ -207,7 +207,18 @@ function InviteCodeRow({ inviteCode }) {
   );
 }
 
-export function HostInfoModal({ visible, detail, isLoadingDetail, isLoadingRegistrations, onClose, onRefresh }) {
+export function HostInfoModal({
+  visible,
+  detail,
+  isLoadingDetail,
+  isLoadingRegistrations,
+  isExporting = false,
+  isEmailExporting = false,
+  onClose,
+  onRefresh,
+  onExport,
+  onEmailExport,
+}) {
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const isInviteOnly = detail?.registrationMode === 'inviteOnly';
@@ -340,10 +351,29 @@ export function HostInfoModal({ visible, detail, isLoadingDetail, isLoadingRegis
               gap: 8,
             }}
           >
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <View style={{ flex: 1 }}>
+                <ActionButton
+                  label={isExporting ? 'Exporting…' : 'Export as Excel'}
+                  onPress={onExport}
+                  disabled={isExporting || isRefreshing || isEmailExporting}
+                  fullWidth
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <ActionButton
+                  label={isEmailExporting ? 'Emailing…' : 'Email Export'}
+                  onPress={onEmailExport}
+                  disabled={isEmailExporting || isRefreshing || isExporting}
+                  variant="secondary"
+                  fullWidth
+                />
+              </View>
+            </View>
             <ActionButton
               label={isRefreshing ? 'Refreshing…' : 'Refresh snapshot'}
               onPress={onRefresh}
-              disabled={isRefreshing}
+              disabled={isRefreshing || isExporting || isEmailExporting}
               fullWidth
             />
             <ActionButton label="Close" onPress={onClose} variant="ghost" fullWidth />

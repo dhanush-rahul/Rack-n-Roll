@@ -10,6 +10,7 @@ import {
   AuthTextLink,
 } from '../components/auth/AuthChrome';
 import { ActionButton } from '../components/tournament/TournamentChrome';
+import { LegalFooter } from '../components/legal/LegalLinks';
 import { useAuth } from '../context/AuthContext';
 import { hasValidationErrors, validateSignInInput } from '../utils/authValidation';
 
@@ -36,7 +37,11 @@ export function SignInScreen({ navigation }) {
       await signIn(sanitized);
     } catch (error) {
       if (error?.code === 'NETWORK_ERROR') {
-        setErrorText('Unable to reach the server. Check your connection and try again.');
+        setErrorText(
+          __DEV__
+            ? 'Unable to reach the server. Start the backend (node src/index.js) and restart Expo with -c. Check the Metro log for [rack-n-roll] API base URL.'
+            : 'Unable to reach the server. Check your connection and try again.'
+        );
       } else {
         setErrorText('Invalid email or password. Please try again.');
       }
@@ -99,6 +104,7 @@ export function SignInScreen({ navigation }) {
       </AuthFormCard>
 
       <AuthTextLink prompt="New here?" actionLabel="Create an account" onPress={() => navigation.navigate('SignUp')} />
+      <LegalFooter style={{ marginTop: 4 }} />
     </AuthScreenShell>
   );
 }

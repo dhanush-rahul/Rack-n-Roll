@@ -34,7 +34,3 @@ Desktop.ini
 .vscode/
 *.swp
 *.swo
-package-lock.json
-
-.github/
-architecture/

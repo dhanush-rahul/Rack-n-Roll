@@ -1,11 +1,14 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Pressable, ScrollView, View } from 'react-native';
+import { ScaledText as Text } from '../components/ui/ScaledText';
+import { ScaledTextInput as TextInput } from '../components/ui/ScaledTextInput';
 import { FeedbackModal } from '../components/FeedbackModal';
 import {
+  ActionButton,
   EmptyStateCard,
-  FixtureFilterPanel,
   FixtureSummaryBar,
   GroupStandingsCard,
+  InfoBanner,
   ReadOnlyBanner,
   SectionCard,
   TabStatsRow,
@@ -16,9 +19,17 @@ import {
 import { RoundMatchesDisplay } from '../components/RoundMatchesDisplay';
 import { useGroupStageFixtures } from '../hooks/useGroupStageFixtures';
 import { formatApiError, useScreenFeedback } from '../hooks/useScreenFeedback';
+import { useAuth } from '../context/AuthContext';
+import { ProctorHandoffPanel } from '../components/tournament/ProctorHandoffPanel';
+import { TeamsSection } from './tournamentDetail/TeamsSection';
+import { MatchScheduleModal } from '../components/tournament/MatchScheduleModal';
 import {
+  acceptTournamentProctorTransfer,
+  declineTournamentProctorTransfer,
   fetchTournamentGroupStandings,
   fetchTournamentScoresheet,
+  requestTournamentProctorTransfer,
+  updateTournamentGameSchedule,
 } from '../services/tournamentService';
 import { tournamentUi } from '../styles/tournamentUi';
 import { findActiveFixtureRoundKeyForSection } from '../utils/fixtureDisplay';
@@ -42,18 +53,24 @@ const buildGamePlayerIds = (game) => ({
   playerBId: normalizePlayerId(game.playerB?.userId || game.playerB?.id || game.playerBId),
 });
 
-const SCORESHEET_TABS = [
+const BASE_SCORESHEET_TABS = [
   { id: 'groups', label: 'Groups' },
   { id: 'games', label: 'Games' },
   { id: 'finale', label: 'Finale' },
 ];
 
-export function ScoresheetScreen({ route }) {
+export function ScoresheetScreen({ route, navigation }) {
   const tournamentId = route?.params?.tournamentId;
   const tournamentTitle = route?.params?.tournamentName || 'Tournament';
+  const { currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState('groups');
+  const [canEditPatternScores, setCanEditPatternScores] = useState(false);
+  const [proctorTransferRequest, setProctorTransferRequest] = useState(null);
+  const [assignedProctors, setAssignedProctors] = useState([]);
+  const [isProctorActionBusy, setIsProctorActionBusy] = useState(false);
 
   const [groupsTabItems, setGroupsTabItems] = useState([]);
+  const [handicapEnabled, setHandicapEnabled] = useState(false);
   const [groupPlayerGameStatsById, setGroupPlayerGameStatsById] = useState({});
   const [isLoadingGroupsTab, setIsLoadingGroupsTab] = useState(false);
   const [hasLoadedGroupsTab, setHasLoadedGroupsTab] = useState(false);
@@ -69,8 +86,39 @@ export function ScoresheetScreen({ route }) {
   const [expandedRoundKey, setExpandedRoundKey] = useState(null);
   const [expandedSectionId, setExpandedSectionId] = useState(null);
   const [expandedFinalRoundNumber, setExpandedFinalRoundNumber] = useState(null);
+  const [groupStageProctored, setGroupStageProctored] = useState(false);
+  const [finalStageProctored, setFinalStageProctored] = useState(false);
+  const [isDoubles, setIsDoubles] = useState(false);
+  const [pairFormationMode, setPairFormationMode] = useState('playerPicksPartner');
+  const [progressionState, setProgressionState] = useState('registration');
+  const [tournamentMetaReady, setTournamentMetaReady] = useState(false);
+  const initialTabSetRef = useRef(false);
+  const [scheduleTarget, setScheduleTarget] = useState(null);
+  const [isSavingSchedule, setIsSavingSchedule] = useState(false);
 
-  const groupFixtures = useGroupStageFixtures(tournamentId, groupsTabItems, {});
+  const groupsLocked = ['groupStage', 'finalStage', 'completed'].includes(progressionState);
+
+  const scoresheetTabs = useMemo(() => {
+    if (!isDoubles) {
+      return BASE_SCORESHEET_TABS;
+    }
+
+    return [
+      BASE_SCORESHEET_TABS[0],
+      { id: 'teams', label: 'Teams' },
+      BASE_SCORESHEET_TABS[1],
+      BASE_SCORESHEET_TABS[2],
+    ];
+  }, [isDoubles]);
+
+  const groupFixtures = useGroupStageFixtures(tournamentId, groupsTabItems, {}, {
+    defaultGamesView: 'mine',
+    myGamesUserId: currentUser?.id,
+  });
+
+  useLayoutEffect(() => {
+    navigation.setOptions({ title: tournamentTitle });
+  }, [navigation, tournamentTitle]);
 
   const hydrateScoreInputState = useCallback((items) => {
     const nextState = {};
@@ -135,6 +183,24 @@ export function ScoresheetScreen({ route }) {
       if (page === 1) {
         total = Number(response.pagination?.total || 0);
         totalPages = Math.max(response.pagination?.totalPages || 0, 1);
+        setCanEditPatternScores(Boolean(response.canEdit));
+        setProctorTransferRequest(response.proctorTransferRequest || null);
+        setAssignedProctors(response.proctors || []);
+        if (response.format) {
+          setIsDoubles(String(response.format) === 'doubles');
+        }
+        if (response.pairFormationMode) {
+          setPairFormationMode(response.pairFormationMode);
+        }
+        if (response.progressionState) {
+          setProgressionState(response.progressionState);
+        }
+        if (stage === 'groupStage') {
+          setGroupStageProctored(Boolean(response.groupStageProctored));
+        }
+        if (stage === 'finalStage') {
+          setFinalStageProctored(Boolean(response.finalStageProctored));
+        }
 
         if ((response.pagination?.totalPages || 0) === 0) {
           totalPages = 0;
@@ -314,6 +380,11 @@ export function ScoresheetScreen({ route }) {
       try {
         const response = await fetchTournamentGroupStandings(tournamentId);
         nextGroups = response.groups || [];
+        setHandicapEnabled(Boolean(response.handicapEnabled));
+        setIsDoubles(String(response.format || '') === 'doubles');
+        if (response.pairFormationMode) {
+          setPairFormationMode(response.pairFormationMode);
+        }
         standingsLoaded = true;
       } catch (error) {
         const errorCode = error?.code || error?.response?.data?.error?.code;
@@ -376,6 +447,80 @@ export function ScoresheetScreen({ route }) {
   }, [hydrateScoreInputState, loadAllGamesByStage]);
 
   useEffect(() => {
+    if (!tournamentId) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const loadTournamentMeta = async () => {
+      try {
+        const standingsResponse = await fetchTournamentGroupStandings(tournamentId);
+        if (cancelled) {
+          return;
+        }
+        setIsDoubles(String(standingsResponse.format || '') === 'doubles');
+        if (standingsResponse.pairFormationMode) {
+          setPairFormationMode(standingsResponse.pairFormationMode);
+        }
+        if (standingsResponse.progressionState) {
+          setProgressionState(standingsResponse.progressionState);
+        }
+      } catch {
+        // Standings may be unavailable before groups exist; scoresheet metadata is the fallback.
+      }
+
+      try {
+        const scoresheetResponse = await fetchTournamentScoresheet(tournamentId, {
+          page: 1,
+          pageSize: 1,
+        });
+        if (cancelled) {
+          return;
+        }
+        if (scoresheetResponse.format) {
+          setIsDoubles(String(scoresheetResponse.format) === 'doubles');
+        }
+        if (scoresheetResponse.pairFormationMode) {
+          setPairFormationMode(scoresheetResponse.pairFormationMode);
+        }
+        if (scoresheetResponse.progressionState) {
+          setProgressionState(scoresheetResponse.progressionState);
+        }
+      } catch {
+        // Ignore metadata load errors; tab content loaders will surface failures.
+      }
+    };
+
+    loadTournamentMeta().finally(() => {
+      if (!cancelled) {
+        setTournamentMetaReady(true);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tournamentId]);
+
+  useEffect(() => {
+    if (!tournamentMetaReady || initialTabSetRef.current) {
+      return;
+    }
+
+    initialTabSetRef.current = true;
+
+    if (isDoubles && !groupsLocked) {
+      setActiveTab('teams');
+      return;
+    }
+
+    if (isDoubles && groupsLocked) {
+      setActiveTab('games');
+    }
+  }, [groupsLocked, isDoubles, tournamentMetaReady]);
+
+  useEffect(() => {
     if (activeTab === 'groups' && !hasLoadedGroupsTab) {
       onLoadGroupsTab();
     }
@@ -391,11 +536,16 @@ export function ScoresheetScreen({ route }) {
     if (activeTab === 'finale' && !hasLoadedFinaleTab) {
       onLoadFinaleTab();
     }
+
+    if (activeTab === 'teams' && !hasLoadedGroupsTab && !isLoadingGroupsTab) {
+      onLoadGroupsTab();
+    }
   }, [
     activeTab,
     hasLoadedFinaleTab,
     hasLoadedGamesTab,
     hasLoadedGroupsTab,
+    isLoadingGroupsTab,
     onLoadFinaleTab,
     onLoadGamesTab,
     onLoadGroupsTab,
@@ -404,7 +554,6 @@ export function ScoresheetScreen({ route }) {
   const isLoadingGamesTab = groupFixtures.isLoading;
   const displaySections = groupFixtures.displaySections;
   const fixtureSummaryText = groupFixtures.fixtureSummaryText;
-  const hasActiveGamesFilter = groupFixtures.hasActiveGamesFilter;
 
   const groupedFinaleRounds = useMemo(() => {
     const groupedByRound = (finaleGames || []).reduce((accumulator, game) => {
@@ -462,15 +611,35 @@ export function ScoresheetScreen({ route }) {
     );
   }, []);
 
-  const onApplyGamesFilter = useCallback(async () => {
-    try {
-      clearError();
-      const matches = await groupFixtures.applyFilter();
-      hydrateScoreInputState(matches);
-    } catch (error) {
-      showError(formatApiError(error, 'Unable to filter matches'));
-    }
-  }, [clearError, groupFixtures, hydrateScoreInputState, showError]);
+  const onScheduleMatch = useCallback((target) => {
+    setScheduleTarget(target);
+  }, []);
+
+  const onSaveMatchSchedule = useCallback(
+    async (scheduledStartAt) => {
+      if (!scheduleTarget?.gameId || !tournamentId) {
+        return;
+      }
+
+      try {
+        setIsSavingSchedule(true);
+        clearError();
+        const updated = await updateTournamentGameSchedule(tournamentId, scheduleTarget.gameId, {
+          scheduledStartAt,
+        });
+        groupFixtures.patchGame(updated.id, {
+          scheduledStartAt: updated.scheduledStartAt,
+          canScheduleMatch: updated.canScheduleMatch,
+        });
+        setScheduleTarget(null);
+      } catch (error) {
+        showError(formatApiError(error, 'Unable to save match schedule'));
+      } finally {
+        setIsSavingSchedule(false);
+      }
+    },
+    [clearError, groupFixtures, scheduleTarget, showError, tournamentId]
+  );
 
   const renderMatchCard = useCallback(
     (game, roundNumber, matchNumber) => {
@@ -589,7 +758,7 @@ export function ScoresheetScreen({ route }) {
           eyebrow="SCORESHEET"
           title={tournamentTitle}
           subtitle="Follow standings, fixtures, and results as the tournament progresses."
-          badges={[{ label: 'View only', tone: 'primary' }]}
+          badges={[{ label: canEditPatternScores ? 'Proctor view' : 'View only', tone: 'primary' }]}
           stats={[
             { label: 'GROUPS', value: String(groupsTabItems.length) },
             { label: 'FIXTURES', value: String(displaySections.length) },
@@ -599,16 +768,77 @@ export function ScoresheetScreen({ route }) {
       </View>
 
       <View style={{ marginBottom: 12 }}>
-        <ReadOnlyBanner />
+        <ProctorHandoffPanel
+          currentUserId={currentUser?.id}
+          proctors={assignedProctors}
+          proctorTransferRequest={proctorTransferRequest}
+          isBusy={isProctorActionBusy}
+          onRequestTransfer={async (targetUserId) => {
+            try {
+              setIsProctorActionBusy(true);
+              await requestTournamentProctorTransfer(tournamentId, targetUserId);
+              setProctorTransferRequest({ toUserId: targetUserId, fromUserId: currentUser?.id });
+            } catch (error) {
+              showError(formatApiError(error, 'Unable to request proctor handoff'));
+            } finally {
+              setIsProctorActionBusy(false);
+            }
+          }}
+          onAcceptTransfer={async () => {
+            try {
+              setIsProctorActionBusy(true);
+              await acceptTournamentProctorTransfer(tournamentId);
+              setCanEditPatternScores(true);
+              setProctorTransferRequest(null);
+            } catch (error) {
+              showError(formatApiError(error, 'Unable to accept transfer'));
+            } finally {
+              setIsProctorActionBusy(false);
+            }
+          }}
+          onDeclineTransfer={async () => {
+            try {
+              setIsProctorActionBusy(true);
+              await declineTournamentProctorTransfer(tournamentId);
+              setProctorTransferRequest(null);
+            } catch (error) {
+              showError(formatApiError(error, 'Unable to decline transfer'));
+            } finally {
+              setIsProctorActionBusy(false);
+            }
+          }}
+        />
+        {!canEditPatternScores && <ReadOnlyBanner />}
       </View>
 
       <View style={{ marginBottom: 16 }}>
-        <TournamentSegmentTabs tabs={SCORESHEET_TABS} activeTab={activeTab} onSelectTab={setActiveTab} />
+        <TournamentSegmentTabs tabs={scoresheetTabs} activeTab={activeTab} onSelectTab={setActiveTab} />
       </View>
 
       <FeedbackModal visible={Boolean(errorMessage)} message={errorMessage} onDismiss={clearError} />
+      <MatchScheduleModal
+        visible={Boolean(scheduleTarget)}
+        matchLabel={
+          scheduleTarget
+            ? `${scheduleTarget.playerAName || 'Player A'} vs ${scheduleTarget.playerBName || 'Player B'}`
+            : ''
+        }
+        initialScheduledAt={scheduleTarget?.scheduledStartAt || null}
+        onSave={onSaveMatchSchedule}
+        onCancel={() => setScheduleTarget(null)}
+        isSaving={isSavingSchedule}
+      />
 
-      {activeTab === 'groups' ? (
+      {activeTab === 'teams' ? (
+        <TeamsSection
+          tournamentId={tournamentId}
+          isHost={false}
+          pairFormationMode={pairFormationMode}
+          groupsLocked={groupsLocked}
+          currentUserId={currentUser?.id}
+          onError={(error) => showError(formatApiError(error, 'Unable to update teams'))}
+        />
+      ) : activeTab === 'groups' ? (
         <SectionCard
           title="Group standings"
           subtitle="Rankings update as group-stage matches are completed."
@@ -634,7 +864,8 @@ export function ScoresheetScreen({ route }) {
                 groupName={group.divisionName}
                 standings={group.standings || []}
                 resolvePlayerGameStats={resolveGroupPlayerGameStats}
-                showExtendedStats
+                showScoresheetStats
+                handicapEnabled={handicapEnabled}
               />
             </View>
           ))}
@@ -644,19 +875,30 @@ export function ScoresheetScreen({ route }) {
           title="Group-stage fixtures"
           subtitle="Browse rounds and match results. Scoring is managed by the host."
           headerAction={
-            <View style={{ flexDirection: 'row', gap: 6 }}>
-              <ToolbarIconButton
-                label={groupFixtures.isFilterExpanded ? 'Hide filter' : 'Filter'}
-                onPress={groupFixtures.toggleFilterExpanded}
-              />
-              <ToolbarIconButton
-                label={isLoadingGamesTab ? '…' : 'Refresh'}
-                onPress={onLoadGamesTab}
-                disabled={isLoadingGamesTab}
-              />
-            </View>
+            <ToolbarIconButton
+              label={isLoadingGamesTab ? '…' : 'Refresh'}
+              onPress={onLoadGamesTab}
+              disabled={isLoadingGamesTab}
+            />
           }
         >
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+            <ToolbarIconButton
+              label="My games"
+              active={groupFixtures.isMyGamesView}
+              onPress={() => groupFixtures.setGamesView('mine')}
+              disabled={isLoadingGamesTab}
+              fullWidth
+            />
+            <ToolbarIconButton
+              label="All games"
+              active={!groupFixtures.isMyGamesView}
+              onPress={() => groupFixtures.setGamesView('all')}
+              disabled={isLoadingGamesTab}
+              fullWidth
+            />
+          </View>
+
           {Boolean(fixtureSummaryText) && (
             <View style={{ marginBottom: 12 }}>
               <FixtureSummaryBar text={fixtureSummaryText} />
@@ -679,23 +921,15 @@ export function ScoresheetScreen({ route }) {
             </View>
           )}
 
-          {groupFixtures.isFilterExpanded && (
-            <FixtureFilterPanel
-              playerFilterInput={groupFixtures.playerFilterInput}
-              onPlayerFilterInputChange={groupFixtures.setPlayerFilterInput}
-              opponentFilterInput={groupFixtures.opponentFilterInput}
-              onOpponentFilterInputChange={groupFixtures.setOpponentFilterInput}
-              onClearFilter={groupFixtures.clearFilter}
-              onApplyFilter={onApplyGamesFilter}
-              isLoading={isLoadingGamesTab}
+          {groupFixtures.isMyGamesView && displaySections.length === 0 && !isLoadingGamesTab && (
+            <EmptyStateCard
+              emoji="🎱"
+              title="No matches for you yet"
+              message="Your team fixtures will appear here once groups are assigned."
             />
           )}
 
-          {hasActiveGamesFilter && displaySections.length === 0 && !isLoadingGamesTab && (
-            <EmptyStateCard emoji="🔍" title="No matches found" message="Try different player names in the filter." />
-          )}
-
-          {!hasActiveGamesFilter && displaySections.length === 0 && !isLoadingGamesTab && (
+          {!groupFixtures.isMyGamesView && displaySections.length === 0 && !isLoadingGamesTab && (
             <EmptyStateCard
               emoji="🎱"
               title="No group-stage games"
@@ -715,7 +949,7 @@ export function ScoresheetScreen({ route }) {
               scoreInputsByGameId={scoresByGameId}
               onChangeScoreInput={() => {}}
               savingGameId={null}
-              canEditPatternScores={false}
+              canEditPatternScores={canEditPatternScores}
               filteredActiveRoundNumber={groupFixtures.activeRoundKey}
               canShowFinalStageStep={false}
               isProgressing={false}
@@ -725,6 +959,15 @@ export function ScoresheetScreen({ route }) {
               showSaveButton={false}
               showAddSeriesButton={false}
               showFinaleActions={false}
+              useLiveSessionScoring={groupFixtures.groupStageProctored || groupStageProctored}
+              onStartGame={({ gameId, tournamentId: matchTournamentId }) =>
+                navigation.navigate('LiveMatchSession', {
+                  tournamentId: matchTournamentId || tournamentId,
+                  gameId,
+                  autoStart: true,
+                })
+              }
+              onScheduleMatch={onScheduleMatch}
             />
           )}
         </SectionCard>

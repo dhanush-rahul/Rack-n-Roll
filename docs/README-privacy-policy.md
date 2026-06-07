@@ -2,11 +2,13 @@
 
 Google Play requires a **public URL** to your privacy policy (not a file in the repo alone).
 
+See also **`README-legal-docs.md`** for Terms and Conditions hosting and in-app link locations.
+
 ## 1. Customize the policy
 
-Edit `docs/privacy-policy.html`:
+Edit `docs/privacy-policy.html` and `docs/terms-and-conditions.html`:
 
-- Replace `YOUR_EMAIL@example.com` with your real contact email (two places).
+- Replace `YOUR_EMAIL@example.com` with your real contact email.
 - Adjust the "Last updated" date if you change the text.
 
 ## 2. Publish with GitHub Pages (free)

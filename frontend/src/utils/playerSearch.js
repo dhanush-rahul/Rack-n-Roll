@@ -88,6 +88,30 @@ export const buildPlayerSearchIndex = (groupsTabItems = [], games = []) => {
       divisionId: game.divisionId,
       divisionName: game.divisionName,
     });
+    addPlayer(game.teamA?.player1Id || game.teamA?.player1?.id, {
+      displayName: game.teamA?.player1?.displayName,
+      userId: game.teamA?.player1?.userId,
+      divisionId: game.divisionId,
+      divisionName: game.divisionName,
+    });
+    addPlayer(game.teamA?.player2Id || game.teamA?.player2?.id, {
+      displayName: game.teamA?.player2?.displayName,
+      userId: game.teamA?.player2?.userId,
+      divisionId: game.divisionId,
+      divisionName: game.divisionName,
+    });
+    addPlayer(game.teamB?.player1Id || game.teamB?.player1?.id, {
+      displayName: game.teamB?.player1?.displayName,
+      userId: game.teamB?.player1?.userId,
+      divisionId: game.divisionId,
+      divisionName: game.divisionName,
+    });
+    addPlayer(game.teamB?.player2Id || game.teamB?.player2?.id, {
+      displayName: game.teamB?.player2?.displayName,
+      userId: game.teamB?.player2?.userId,
+      divisionId: game.divisionId,
+      divisionName: game.divisionName,
+    });
   });
 
   (groupsTabItems || []).forEach((group) => {
@@ -249,3 +273,72 @@ export const filterGamesByPlayerQueries = (
   games.filter((game) =>
     doesGameMatchPlayerFilters(game, playerQuery, player2Query, playerSearchIndex)
   );
+
+export const doesGameIncludeUserId = (game, userId, { playerSearchIndex = new Map() } = {}) => {
+  const normalizedUserId = String(userId || '').trim();
+
+  if (!normalizedUserId) {
+    return false;
+  }
+
+  const userPlayerIds = new Set();
+  playerSearchIndex.forEach((player, playerId) => {
+    if (String(player.userId || '') === normalizedUserId) {
+      userPlayerIds.add(String(playerId));
+    }
+  });
+
+  if (game.teamAId || game.teamBId || game.teamA || game.teamB) {
+    const memberUserIds = [
+      game.teamA?.player1?.userId,
+      game.teamA?.player2?.userId,
+      game.teamB?.player1?.userId,
+      game.teamB?.player2?.userId,
+    ]
+      .filter(Boolean)
+      .map((value) => String(value));
+
+    if (memberUserIds.includes(normalizedUserId)) {
+      return true;
+    }
+
+    const teamPlayerIds = [
+      game.teamA?.player1Id,
+      game.teamA?.player2Id,
+      game.teamB?.player1Id,
+      game.teamB?.player2Id,
+      game.teamA?.player1?.id,
+      game.teamA?.player2?.id,
+      game.teamB?.player1?.id,
+      game.teamB?.player2?.id,
+    ]
+      .filter(Boolean)
+      .map((value) => String(value));
+
+    return teamPlayerIds.some((playerId) => userPlayerIds.has(playerId));
+  }
+
+  const participantUserIds = [game.playerA?.userId, game.playerB?.userId]
+    .filter(Boolean)
+    .map((value) => String(value));
+
+  if (participantUserIds.includes(normalizedUserId)) {
+    return true;
+  }
+
+  const participantPlayerIds = [game.playerAId, game.playerBId, game.playerA?.id, game.playerB?.id]
+    .filter(Boolean)
+    .map((value) => String(value));
+
+  return participantPlayerIds.some((playerId) => userPlayerIds.has(playerId));
+};
+
+export const filterGamesByUserId = (games = [], userId, { playerSearchIndex = new Map() } = {}) => {
+  const normalizedUserId = String(userId || '').trim();
+
+  if (!normalizedUserId) {
+    return games;
+  }
+
+  return games.filter((game) => doesGameIncludeUserId(game, normalizedUserId, { playerSearchIndex }));
+};

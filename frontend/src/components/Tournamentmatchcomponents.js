@@ -1,5 +1,7 @@
 import React, { useCallback } from 'react';
-import { Button, Pressable, Text, TextInput, View } from 'react-native';
+import { Button, Pressable, View } from 'react-native';
+import { ScaledText as Text } from './ui/ScaledText';
+import { ScaledTextInput as TextInput } from './ui/ScaledTextInput';
 
 export const isPlayedScoreEntry = (entry) => {
   const playerAScore = Number(entry?.playerAScore);

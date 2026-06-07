@@ -31,6 +31,17 @@ const playerSchema = new mongoose.Schema(
       min: 0,
       max: 300,
     },
+    teamId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Team',
+      default: null,
+      index: true,
+    },
+    awaitingPartner: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
     status: {
       type: String,
       enum: ['active', 'removed'],
@@ -44,6 +55,16 @@ const playerSchema = new mongoose.Schema(
 );
 
 playerSchema.index({ tournamentId: 1, displayName: 1 });
+playerSchema.index(
+  { tournamentId: 1, userId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      status: 'active',
+      userId: { $type: 'objectId' },
+    },
+  }
+);
 
 const Player = mongoose.model('Player', playerSchema);
 

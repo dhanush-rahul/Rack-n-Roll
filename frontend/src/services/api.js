@@ -1,10 +1,13 @@
 import axios from 'axios/dist/browser/axios.cjs';
-import { Platform } from 'react-native';
+import { resolveApiBaseUrl } from '../config/apiBaseUrl';
 import { getToken } from '../utils/tokenStore';
+import { wakeBackendIfNeeded } from './systemService';
 
-const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_BASE_URL ||
-  (Platform.OS === 'android' ? 'http://10.0.2.2:4000' : 'http://localhost:4000');
+const API_BASE_URL = resolveApiBaseUrl();
+
+if (__DEV__) {
+  console.log('[rack-n-roll] API base URL:', API_BASE_URL);
+}
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -12,6 +15,12 @@ const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use(async (config) => {
+  const isHealthCheck = String(config.url || '').includes('/health');
+
+  if (!isHealthCheck) {
+    await wakeBackendIfNeeded();
+  }
+
   const token = await getToken();
 
   if (token) {
@@ -64,6 +73,20 @@ export async function apiPost(path, body, config) {
   return response.data;
 }
 
+/** Retry once after waking backend when Render cold-start causes NETWORK_ERROR. */
+export async function apiPostWithWakeRetry(path, body, config) {
+  try {
+    return await apiPost(path, body, config);
+  } catch (error) {
+    if (error?.code !== 'NETWORK_ERROR') {
+      throw error;
+    }
+
+    await wakeBackendIfNeeded({ force: true });
+    return apiPost(path, body, config);
+  }
+}
+
 export async function apiPut(path, body, config) {
   const response = await apiClient.put(path, body, config);
   return response.data;
@@ -71,6 +94,11 @@ export async function apiPut(path, body, config) {
 
 export async function apiPatch(path, body, config) {
   const response = await apiClient.patch(path, body, config);
+  return response.data;
+}
+
+export async function apiDelete(path, config) {
+  const response = await apiClient.delete(path, config);
   return response.data;
 }
 

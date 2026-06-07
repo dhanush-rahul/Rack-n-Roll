@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { ScaledText as Text } from '../components/ui/ScaledText';
 import {
   AuthErrorBanner,
   AuthField,
@@ -10,6 +11,7 @@ import {
   AuthScreenShell,
   AuthTextLink,
 } from '../components/auth/AuthChrome';
+import { LegalConsent, LegalFooter } from '../components/legal/LegalLinks';
 import { useAuth } from '../context/AuthContext';
 import { tournamentColors } from '../styles/tournamentUi';
 import { hasValidationErrors, validateSignUpInput } from '../utils/authValidation';
@@ -138,6 +140,16 @@ export function SignUpScreen({ navigation }) {
           </Text>
         </View>
 
+        <LegalConsent
+          checked={acceptedLegal}
+          onToggle={(value) => {
+            setAcceptedLegal(value);
+            setLegalError('');
+            setErrorText('');
+          }}
+          error={legalError}
+        />
+
         <AuthPrimaryButton
           label="Create account"
           onPress={onSubmit}
@@ -147,6 +159,7 @@ export function SignUpScreen({ navigation }) {
       </AuthFormCard>
 
       <AuthTextLink prompt="Already registered?" actionLabel="Sign in" onPress={() => navigation.navigate('SignIn')} />
+      <LegalFooter style={{ marginTop: 4 }} />
     </AuthScreenShell>
   );
 }

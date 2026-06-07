@@ -1,5 +1,6 @@
 import React from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { ScaledText as Text } from '../../components/ui/ScaledText';
 import { TournamentMatchScoringPanel } from '../../components/TournamentMatchScoringPanel';
 import {
   ActionButton,
@@ -46,6 +47,9 @@ export function GamesTab({
   onRequestStartFinale,
   onRequestSkipFinale,
   onAddSeriesGame,
+  onStartGame,
+  onScheduleMatch,
+  groupStageProctored = false,
 }) {
   if (!isRegistrationClosed) {
     return (
@@ -74,46 +78,18 @@ export function GamesTab({
 
   return (
     <View>
-      {canShowFinalStageStep && (
-        <View style={{ marginBottom: 14 }}>
-          <SectionCard
-            title="Ready for finale?"
-            subtitle="When group-stage matches are done, pick finalists or skip straight to completing the event."
-          >
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <View style={{ flex: 1 }}>
-                <ActionButton
-                  label={isLoadingFinaleCandidates ? 'Loading…' : 'Start finale'}
-                  onPress={onRequestStartFinale}
-                  disabled={isProgressing || isLoadingFinaleCandidates}
-                  fullWidth
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <ActionButton
-                  label={isProgressing ? 'Working…' : 'Skip finale'}
-                  onPress={onRequestSkipFinale}
-                  disabled={isProgressing}
-                  variant="ghost"
-                  fullWidth
-                />
-              </View>
-            </View>
-          </SectionCard>
-        </View>
-      )}
-
       <SectionCard
         title="Group-stage fixtures"
         subtitle={
           canEditGamesScores
-            ? 'Expand a group, score each match, and save.'
+            ? 'Tap Start game on a match to run the live proctor session.'
             : 'Browse schedules and results by group and round.'
         }
         headerAction={
           <View style={{ flexDirection: 'row', gap: 6 }}>
             <ToolbarIconButton
-              label={isGamesFilterExpanded ? 'Hide filter' : 'Filter'}
+              label="Filter"
+              active={isGamesFilterExpanded}
               onPress={onToggleGamesFilter}
             />
             <ToolbarIconButton label={isLoadingGames ? '…' : 'Refresh'} onPress={onRefreshGames} disabled={isLoadingGames} />
@@ -202,8 +178,42 @@ export function GamesTab({
           onAddSeriesGame={onAddSeriesGame}
           showFinaleActions={false}
           isLoading={isLoadingGames}
+          useLiveSessionScoring={groupStageProctored}
+          onStartGame={onStartGame}
+          onScheduleMatch={onScheduleMatch}
+          showSaveButton={!groupStageProctored}
+          showAddSeriesButton={false}
         />
       </SectionCard>
+
+      {canShowFinalStageStep && (
+        <View style={{ marginTop: 14 }}>
+          <SectionCard
+            title="Ready for finale?"
+            subtitle="When group-stage matches are done, pick finalists or skip straight to completing the event."
+          >
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <View style={{ flex: 1 }}>
+                <ActionButton
+                  label={isLoadingFinaleCandidates ? 'Loading…' : 'Start finale'}
+                  onPress={onRequestStartFinale}
+                  disabled={isProgressing || isLoadingFinaleCandidates}
+                  fullWidth
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <ActionButton
+                  label={isProgressing ? 'Working…' : 'Skip finale'}
+                  onPress={onRequestSkipFinale}
+                  disabled={isProgressing}
+                  variant="ghost"
+                  fullWidth
+                />
+              </View>
+            </View>
+          </SectionCard>
+        </View>
+      )}
     </View>
   );
 }

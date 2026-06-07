@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { ScaledText as Text } from '../../components/ui/ScaledText';
 import { TournamentMatchScoringPanel } from '../../components/TournamentMatchScoringPanel';
 import {
   ActionButton,
@@ -31,6 +32,8 @@ export function FinaleTab({
   isProgressing,
   hasFinalStageStarted,
   onCompleteWithFinale,
+  onStartGame,
+  finalStageProctored = false,
 }) {
   const matchCount = useMemo(
     () =>
@@ -133,6 +136,9 @@ export function FinaleTab({
           isProgressing={isProgressing}
           showFinaleActions={false}
           isLoading={isLoadingFinaleTab}
+          useLiveSessionScoring={finalStageProctored}
+          onStartGame={onStartGame}
+          showSaveButton={!finalStageProctored}
         />
       </SectionCard>
 

@@ -1,12 +1,12 @@
-import { apiPost } from './api';
+import { apiPost, apiPostWithWakeRetry } from './api';
 
 export async function signupUser({ name, email, password }) {
-  const response = await apiPost('/api/auth/signup', { name, email, password });
+  const response = await apiPostWithWakeRetry('/api/auth/signup', { name, email, password });
   return response.data;
 }
 
 export async function loginUser({ email, password }) {
-  const response = await apiPost('/api/auth/login', { email, password });
+  const response = await apiPostWithWakeRetry('/api/auth/login', { email, password });
   return response.data;
 }
 

@@ -7,7 +7,7 @@ import {
 } from '../utils/fixtureDisplay';
 import { buildGroupDisplayName, buildDivisionOrderIndex } from '../utils/groupNaming';
 import { mergeFilteredGamesAfterSave } from '../utils/fixtureFilterMerge';
-import { buildPlayerSearchIndex, filterGamesByPlayerQueries } from '../utils/playerSearch';
+import { buildPlayerSearchIndex, filterGamesByPlayerQueries, filterGamesByUserId } from '../utils/playerSearch';
 
 const isPlayedScoreEntry = (entry) => {
   const playerAScore = Number(entry?.playerAScore);
@@ -32,18 +32,25 @@ const resolveGroupStageBestOf = (groupStageBestOfOrConfig) => {
   return groupStageBestOfOrConfig;
 };
 
-export function useGroupStageFixtures(tournamentId, groupsTabItems = [], groupStageBestOfOrConfig) {
+export function useGroupStageFixtures(
+  tournamentId,
+  groupsTabItems = [],
+  groupStageBestOfOrConfig,
+  { defaultGamesView = 'all', myGamesUserId = null } = {}
+) {
   const resolvedGroupStageBestOf = resolveGroupStageBestOf(groupStageBestOfOrConfig);
   const [games, setGames] = useState([]);
   const [fixtureTotal, setFixtureTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
+  const [groupStageProctored, setGroupStageProctored] = useState(false);
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
   const [playerFilterInput, setPlayerFilterInput] = useState('');
   const [opponentFilterInput, setOpponentFilterInput] = useState('');
   const [appliedPlayerFilter, setAppliedPlayerFilter] = useState('');
   const [appliedOpponentFilter, setAppliedOpponentFilter] = useState('');
   const [filterMatchedGames, setFilterMatchedGames] = useState(null);
+  const [gamesView, setGamesView] = useState(defaultGamesView);
 
   const loadGroupStageScores = useCallback(
     async ({ playerQuery, player2Query, updateMainList = true } = {}) => {
@@ -64,6 +71,7 @@ export function useGroupStageFixtures(tournamentId, groupsTabItems = [], groupSt
 
         if (page === 1) {
           setCanEdit(Boolean(response.canEdit));
+          setGroupStageProctored(Boolean(response.groupStageProctored));
 
           if (updateMainList) {
             setFixtureTotal(Number(response.pagination?.total || 0));
@@ -130,16 +138,24 @@ export function useGroupStageFixtures(tournamentId, groupsTabItems = [], groupSt
     String(appliedPlayerFilter || '').trim() || String(appliedOpponentFilter || '').trim()
   );
 
+  const isMyGamesView = gamesView === 'mine';
+
   const filteredGames = useMemo(() => {
-    if (!hasActiveGamesFilter) {
-      return games;
+    let nextGames = games;
+
+    if (isMyGamesView && myGamesUserId) {
+      nextGames = filterGamesByUserId(nextGames, myGamesUserId, { playerSearchIndex });
     }
 
     if (Array.isArray(filterMatchedGames)) {
       return filterMatchedGames;
     }
 
-    return filterGamesByPlayerQueries(games, appliedPlayerFilter, appliedOpponentFilter, {
+    if (!String(appliedPlayerFilter || '').trim() && !String(appliedOpponentFilter || '').trim()) {
+      return nextGames;
+    }
+
+    return filterGamesByPlayerQueries(nextGames, appliedPlayerFilter, appliedOpponentFilter, {
       playerSearchIndex,
     });
   }, [
@@ -147,7 +163,8 @@ export function useGroupStageFixtures(tournamentId, groupsTabItems = [], groupSt
     appliedPlayerFilter,
     filterMatchedGames,
     games,
-    hasActiveGamesFilter,
+    isMyGamesView,
+    myGamesUserId,
     playerSearchIndex,
   ]);
 
@@ -169,10 +186,14 @@ export function useGroupStageFixtures(tournamentId, groupsTabItems = [], groupSt
       return '';
     }
 
-    const total = hasActiveGamesFilter
+    const total = hasActiveGamesFilter || isMyGamesView
       ? loadedCount
       : Math.max(fixtureTotal, loadedCount, games.length);
     const groupCount = displaySections.length;
+
+    if (isMyGamesView) {
+      return `${loadedCount} of your ${loadedCount === 1 ? 'match' : 'matches'}${groupCount > 1 ? ` across ${groupCount} groups` : ''}`;
+    }
 
     if (hasActiveGamesFilter) {
       return `${loadedCount} matching ${loadedCount === 1 ? 'fixture' : 'fixtures'}${groupCount > 1 ? ` across ${groupCount} groups` : ''}`;
@@ -183,7 +204,7 @@ export function useGroupStageFixtures(tournamentId, groupsTabItems = [], groupSt
     }
 
     return `${total} group-stage fixtures`;
-  }, [displaySections, fixtureTotal, games.length, hasActiveGamesFilter]);
+  }, [displaySections, fixtureTotal, games.length, hasActiveGamesFilter, isMyGamesView]);
 
   const activeRoundKey = useMemo(() => findActiveFixtureRoundKey(displaySections), [displaySections]);
 
@@ -253,7 +274,7 @@ export function useGroupStageFixtures(tournamentId, groupsTabItems = [], groupSt
     setAppliedPlayerFilter('');
     setAppliedOpponentFilter('');
     setFilterMatchedGames(null);
-    setIsFilterExpanded(true);
+    setIsFilterExpanded(false);
   }, []);
 
   const refresh = useCallback(
@@ -331,11 +352,28 @@ export function useGroupStageFixtures(tournamentId, groupsTabItems = [], groupSt
     });
   }, [appliedOpponentFilter, appliedPlayerFilter]);
 
+  const patchGame = useCallback((gameId, patch) => {
+    const normalizedGameId = String(gameId || '').trim();
+
+    if (!normalizedGameId) {
+      return;
+    }
+
+    const applyPatch = (game) =>
+      String(game.id || '') === normalizedGameId ? { ...game, ...patch } : game;
+
+    setGames((previousGames) => previousGames.map(applyPatch));
+    setFilterMatchedGames((previousGames) =>
+      Array.isArray(previousGames) ? previousGames.map(applyPatch) : previousGames
+    );
+  }, []);
+
   return {
     games,
     fixtureTotal,
     isLoading,
     canEdit,
+    groupStageProctored,
     isFilterExpanded,
     playerFilterInput,
     opponentFilterInput,
@@ -343,6 +381,8 @@ export function useGroupStageFixtures(tournamentId, groupsTabItems = [], groupSt
     appliedOpponentFilter,
     filterMatchedGames,
     hasActiveGamesFilter,
+    gamesView,
+    isMyGamesView,
     divisionNameById,
     divisionOrderIndex,
     playerSearchIndex,
@@ -355,6 +395,8 @@ export function useGroupStageFixtures(tournamentId, groupsTabItems = [], groupSt
     clearFilter,
     refresh,
     toggleFilterExpanded,
+    setGamesView,
+    patchGame,
     setPlayerFilterInput,
     setOpponentFilterInput,
     setIsFilterExpanded,

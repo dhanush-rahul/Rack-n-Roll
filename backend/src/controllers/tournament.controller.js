@@ -1,3 +1,4 @@
+const { exportTournamentWorkbook, emailTournamentExport } = require('../services/tournamentExport.service');
 const {
   createTournament,
   listDiscoverTournaments,
@@ -13,8 +14,12 @@ const {
   manuallyRemoveParticipant,
   assignScoreEditor,
   removeScoreEditor,
+  requestProctorTransfer,
+  acceptProctorTransfer,
+  declineProctorTransfer,
   listTournamentScoresheet,
   updateGameScores,
+  updateGameSchedule,
   upsertAndScoreGroupStageGame,
   getRoundRobinPlayingPattern,
   recomputeLeaderboardForScope,
@@ -30,6 +35,17 @@ const {
   listGroupStandings,
   listGroupStandingsForHost,
 } = require('../services/tournament.service');
+const {
+  startGameSession,
+  getLiveMatchState,
+  requestLiveMatchTakeover,
+  handoffLiveMatchScoring,
+  hostForceTakeoverLiveMatch,
+  declineLiveMatchTakeover,
+  cancelLiveMatchTakeover,
+  advanceGameTurn,
+  endSeriesGame,
+} = require('../services/liveMatch.service');
 
 const createTournamentController = async (req, res, next) => {
   try {
@@ -229,6 +245,49 @@ const removeScoreEditorController = async (req, res, next) => {
   }
 };
 
+const requestProctorTransferController = async (req, res, next) => {
+  try {
+    const result = await requestProctorTransfer(
+      req.params.tournamentId,
+      req.auth?.userId,
+      req.body?.targetUserId
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const acceptProctorTransferController = async (req, res, next) => {
+  try {
+    const result = await acceptProctorTransfer(req.params.tournamentId, req.auth?.userId);
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const declineProctorTransferController = async (req, res, next) => {
+  try {
+    const result = await declineProctorTransfer(req.params.tournamentId, req.auth?.userId);
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 const listTournamentScoresheetController = async (req, res, next) => {
   try {
     const result = await listTournamentScoresheet(req.params.tournamentId, req.auth?.userId, req.query);
@@ -359,6 +418,24 @@ const updateGameScoresController = async (req, res, next) => {
   }
 };
 
+const updateGameScheduleController = async (req, res, next) => {
+  try {
+    const result = await updateGameSchedule(
+      req.params.tournamentId,
+      req.params.gameId,
+      req.auth?.userId,
+      req.body
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 const upsertAndScoreGroupStageGameController = async (req, res, next) => {
   try {
     const result = await upsertAndScoreGroupStageGame(req.params.tournamentId, req.auth?.userId, req.body);
@@ -412,6 +489,144 @@ const recomputeTournamentLeaderboardController = async (req, res, next) => {
   }
 };
 
+const startGameSessionController = async (req, res, next) => {
+  try {
+    const result = await startGameSession(req.params.tournamentId, req.params.gameId, req.auth?.userId);
+    return res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const getLiveMatchStateController = async (req, res, next) => {
+  try {
+    const result = await getLiveMatchState(req.params.tournamentId, req.params.gameId, req.auth?.userId);
+    return res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const advanceGameTurnController = async (req, res, next) => {
+  try {
+    const result = await advanceGameTurn(
+      req.params.tournamentId,
+      req.params.gameId,
+      req.auth?.userId,
+      req.body
+    );
+    return res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const endSeriesGameController = async (req, res, next) => {
+  try {
+    const result = await endSeriesGame(
+      req.params.tournamentId,
+      req.params.gameId,
+      req.auth?.userId,
+      req.body
+    );
+    return res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const requestLiveMatchTakeoverController = async (req, res, next) => {
+  try {
+    const result = await requestLiveMatchTakeover(
+      req.params.tournamentId,
+      req.params.gameId,
+      req.auth?.userId
+    );
+    return res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const handoffLiveMatchScoringController = async (req, res, next) => {
+  try {
+    const result = await handoffLiveMatchScoring(
+      req.params.tournamentId,
+      req.params.gameId,
+      req.auth?.userId
+    );
+    return res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const declineLiveMatchTakeoverController = async (req, res, next) => {
+  try {
+    const result = await declineLiveMatchTakeover(
+      req.params.tournamentId,
+      req.params.gameId,
+      req.auth?.userId
+    );
+    return res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const cancelLiveMatchTakeoverController = async (req, res, next) => {
+  try {
+    const result = await cancelLiveMatchTakeover(
+      req.params.tournamentId,
+      req.params.gameId,
+      req.auth?.userId
+    );
+    return res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const hostForceTakeoverLiveMatchController = async (req, res, next) => {
+  try {
+    const result = await hostForceTakeoverLiveMatch(
+      req.params.tournamentId,
+      req.params.gameId,
+      req.auth?.userId
+    );
+    return res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const exportTournamentXlsxController = async (req, res, next) => {
+  try {
+    const { buffer, filename } = await exportTournamentWorkbook(
+      req.params.tournamentId,
+      req.auth?.userId
+    );
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.status(200).send(buffer);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const emailTournamentExportController = async (req, res, next) => {
+  try {
+    const result = await emailTournamentExport(req.params.tournamentId, req.auth?.userId);
+    return res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 module.exports = {
   createTournamentController,
   discoverTournamentsController,
@@ -427,8 +642,12 @@ module.exports = {
   manuallyRemoveParticipantController,
   assignScoreEditorController,
   removeScoreEditorController,
+  requestProctorTransferController,
+  acceptProctorTransferController,
+  declineProctorTransferController,
   listTournamentScoresheetController,
   updateGameScoresController,
+  updateGameScheduleController,
   upsertAndScoreGroupStageGameController,
   listTournamentLeaderboardController,
   getRoundRobinPlayingPatternController,
@@ -441,4 +660,15 @@ module.exports = {
   startFinalStageFromGroupsController,
   finalizeTournamentWithoutFinalStageController,
   finalizeTournamentWithFinalStageController,
+  startGameSessionController,
+  getLiveMatchStateController,
+  requestLiveMatchTakeoverController,
+  handoffLiveMatchScoringController,
+  declineLiveMatchTakeoverController,
+  cancelLiveMatchTakeoverController,
+  hostForceTakeoverLiveMatchController,
+  advanceGameTurnController,
+  endSeriesGameController,
+  exportTournamentXlsxController,
+  emailTournamentExportController,
 };

@@ -1,0 +1,71 @@
+flowchart LR
+  subgraph FE[Frontend - React Native + Expo]
+    Screens[ScreensnDiscover  Tournament Detail  Scoresheet  Auth]
+    APIClient[srcservicesapi.jsnSingle API gateway]
+    TokenStore[Token PersistencenSecure local storage]
+    DeviceLoc[Device Location Permission]
+    RegionPref[Saved Region Preferencencountryprovince]
+  end
+
+  subgraph BE[Backend - Node.js + Express]
+    Routes[Routes]
+    Controllers[ControllersnHTTP-only concerns]
+    Services[ServicesnBusiness logic]
+    AuthZ[AuthNAuthZ MiddlewarenHost + Score Editor checks]
+  end
+
+  subgraph DM[Domain Models - Mongoose]
+    Tournament[Tournamentn- hostUserIdn- scoreEditorUserIds (max 2)n- location.type=Pointn- location.coordinates=[lng,lat]n- countryCodeprovinceCodecityformattedAddressn- 2dsphere index]
+    Division[Divisionnbelongs to Tournament]
+    Game[Gamenbelongs to Tournamentnand usually Divisionnper-game score entries]
+    Player[Playernprofile + handicap fields]
+    Leaderboard[Leaderboardncomputed ranking viewn(derived from Games)]
+  end
+
+  DB[(MongoDB)]
+
+  Screens -- APIClient
+  APIClient -- Routes
+
+  Routes -- AuthZ
+  AuthZ -- Controllers
+  Controllers -- Services
+  Services -- Tournament
+  Services -- Division
+  Services -- Game
+  Services -- Player
+  Services -- Leaderboard
+
+  Tournament -- DB
+  Division -- DB
+  Game -- DB
+  Player -- DB
+  Leaderboard -- DB
+
+  Tournament --1.. Division
+  Division --1.. Player
+  Tournament --1.. Game
+  Division --0.. Game
+  Game --recompute Leaderboard
+
+  DeviceLoc --1st priority Screens
+  RegionPref --2nd priority Screens
+  Screens --fallback APIClient
+
+  HostCreate[Create Tournamentn(map pickcurrent location)] -- APIClient
+  APIClient --POST tournaments Routes
+  Services --validate geo + host ownership Tournament
+
+  ScoreEntry[SubmitUpdate Scores] -- APIClient
+  APIClient --PATCH gamesidscores Routes
+  AuthZ --allow host or assigned score editor Controllers
+  Services --write scores Game
+  Services --recompute standings Leaderboard
+
+  EditorMgmt[AssignRemove Score Editors] -- APIClient
+  APIClient --PATCH tournamentsideditors Routes
+  AuthZ --allow host only Controllers
+  Services --enforce max 2 editors Tournament
+
+  Viewer[Non-authorized user] -- Screens
+  Screens --read-only scoresheet UI APIClient

@@ -33,7 +33,10 @@ export const tournamentUi = {
     borderWidth: 1,
     borderColor: tournamentColors.border,
     borderRadius: 8,
-    padding: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    fontSize: 16,
+    color: tournamentColors.text,
   },
   tab: (active) => ({
     flex: 1,

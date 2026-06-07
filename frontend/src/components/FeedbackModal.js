@@ -1,5 +1,6 @@
 import React from 'react';
-import { Modal, Pressable, Text, View } from 'react-native';
+import { Modal, Pressable, View } from 'react-native';
+import { ScaledText as Text } from './ui/ScaledText';
 import { tournamentUi } from '../styles/tournamentUi';
 
 export function FeedbackModal({ visible, title, message, onDismiss, emoji = '🤔' }) {

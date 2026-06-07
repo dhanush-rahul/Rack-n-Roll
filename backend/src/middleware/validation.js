@@ -135,6 +135,22 @@ const validateCreateTournament = (req) => {
   if (!parsedStartsAt || Number.isNaN(parsedStartsAt.getTime())) {
     throw new ApiError(400, 'INVALID_STARTS_AT', 'startsAt must be a valid date-time');
   }
+
+  const groupStageBestOf =
+    body.competitionConfig?.groupStageBestOf ?? body.groupStageBestOf;
+
+  if (groupStageBestOf !== undefined && groupStageBestOf !== null && groupStageBestOf !== '') {
+    const parsed = Number.parseInt(groupStageBestOf, 10);
+    if (![1, 3, 5, 7].includes(parsed)) {
+      throw new ApiError(400, 'INVALID_GROUP_STAGE_BEST_OF', 'groupStageBestOf must be 1, 3, 5, or 7');
+    }
+  }
+
+  const handicapFlag =
+    body.competitionConfig?.handicapEnabled ?? body.handicapEnabled;
+  if (handicapFlag !== undefined && typeof handicapFlag !== 'boolean') {
+    throw new ApiError(400, 'INVALID_HANDICAP_FLAG', 'handicapEnabled must be a boolean');
+  }
 };
 
 const validateInviteCodePayload = (req) => {
@@ -241,6 +257,36 @@ const validateAssignScoreEditor = (req) => {
 const validateRemoveScoreEditor = (req) => {
   ensureObjectIdParam(req, 'tournamentId');
   ensureObjectIdParam(req, 'editorUserId');
+};
+
+const validateProctorTransferRequest = (req) => {
+  ensureObjectIdParam(req, 'tournamentId');
+  const targetUserId = parseBody(req).targetUserId;
+
+  if (!isObjectId(targetUserId) || !mongoose.Types.ObjectId.isValid(targetUserId)) {
+    throw new ApiError(400, 'INVALID_ID', 'targetUserId must be a valid ObjectId');
+  }
+};
+
+const validateProctorTransferAction = (req) => {
+  ensureObjectIdParam(req, 'tournamentId');
+};
+
+const validateLiveMatchGameRoute = (req) => {
+  ensureObjectIdParam(req, 'tournamentId');
+  ensureObjectIdParam(req, 'gameId');
+};
+
+const validateEndSeriesGame = (req) => {
+  validateLiveMatchGameRoute(req);
+  const body = parseBody(req);
+  if (!isObjectId(body.winnerPlayerId) || !mongoose.Types.ObjectId.isValid(body.winnerPlayerId)) {
+    throw new ApiError(400, 'INVALID_ID', 'winnerPlayerId must be a valid ObjectId');
+  }
+  const allowed = ['potted8', 'scratchOn8', 'potted8NotCalled', 'potted8BeforeEnd'];
+  if (!allowed.includes(body.endReason)) {
+    throw new ApiError(400, 'INVALID_END_REASON', `endReason must be one of: ${allowed.join(', ')}`);
+  }
 };
 
 const validateScoresheetList = (req) => {
@@ -356,7 +402,67 @@ const routeValidators = [
     regex: /^\/api\/tournaments\/[^/]+\/score-editors\/[^/]+$/,
     validate: validateRemoveScoreEditor,
   },
+  {
+    method: 'POST',
+    regex: /^\/api\/tournaments\/[^/]+\/proctor-transfer$/,
+    validate: validateProctorTransferRequest,
+  },
+  {
+    method: 'POST',
+    regex: /^\/api\/tournaments\/[^/]+\/proctor-transfer\/accept$/,
+    validate: validateProctorTransferAction,
+  },
+  {
+    method: 'POST',
+    regex: /^\/api\/tournaments\/[^/]+\/proctor-transfer\/decline$/,
+    validate: validateProctorTransferAction,
+  },
   { method: 'GET', regex: /^\/api\/tournaments\/[^/]+\/scoresheet$/, validate: validateScoresheetList },
+  {
+    method: 'POST',
+    regex: /^\/api\/tournaments\/[^/]+\/games\/[^/]+\/start$/,
+    validate: validateLiveMatchGameRoute,
+  },
+  {
+    method: 'GET',
+    regex: /^\/api\/tournaments\/[^/]+\/games\/[^/]+\/live$/,
+    validate: validateLiveMatchGameRoute,
+  },
+  {
+    method: 'POST',
+    regex: /^\/api\/tournaments\/[^/]+\/games\/[^/]+\/live\/takeover-request$/,
+    validate: validateLiveMatchGameRoute,
+  },
+  {
+    method: 'POST',
+    regex: /^\/api\/tournaments\/[^/]+\/games\/[^/]+\/live\/handoff$/,
+    validate: validateLiveMatchGameRoute,
+  },
+  {
+    method: 'POST',
+    regex: /^\/api\/tournaments\/[^/]+\/games\/[^/]+\/live\/takeover-decline$/,
+    validate: validateLiveMatchGameRoute,
+  },
+  {
+    method: 'POST',
+    regex: /^\/api\/tournaments\/[^/]+\/games\/[^/]+\/live\/takeover-cancel$/,
+    validate: validateLiveMatchGameRoute,
+  },
+  {
+    method: 'POST',
+    regex: /^\/api\/tournaments\/[^/]+\/games\/[^/]+\/live\/takeover-force$/,
+    validate: validateLiveMatchGameRoute,
+  },
+  {
+    method: 'POST',
+    regex: /^\/api\/tournaments\/[^/]+\/games\/[^/]+\/turns\/advance$/,
+    validate: validateLiveMatchGameRoute,
+  },
+  {
+    method: 'POST',
+    regex: /^\/api\/tournaments\/[^/]+\/games\/[^/]+\/end-series-game$/,
+    validate: validateEndSeriesGame,
+  },
   { method: 'PUT', regex: /^\/api\/tournaments\/[^/]+\/games\/[^/]+\/scores$/, validate: validateUpdateGameScores },
   { method: 'GET', regex: /^\/api\/tournaments\/[^/]+\/leaderboard$/, validate: validateLeaderboardRead },
   {

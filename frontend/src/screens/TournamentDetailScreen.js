@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { ScrollView, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { FeedbackModal } from '../components/FeedbackModal';
+import { MatchScheduleModal } from '../components/tournament/MatchScheduleModal';
 import { useAuth } from '../context/AuthContext';
 import { useGroupStageFixtures } from '../hooks/useGroupStageFixtures';
 import { useGroupStandings } from '../hooks/useGroupStandings';
@@ -13,15 +15,24 @@ import {
   closeTournamentRegistration,
   completeTournamentWithFinalStage,
   completeTournamentWithoutFinalStage,
+  downloadTournamentExport,
+  emailTournamentExport,
   fetchHostTournamentDetail,
   fetchHostTournamentRegistrations,
   fetchTournamentGroupStandings,
   fetchTournamentScoresheet,
+  assignTournamentProctor,
   manuallyAddTournamentParticipant,
+  acceptTournamentProctorTransfer,
+  declineTournamentProctorTransfer,
   rejectTournamentRegistrationRequest,
+  removeTournamentProctor,
+  requestTournamentProctorTransfer,
   searchTournamentManualAddUsers,
+  fetchTournamentSoloPlayers,
   startTournamentFinalStage,
   updateHostTournamentSettings,
+  updateTournamentGameSchedule,
 } from '../services/tournamentService';
 import { tournamentUi } from '../styles/tournamentUi';
 import {
@@ -96,6 +107,8 @@ export function TournamentDetailScreen({ route, navigation }) {
   } = useScreenFeedback();
 
   const [isHostInfoModalVisible, setIsHostInfoModalVisible] = useState(false);
+  const [isExportingWorkbook, setIsExportingWorkbook] = useState(false);
+  const [isEmailExporting, setIsEmailExporting] = useState(false);
   const [maxParticipantsInput, setMaxParticipantsInput] = useState('');
   const [isSavingMaxParticipants, setIsSavingMaxParticipants] = useState(false);
 
@@ -115,9 +128,16 @@ export function TournamentDetailScreen({ route, navigation }) {
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
   const [userSearchResults, setUserSearchResults] = useState([]);
   const [busyManualAddUserId, setBusyManualAddUserId] = useState(null);
+  const [proctorSearchQuery, setProctorSearchQuery] = useState('');
+  const [proctorSearchResults, setProctorSearchResults] = useState([]);
+  const [isSearchingProctors, setIsSearchingProctors] = useState(false);
+  const [busyProctorUserId, setBusyProctorUserId] = useState(null);
   const [groupCountInput, setGroupCountInput] = useState('2');
   const [groupStageBestOfInput, setGroupStageBestOfInput] = useState('3');
+  const [pairTeamsRandomInput, setPairTeamsRandomInput] = useState(true);
+  const [soloPlayerCount, setSoloPlayerCount] = useState(null);
   const [finalBestOfInput, setFinalBestOfInput] = useState('3');
+  const [finalStageProctoredInput, setFinalStageProctoredInput] = useState(false);
   const [winnersPerGroupInput] = useState('3');
   const [groupStandings, setGroupStandings] = useState([]);
   const [suggestedFinalistIds, setSuggestedFinalistIds] = useState({});
@@ -127,9 +147,14 @@ export function TournamentDetailScreen({ route, navigation }) {
   const [tournamentCompleteMessage, setTournamentCompleteMessage] = useState('');
   const [isFinaleLaunchConfirmVisible, setIsFinaleLaunchConfirmVisible] = useState(false);
   const [isLoadingFinaleCandidates, setIsLoadingFinaleCandidates] = useState(false);
+  const [scheduleTarget, setScheduleTarget] = useState(null);
+  const [isSavingSchedule, setIsSavingSchedule] = useState(false);
 
   const {
     groupsTabItems,
+    handicapEnabled,
+    finalStageEnabled: standingsFinalStageEnabled,
+    finaleStandings,
     groupPlayerGameStatsById,
     isLoading: isLoadingGroupsTab,
     refreshGroupsTabData,
@@ -138,6 +163,10 @@ export function TournamentDetailScreen({ route, navigation }) {
 
   const groupStageBestOf = detail?.competitionConfig?.groupStageBestOf;
   const configuredFinalStageBestOfFromDetail = detail?.competitionConfig?.finalStageBestOf;
+  const groupStageProctored = Boolean(detail?.competitionConfig?.groupStageProctored);
+  const finalStageProctored = Boolean(detail?.competitionConfig?.finalStageProctored);
+  const isDoubles = detail?.competitionConfig?.format === 'doubles';
+  const pairFormationMode = detail?.competitionConfig?.pairFormationMode || 'playerPicksPartner';
 
   const groupFixtures = useGroupStageFixtures(tournamentId, groupsTabItems, groupStageBestOf);
 
@@ -168,6 +197,27 @@ export function TournamentDetailScreen({ route, navigation }) {
     groupStageGames.length > 0 ||
     groupFixtures.fixtureTotal > 0 ||
     Number(detail?.competitionConfig?.groupCount || 0) > 0;
+
+  const groupsLocked =
+    hasGroupFixtures || ['groupStage', 'finalStage', 'completed'].includes(progressionState);
+
+  const loadSoloPlayerCount = useCallback(async () => {
+    if (!tournamentId || !isDoubles || !canShowGroupAssignmentStep || hasGroupFixtures) {
+      setSoloPlayerCount(null);
+      return;
+    }
+
+    try {
+      const response = await fetchTournamentSoloPlayers(tournamentId);
+      setSoloPlayerCount((response?.items || []).length);
+    } catch {
+      setSoloPlayerCount(0);
+    }
+  }, [canShowGroupAssignmentStep, hasGroupFixtures, isDoubles, tournamentId]);
+
+  useEffect(() => {
+    loadSoloPlayerCount();
+  }, [loadSoloPlayerCount, activeTab]);
 
   const configuredFinalStageBestOf = useMemo(
     () => Math.max(Number(configuredFinalStageBestOfFromDetail ?? finalBestOfInput ?? 3), 1),
@@ -424,6 +474,50 @@ export function TournamentDetailScreen({ route, navigation }) {
     }
   }, [clearError, loadDetail, loadRegistrations, showError]);
 
+  const onExportWorkbook = useCallback(async () => {
+    if (!tournamentId) {
+      return;
+    }
+
+    try {
+      clearError();
+      clearSuccess();
+      setIsExportingWorkbook(true);
+      await downloadTournamentExport(tournamentId, detail?.name || 'tournament');
+      showSuccess('Tournament export ready.');
+    } catch (error) {
+      showError(formatApiError(error, 'Unable to export tournament'));
+    } finally {
+      setIsExportingWorkbook(false);
+    }
+  }, [clearError, clearSuccess, detail?.name, showError, showSuccess, tournamentId]);
+
+  const onEmailExportWorkbook = useCallback(async () => {
+    if (!tournamentId) {
+      return;
+    }
+
+    try {
+      clearError();
+      clearSuccess();
+      setIsEmailExporting(true);
+      const result = await emailTournamentExport(tournamentId);
+
+      showSuccess(`Export emailed to ${result?.sentTo || 'your account'}.`);
+    } catch (error) {
+      if (error?.code === 'EMAIL_NOT_CONFIGURED') {
+        showError(
+          'Server email is not configured. Set MAIL_DELIVERY_MODE=smtp and SMTP settings in backend/.env, then try again.'
+        );
+        return;
+      }
+
+      showError(formatApiError(error, 'Unable to email tournament export'));
+    } finally {
+      setIsEmailExporting(false);
+    }
+  }, [clearError, clearSuccess, detail?.name, showError, showSuccess, tournamentId]);
+
   useEffect(() => {
     bootstrap();
   }, [bootstrap]);
@@ -567,6 +661,223 @@ export function TournamentDetailScreen({ route, navigation }) {
     ]
   );
 
+  const onSearchProctorUsers = useCallback(async () => {
+    try {
+      clearAll();
+      const normalizedQuery = String(proctorSearchQuery || '').trim();
+
+      if (normalizedQuery.length < 2) {
+        showError('Search query must be at least 2 characters.');
+        return;
+      }
+
+      setIsSearchingProctors(true);
+      const response = await searchTournamentManualAddUsers(tournamentId, {
+        q: normalizedQuery,
+        limit: 10,
+      });
+      setProctorSearchResults(response.items || []);
+    } catch (error) {
+      showError(formatApiError(error, 'Unable to search users'));
+    } finally {
+      setIsSearchingProctors(false);
+    }
+  }, [clearAll, proctorSearchQuery, showError, tournamentId]);
+
+  const onAssignProctor = useCallback(
+    async (userId) => {
+      const normalizedUserId = String(userId || '').trim();
+      const hostId = String(detail?.hostUserId || '').trim();
+      if (!normalizedUserId || normalizedUserId === hostId) {
+        return;
+      }
+      if ((detail?.scoreEditorUserIds || []).map(String).includes(normalizedUserId)) {
+        return;
+      }
+
+      try {
+        clearAll();
+        setBusyProctorUserId(normalizedUserId);
+        await assignTournamentProctor(tournamentId, normalizedUserId);
+        showSuccess('Proctor assigned.');
+        await loadDetail();
+        await onSearchProctorUsers();
+      } catch (error) {
+        showError(formatApiError(error, 'Unable to assign proctor'));
+      } finally {
+        setBusyProctorUserId(null);
+      }
+    },
+    [
+      clearAll,
+      detail?.hostUserId,
+      detail?.scoreEditorUserIds,
+      loadDetail,
+      onSearchProctorUsers,
+      showError,
+      showSuccess,
+      tournamentId,
+    ]
+  );
+
+  const onAssignProctors = useCallback(
+    async (userIds = []) => {
+      const hostId = String(detail?.hostUserId || '').trim();
+      const existingEditorIds = new Set((detail?.scoreEditorUserIds || []).map(String));
+      const normalizedIds = [
+        ...new Set(
+          userIds
+            .map((id) => String(id).trim())
+            .filter(Boolean)
+            .filter((userId) => userId !== hostId && !existingEditorIds.has(userId))
+        ),
+      ];
+
+      if (normalizedIds.length === 0) {
+        return;
+      }
+
+      try {
+        clearAll();
+        dispatchLoading({ type: 'set', key: 'progressing', value: true });
+        let assignedCount = 0;
+        for (const userId of normalizedIds) {
+          await assignTournamentProctor(tournamentId, userId);
+          assignedCount += 1;
+        }
+        showSuccess(
+          assignedCount === 1 ? 'Proctor assigned.' : `${assignedCount} proctors assigned.`
+        );
+        await loadDetail();
+        await onSearchProctorUsers();
+      } catch (error) {
+        showError(formatApiError(error, 'Unable to assign proctors'));
+      } finally {
+        dispatchLoading({ type: 'set', key: 'progressing', value: false });
+      }
+    },
+    [
+      clearAll,
+      detail?.hostUserId,
+      detail?.scoreEditorUserIds,
+      dispatchLoading,
+      loadDetail,
+      onSearchProctorUsers,
+      showError,
+      showSuccess,
+      tournamentId,
+    ]
+  );
+
+  const onRemoveProctor = useCallback(
+    async (userId) => {
+      try {
+        clearAll();
+        setBusyProctorUserId(userId);
+        await removeTournamentProctor(tournamentId, userId);
+        showSuccess('Proctor removed.');
+        await loadDetail();
+      } catch (error) {
+        showError(formatApiError(error, 'Unable to remove proctor'));
+      } finally {
+        setBusyProctorUserId(null);
+      }
+    },
+    [clearAll, loadDetail, showError, showSuccess, tournamentId]
+  );
+
+  const onRequestProctorTransfer = useCallback(
+    async (targetUserId) => {
+      try {
+        clearAll();
+        dispatchLoading({ type: 'set', key: 'progressing', value: true });
+        await requestTournamentProctorTransfer(tournamentId, targetUserId);
+        showSuccess('Handoff requested. The other player must accept.');
+        await loadDetail();
+      } catch (error) {
+        showError(formatApiError(error, 'Unable to request proctor transfer'));
+      } finally {
+        dispatchLoading({ type: 'set', key: 'progressing', value: false });
+      }
+    },
+    [clearAll, loadDetail, showError, showSuccess, tournamentId]
+  );
+
+  const onAcceptProctorTransfer = useCallback(async () => {
+    try {
+      clearAll();
+      dispatchLoading({ type: 'set', key: 'progressing', value: true });
+      await acceptTournamentProctorTransfer(tournamentId);
+      showSuccess('You are now a proctor for this tournament.');
+      await loadDetail();
+    } catch (error) {
+      showError(formatApiError(error, 'Unable to accept proctor transfer'));
+    } finally {
+      dispatchLoading({ type: 'set', key: 'progressing', value: false });
+    }
+  }, [clearAll, loadDetail, showError, showSuccess, tournamentId]);
+
+  const onDeclineProctorTransfer = useCallback(async () => {
+    try {
+      clearAll();
+      dispatchLoading({ type: 'set', key: 'progressing', value: true });
+      await declineTournamentProctorTransfer(tournamentId);
+      showSuccess('Proctor transfer declined.');
+      await loadDetail();
+    } catch (error) {
+      showError(formatApiError(error, 'Unable to decline proctor transfer'));
+    } finally {
+      dispatchLoading({ type: 'set', key: 'progressing', value: false });
+    }
+  }, [clearAll, loadDetail, showError, showSuccess, tournamentId]);
+
+  const proctorProps = useMemo(
+    () =>
+      isHost && groupStageProctored
+        ? {
+      hostUserId: detail?.hostUserId || null,
+      proctorUserIds: detail?.scoreEditorUserIds || [],
+      approvedRoster: approvedItems,
+      proctorTransferRequest: detail?.proctorTransferRequest || null,
+      currentUserId: currentUser?.id,
+      searchQuery: proctorSearchQuery,
+      onSearchQueryChange: setProctorSearchQuery,
+      onSearchUsers: onSearchProctorUsers,
+      isSearchingUsers: isSearchingProctors,
+      userSearchResults: proctorSearchResults,
+      busyProctorUserId,
+      onAssignProctor,
+      onAssignProctors,
+      onRemoveProctor,
+      onRequestTransfer: onRequestProctorTransfer,
+      onAcceptTransfer: onAcceptProctorTransfer,
+      onDeclineTransfer: onDeclineProctorTransfer,
+      isProgressing: loading.progressing,
+    }
+        : null,
+    [
+      approvedItems,
+      isHost,
+      groupStageProctored,
+      busyProctorUserId,
+      currentUser?.id,
+      detail?.hostUserId,
+      detail?.proctorTransferRequest,
+      detail?.scoreEditorUserIds,
+      isSearchingProctors,
+      loading.progressing,
+      onAcceptProctorTransfer,
+      onAssignProctor,
+      onAssignProctors,
+      onDeclineProctorTransfer,
+      onRemoveProctor,
+      onRequestProctorTransfer,
+      onSearchProctorUsers,
+      proctorSearchQuery,
+      proctorSearchResults,
+    ]
+  );
+
   const onSaveMaxParticipants = useCallback(async () => {
     const parsedValue = Number(maxParticipantsInput);
 
@@ -610,6 +921,7 @@ export function TournamentDetailScreen({ route, navigation }) {
       const response = await assignTournamentGroupsRandomly(tournamentId, {
         groupCount: Number(groupCountInput),
         groupStageBestOf: Number(groupStageBestOfInput),
+        ...(isDoubles && soloPlayerCount > 0 ? { pairTeamsRandom: pairTeamsRandomInput } : {}),
       });
       const fixtureCount = (response.gameSummary || []).reduce(
         (total, summary) => total + Number(summary.gameCount || 0),
@@ -634,6 +946,9 @@ export function TournamentDetailScreen({ route, navigation }) {
     clearAll,
     groupCountInput,
     groupStageBestOfInput,
+    isDoubles,
+    pairTeamsRandomInput,
+    soloPlayerCount,
     loadDetail,
     onLoadGroupFixtures,
     onLoadGroupsTab,
@@ -643,25 +958,37 @@ export function TournamentDetailScreen({ route, navigation }) {
   ]);
 
   const onStartFinalStage = useCallback(async () => {
+    const selectedIds = Object.entries(selectedFinalistIds)
+      .filter(([, selected]) => Boolean(selected))
+      .map(([id]) => id);
+
+    if (selectedIds.length < 2) {
+      showError(`Select at least 2 finalist ${isDoubles ? 'teams' : 'players'} to start finale.`);
+      return;
+    }
+
     try {
       clearAll();
       dispatchLoading({ type: 'set', key: 'progressing', value: true });
-      const selectedPlayerIds = Object.entries(selectedFinalistIds)
-        .filter(([, selected]) => Boolean(selected))
-        .map(([playerId]) => playerId);
-
-      if (selectedPlayerIds.length < 2) {
-        showError('Select at least 2 finalists to start finale.');
-        dispatchLoading({ type: 'set', key: 'progressing', value: false });
-        return;
-      }
-
       const response = await startTournamentFinalStage(tournamentId, {
         topPerGroup: 2,
         finalStageBestOf: Number(finalBestOfInput),
-        selectedPlayerIds,
+        finalStageProctored: isDoubles ? false : finalStageProctoredInput,
+        ...(isDoubles
+          ? {
+              selectedTeamIds: Object.entries(selectedFinalistIds)
+                .filter(([, selected]) => Boolean(selected))
+                .map(([teamId]) => teamId),
+            }
+          : {
+              selectedPlayerIds: Object.entries(selectedFinalistIds)
+                .filter(([, selected]) => Boolean(selected))
+                .map(([playerId]) => playerId),
+            }),
       });
-      showSuccess(`Final stage started with ${response.finalistCount} players.`);
+      showSuccess(
+        `Final stage started with ${response.finalistCount} ${isDoubles ? 'teams' : 'players'}.`
+      );
       setIsFinaleModalVisible(false);
       setGroupStandings([]);
       setSelectedFinalistIds({});
@@ -676,6 +1003,8 @@ export function TournamentDetailScreen({ route, navigation }) {
   }, [
     clearAll,
     finalBestOfInput,
+    finalStageProctoredInput,
+    isDoubles,
     loadDetail,
     loadFinalStageScores,
     onLoadGroupsTab,
@@ -696,8 +1025,8 @@ export function TournamentDetailScreen({ route, navigation }) {
 
       const suggestedSelection = {};
       (response.groups || []).forEach((group) => {
-        (group.suggestedFinalists || []).forEach((playerId) => {
-          suggestedSelection[playerId] = true;
+        (group.suggestedFinalists || []).forEach((finalistId) => {
+          suggestedSelection[finalistId] = true;
         });
       });
 
@@ -711,7 +1040,7 @@ export function TournamentDetailScreen({ route, navigation }) {
     } finally {
       setIsLoadingFinaleCandidates(false);
     }
-  }, [clearAll, showError, showSuccess, tournamentId]);
+  }, [clearAll, isDoubles, showError, showSuccess, tournamentId]);
 
   const onCompleteWithoutFinals = useCallback(async () => {
     try {
@@ -751,8 +1080,11 @@ export function TournamentDetailScreen({ route, navigation }) {
       clearAll();
       dispatchLoading({ type: 'set', key: 'progressing', value: true });
       await completeTournamentWithFinalStage(tournamentId);
-      showSuccess('Tournament completed using finale results.');
       await Promise.all([loadDetail(), onLoadFinaleTab(), onLoadGroupsTab()]);
+      setActiveTab('groups');
+      setTournamentCompleteMessage(
+        'The tournament has ended using finale results. Top 3 finale places are medalled in the standings.'
+      );
     } catch (error) {
       showError(formatApiError(error, 'Unable to complete tournament from finale'));
     } finally {
@@ -803,7 +1135,14 @@ export function TournamentDetailScreen({ route, navigation }) {
           return;
         }
 
-        showError(formatApiError(error, 'Unable to save match scores'));
+        if (error?.code === 'LEADERBOARD_INDEX_CONFLICT') {
+        showError(
+          'Standings indexes need a one-time fix. In backend folder run: npm run fix:leaderboard-indexes — then restart the backend and try again.'
+        );
+        return;
+      }
+
+      showError(formatApiError(error, 'Unable to save match scores'));
       }
     },
     [
@@ -855,6 +1194,31 @@ export function TournamentDetailScreen({ route, navigation }) {
     onLoadGroupFixtures();
   }, [activeTab, groupsTabItems.length, onLoadGroupFixtures, refreshGroupsTabData]);
 
+  useFocusEffect(
+    useCallback(() => {
+      if (activeTab !== 'games' || !gamesTabLoadStartedRef.current) {
+        return undefined;
+      }
+
+      let isCancelled = false;
+
+      (async () => {
+        try {
+          const refreshed = await refreshGroupFixtures({ preserveFilter: true });
+          if (!isCancelled) {
+            hydrateScoreInputState(refreshed);
+          }
+        } catch {
+          // Ignore refresh errors on focus; user can tap Refresh manually.
+        }
+      })();
+
+      return () => {
+        isCancelled = true;
+      };
+    }, [activeTab, hydrateScoreInputState, refreshGroupFixtures])
+  );
+
   useEffect(() => {
     if (activeTab !== 'finale' || finaleTabLoadStartedRef.current) {
       return;
@@ -897,6 +1261,40 @@ export function TournamentDetailScreen({ route, navigation }) {
 
   const isLoadingGames = loading.games || groupFixtures.isLoading;
   const tournamentTitle = route?.params?.tournamentName || detail?.name || 'Tournament';
+
+  useLayoutEffect(() => {
+    navigation.setOptions({ title: tournamentTitle });
+  }, [navigation, tournamentTitle]);
+
+  const onScheduleMatch = useCallback((target) => {
+    setScheduleTarget(target);
+  }, []);
+
+  const onSaveMatchSchedule = useCallback(
+    async (scheduledStartAt) => {
+      if (!scheduleTarget?.gameId || !tournamentId) {
+        return;
+      }
+
+      try {
+        setIsSavingSchedule(true);
+        clearAll();
+        const updated = await updateTournamentGameSchedule(tournamentId, scheduleTarget.gameId, {
+          scheduledStartAt,
+        });
+        groupFixtures.patchGame(updated.id, {
+          scheduledStartAt: updated.scheduledStartAt,
+          canScheduleMatch: updated.canScheduleMatch,
+        });
+        setScheduleTarget(null);
+      } catch (error) {
+        showError(formatApiError(error, 'Unable to save match schedule'));
+      } finally {
+        setIsSavingSchedule(false);
+      }
+    },
+    [clearAll, groupFixtures, scheduleTarget, showError, tournamentId]
+  );
 
   return (
     <ScrollView style={tournamentUi.screen} contentContainerStyle={tournamentUi.content} removeClippedSubviews={false}>
@@ -968,6 +1366,18 @@ export function TournamentDetailScreen({ route, navigation }) {
           onMaxParticipantsInputChange={setMaxParticipantsInput}
           onSaveMaxParticipants={onSaveMaxParticipants}
           isSavingMaxParticipants={isSavingMaxParticipants}
+          proctorProps={proctorProps}
+          isDoubles={isDoubles}
+          isHost={isHost}
+          tournamentId={tournamentId}
+          pairFormationMode={pairFormationMode}
+          groupsLocked={groupsLocked}
+          currentUserId={currentUser?.id}
+          onTeamsChanged={async () => {
+            await loadRegistrations();
+            await loadSoloPlayerCount();
+          }}
+          onTeamsError={(error) => showError(formatApiError(error, 'Unable to update teams'))}
         />
       )}
 
@@ -979,6 +1389,10 @@ export function TournamentDetailScreen({ route, navigation }) {
           onGroupCountChange={setGroupCountInput}
           groupStageBestOfInput={groupStageBestOfInput}
           onGroupStageBestOfChange={setGroupStageBestOfInput}
+          pairTeamsRandomInput={pairTeamsRandomInput}
+          onPairTeamsRandomChange={setPairTeamsRandomInput}
+          soloPlayerCount={soloPlayerCount}
+          isDoubles={isDoubles}
           isProgressing={loading.progressing}
           onAssignGroups={onAssignGroups}
           isLoadingGroupsTab={isLoadingGroupsTab || loading.groups}
@@ -990,6 +1404,11 @@ export function TournamentDetailScreen({ route, navigation }) {
           configuredGroupCount={detail?.competitionConfig?.groupCount}
           groupStageBestOf={groupStageBestOf}
           isTournamentCompleted={isTournamentCompleted}
+          finalStageEnabled={
+            standingsFinalStageEnabled || Boolean(detail?.competitionConfig?.finalStageEnabled)
+          }
+          finaleStandings={finaleStandings}
+          handicapEnabled={handicapEnabled}
         />
       )}
 
@@ -1027,6 +1446,11 @@ export function TournamentDetailScreen({ route, navigation }) {
           onRequestStartFinale={() => setFinaleActionConfirm('start')}
           onRequestSkipFinale={() => setFinaleActionConfirm('skip')}
           onAddSeriesGame={scoreInputs.onAddSeriesGame}
+          onStartGame={({ gameId }) =>
+            navigation.navigate('LiveMatchSession', { tournamentId, gameId, autoStart: true })
+          }
+          onScheduleMatch={onScheduleMatch}
+          groupStageProctored={groupStageProctored}
         />
       )}
 
@@ -1050,10 +1474,27 @@ export function TournamentDetailScreen({ route, navigation }) {
           isProgressing={loading.progressing}
           hasFinalStageStarted={hasFinalStageStarted}
           onCompleteWithFinale={onCompleteWithFinale}
+          onStartGame={({ gameId }) =>
+            navigation.navigate('LiveMatchSession', { tournamentId, gameId, autoStart: true })
+          }
+          finalStageProctored={finalStageProctored}
         />
       )}
 
       <FeedbackModal visible={Boolean(errorMessage)} message={errorMessage} onDismiss={clearError} />
+
+      <MatchScheduleModal
+        visible={Boolean(scheduleTarget)}
+        matchLabel={
+          scheduleTarget
+            ? `${scheduleTarget.playerAName || 'Player A'} vs ${scheduleTarget.playerBName || 'Player B'}`
+            : ''
+        }
+        initialScheduledAt={scheduleTarget?.scheduledStartAt || null}
+        onSave={onSaveMatchSchedule}
+        onCancel={() => setScheduleTarget(null)}
+        isSaving={isSavingSchedule}
+      />
 
       <FeedbackModal
         visible={Boolean(tournamentCompleteMessage)}
@@ -1079,7 +1520,7 @@ export function TournamentDetailScreen({ route, navigation }) {
         visible={isFinaleLaunchConfirmVisible}
         emoji="🏆"
         title="Launch finale bracket?"
-        message={`Create knockout matches for ${selectedFinalistCount} selected player${selectedFinalistCount === 1 ? '' : 's'}. This cannot be undone from the Games tab.`}
+        message={`Create knockout matches for ${selectedFinalistCount} selected ${isDoubles ? 'team' : 'player'}${selectedFinalistCount === 1 ? '' : 's'}. This cannot be undone from the Games tab.`}
         confirmLabel="Launch finale"
         cancelLabel="Go back"
         onConfirm={async () => {
@@ -1108,8 +1549,12 @@ export function TournamentDetailScreen({ route, navigation }) {
         detail={detail}
         isLoadingDetail={loading.detail}
         isLoadingRegistrations={loading.registrations}
+        isExporting={isExportingWorkbook}
+        isEmailExporting={isEmailExporting}
         onClose={() => setIsHostInfoModalVisible(false)}
         onRefresh={bootstrap}
+        onExport={onExportWorkbook}
+        onEmailExport={onEmailExportWorkbook}
       />
 
       <FinalePlayerModal
@@ -1128,9 +1573,12 @@ export function TournamentDetailScreen({ route, navigation }) {
         selectedFinalistCount={selectedFinalistCount}
         canStartFinale={canStartFinale}
         isProgressing={loading.progressing}
+        isDoubles={isDoubles}
         onStartFinalStage={() => setIsFinaleLaunchConfirmVisible(true)}
         finalBestOfInput={finalBestOfInput}
         onFinalBestOfChange={setFinalBestOfInput}
+        finalStageProctored={finalStageProctoredInput}
+        onFinalStageProctoredChange={setFinalStageProctoredInput}
       />
     </ScrollView>
   );

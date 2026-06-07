@@ -1,8 +1,10 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as SplashScreen from 'expo-splash-screen';
-import React, { useEffect } from 'react';
-import { Platform, Pressable, StatusBar, Text, View } from 'react-native';
+import React, { memo, useEffect, useMemo } from 'react';
+import { Pressable, View } from 'react-native';
+import { ScaledText as Text } from '../components/ui/ScaledText';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { HomeScreen } from '../screens/HomeScreen';
 import { SignInScreen } from '../screens/SignInScreen';
@@ -10,14 +12,16 @@ import { SignUpScreen } from '../screens/SignUpScreen';
 import { ForgotPasswordScreen } from '../screens/ForgotPasswordScreen';
 import { CreateTournamentScreen } from '../screens/CreateTournamentScreen';
 import { ScoresheetScreen } from '../screens/ScoresheetScreen';
+import { LiveMatchSessionScreen } from '../screens/LiveMatchSessionScreen';
 import { TournamentDetailScreen } from '../screens/TournamentDetailScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { LandingScreen } from '../screens/LandingScreen';
 
 const Stack = createNativeStackNavigator();
 
-function AppHeader({ navigation, title, showBack, showHomeActions = false, onSignOut, onInfoPress }) {
-  const topInset = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
+const AppHeader = memo(function AppHeader({ navigation, title, showBack, showHomeActions = false, onSignOut, onInfoPress }) {
+  const insets = useSafeAreaInsets();
+  const topInset = insets.top;
   const titleText = String(title || '');
   const displayTitle = titleText.length > 20 ? `${titleText.slice(0, 20)}...` : titleText;
 
@@ -102,6 +106,25 @@ function AppHeader({ navigation, title, showBack, showHomeActions = false, onSig
       </View>
     </View>
   );
+});
+
+function createAppStackHeader(onSignOut) {
+  return function AppStackHeader({ navigation, route, options, back }) {
+    const title = options.title || route.name;
+    const showHomeActions = route.name === 'Home';
+    const onInfoPress = route.params?.onInfoPress;
+
+    return (
+      <AppHeader
+        navigation={navigation}
+        title={title}
+        showBack={Boolean(back)}
+        showHomeActions={showHomeActions}
+        onSignOut={onSignOut}
+        onInfoPress={onInfoPress}
+      />
+    );
+  };
 }
 
 function AuthStack() {
@@ -109,8 +132,7 @@ function AuthStack() {
     <Stack.Navigator
       initialRouteName="Landing"
       screenOptions={{
-        animation: 'fade',
-        stackPresentation: 'push',
+        animation: 'slide_from_right',
         contentStyle: { backgroundColor: '#f1f5f9' },
         header: ({ navigation, route, options, back }) => {
           if (route.name === 'Landing') {
@@ -118,13 +140,7 @@ function AuthStack() {
           }
 
           const title = options.title || route.name;
-          return (
-            <AppHeader
-              navigation={navigation}
-              title={title}
-              showBack={Boolean(back)}
-            />
-          );
+          return <AppHeader navigation={navigation} title={title} showBack={Boolean(back)} />;
         },
       }}
     >
@@ -141,32 +157,15 @@ function AuthStack() {
 }
 
 function AppStack({ onSignOut }) {
+  const header = useMemo(() => createAppStackHeader(onSignOut), [onSignOut]);
+
   return (
     <Stack.Navigator
       screenOptions={{
-        animation: 'fade',
-        stackPresentation: 'push',
+        animation: 'slide_from_right',
         contentStyle: { backgroundColor: '#f8fafc' },
         headerTitleAlign: 'left',
-        headerTitleStyle: {
-          fontSize: 20,
-          fontWeight: '600',
-        },
-        header: ({ navigation, route, options, back }) => {
-          const title = options.title || route.name;
-          const showHomeActions = route.name === 'Home';
-          const onInfoPress = route.params?.onInfoPress;
-          return (
-            <AppHeader
-              navigation={navigation}
-              title={title}
-              showBack={Boolean(back)}
-              showHomeActions={showHomeActions}
-              onSignOut={onSignOut}
-              onInfoPress={onInfoPress}
-            />
-          );
-        },
+        header,
       }}
     >
       <Stack.Screen
@@ -183,9 +182,14 @@ function AppStack({ onSignOut }) {
       <Stack.Screen
         name="TournamentDetail"
         component={TournamentDetailScreen}
-        options={{ title: 'Tournament Detail' }}
+        options={{ title: 'Tournament' }}
       />
       <Stack.Screen name="Scoresheet" component={ScoresheetScreen} options={{ title: 'Scoresheet' }} />
+      <Stack.Screen
+        name="LiveMatchSession"
+        component={LiveMatchSessionScreen}
+        options={{ title: 'Live match' }}
+      />
     </Stack.Navigator>
   );
 }

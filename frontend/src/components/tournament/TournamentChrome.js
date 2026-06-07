@@ -1,5 +1,9 @@
-import React from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import React, { useState } from 'react';
+import { Pressable, ScrollView, View } from 'react-native';
+import { ScaledText as Text } from '../ui/ScaledText';
+import { ScaledTextInput as TextInput } from '../ui/ScaledTextInput';
+import { FeedbackModal } from '../FeedbackModal';
+import { useTypography } from '../../context/TypographyContext';
 import { discoverUi, tournamentColors, tournamentUi } from '../../styles/tournamentUi';
 
 export const formatProgressionLabel = (state) => {
@@ -40,12 +44,14 @@ function Badge({ label, tone = 'neutral' }) {
 }
 
 export function TournamentScreenHero({ eyebrow, title, subtitle, badges = [], stats = [], onPress }) {
+  const { sp, isWide } = useTypography();
+
   const content = (
-    <View style={discoverUi.hero}>
+    <View style={[discoverUi.hero, isWide && { padding: sp(18) }]}>
       <View style={[discoverUi.heroGlow, { top: -40, right: -30 }]} />
       <View style={[discoverUi.heroGlow, { bottom: -50, left: -20, backgroundColor: 'rgba(124, 58, 237, 0.28)' }]} />
 
-      <View style={{ gap: 12 }}>
+      <View style={{ gap: isWide ? sp(12) : 12 }}>
         {Boolean(eyebrow) && (
           <Text style={{ color: '#94a3b8', fontSize: 12, fontWeight: '700', letterSpacing: 1.1 }}>{eyebrow}</Text>
         )}
@@ -106,8 +112,10 @@ export function TournamentScreenHero({ eyebrow, title, subtitle, badges = [], st
 }
 
 export function TournamentSegmentTabs({ tabs, activeTab, onSelectTab }) {
+  const { sp, isWide } = useTypography();
+
   return (
-    <View style={[discoverUi.surfaceCard, { padding: 6, flexDirection: 'row', gap: 6 }]}>
+    <View style={[discoverUi.surfaceCard, { padding: isWide ? sp(8) : 6, flexDirection: 'row', gap: isWide ? sp(8) : 6 }]}>
       {tabs.map((tab) => {
         const selected = activeTab === tab.id;
 
@@ -117,8 +125,8 @@ export function TournamentSegmentTabs({ tabs, activeTab, onSelectTab }) {
             onPress={() => onSelectTab(tab.id)}
             style={({ pressed }) => ({
               flex: 1,
-              paddingVertical: 11,
-              paddingHorizontal: 6,
+              paddingVertical: isWide ? sp(13) : 11,
+              paddingHorizontal: isWide ? sp(8) : 6,
               borderRadius: 10,
               alignItems: 'center',
               justifyContent: 'center',
@@ -145,11 +153,13 @@ export function TournamentSegmentTabs({ tabs, activeTab, onSelectTab }) {
 }
 
 export function SectionCard({ title, subtitle, children, headerAction }) {
+  const { sp, isWide } = useTypography();
+
   return (
-    <View style={[discoverUi.surfaceCard, { gap: 12 }]}>
+    <View style={[discoverUi.surfaceCard, { gap: isWide ? sp(14) : 12, padding: isWide ? sp(14) : 12 }]}>
       {(Boolean(title) || headerAction) && (
-        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
-          <View style={{ flex: 1, gap: 4 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: isWide ? sp(10) : 10 }}>
+          <View style={{ flex: 1, gap: isWide ? sp(6) : 4 }}>
             {Boolean(title) && (
               <Text style={{ fontSize: 16, fontWeight: '800', color: tournamentColors.text }}>{title}</Text>
             )}
@@ -162,6 +172,40 @@ export function SectionCard({ title, subtitle, children, headerAction }) {
       )}
       {children}
     </View>
+  );
+}
+
+export function CollapsibleSectionCard({
+  title,
+  subtitle,
+  children,
+  defaultExpanded = false,
+  headerAction,
+}) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+
+  return (
+    <SectionCard
+      title={title}
+      subtitle={expanded ? subtitle : undefined}
+      headerAction={
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          {headerAction}
+          <Pressable
+            onPress={() => setExpanded((current) => !current)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={expanded ? 'Collapse section' : 'Expand section'}
+          >
+            <Text style={{ fontSize: 14, fontWeight: '700', color: tournamentColors.primary }}>
+              {expanded ? 'Hide' : 'Show'}
+            </Text>
+          </Pressable>
+        </View>
+      }
+    >
+      {expanded ? children : null}
+    </SectionCard>
   );
 }
 
@@ -287,21 +331,265 @@ const MEDAL_ROW_STYLE_BY_RANK = {
   3: { backgroundColor: '#fff7ed' },
 };
 
+const STANDINGS_STAT_HELP = {
+  HCP: {
+    title: 'HCP (Handicap)',
+    message:
+      'Skill rating for this player. A lower number means a stronger player. When handicap is enabled for the tournament, upsets can earn bonus standing points.',
+    emoji: '🎯',
+  },
+  W: {
+    title: 'W (Wins)',
+    message: 'Number of matches won in this group.',
+    emoji: '✅',
+  },
+  L: {
+    title: 'L (Losses)',
+    message: 'Number of matches lost in this group.',
+    emoji: '—',
+  },
+  'Win%': {
+    title: 'Win%',
+    message: 'Match win percentage: wins divided by total matches played in this group.',
+    emoji: '📊',
+  },
+  PPM: {
+    title: 'PPM (Points Per Match)',
+    message:
+      'Average match points scored per match — your offense. In APA-style scoring, this reflects balls/points earned across games in each series, not just whether you won.',
+    emoji: '🎱',
+  },
+  PAA: {
+    title: 'PAA (Points Against Average)',
+    message:
+      'Average match points your opponents scored against you per match — your defense. Lower PAA usually means you give up fewer points.',
+    emoji: '🛡️',
+  },
+};
+
+function StandingsStatHeaderCell({ label, width, textAlign = 'left', headerCell, onPress }) {
+  if (!onPress) {
+    return <Text style={{ ...headerCell, width, textAlign }}>{label}</Text>;
+  }
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${label}. Tap for explanation.`}
+      style={({ pressed }) => ({
+        width,
+        opacity: pressed ? 0.75 : 1,
+      })}
+    >
+      <Text
+        style={{
+          ...headerCell,
+          textAlign,
+          color: tournamentColors.primary,
+          textDecorationLine: 'underline',
+          textDecorationStyle: 'dotted',
+        }}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+function ScoresheetStandingsTable({
+  groupName,
+  standings,
+  handicapEnabled,
+  showTopThreeMedals,
+  medalCount,
+  col,
+}) {
+  const [activeStatHelp, setActiveStatHelp] = useState(null);
+  const playerWidth = col(148);
+  const hcpWidth = col(48);
+  const statWidth = col(44);
+  const winPctWidth = col(56);
+  const headerFontSize = col(12);
+  const bodyFontSize = col(14);
+  const playerFontSize = col(15);
+  const rowPaddingH = col(10);
+  const rowPaddingV = col(10);
+  const tableMinWidth = playerWidth + hcpWidth + statWidth * 4 + winPctWidth;
+
+  const headerCell = {
+    fontWeight: '700',
+    fontSize: headerFontSize,
+    color: tournamentColors.textMuted,
+  };
+
+  const bodyCell = {
+    fontSize: bodyFontSize,
+    color: tournamentColors.text,
+  };
+
+  const renderHeader = () => (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f8fafc',
+        borderBottomWidth: 1,
+        borderBottomColor: tournamentColors.borderLight,
+        paddingHorizontal: rowPaddingH,
+        paddingVertical: rowPaddingV,
+        minWidth: tableMinWidth,
+      }}
+    >
+      <Text style={{ ...headerCell, width: playerWidth }}>Player</Text>
+      <StandingsStatHeaderCell
+        label="HCP"
+        width={hcpWidth}
+        textAlign="right"
+        headerCell={headerCell}
+        onPress={() => setActiveStatHelp('HCP')}
+      />
+      <StandingsStatHeaderCell
+        label="W"
+        width={statWidth}
+        textAlign="right"
+        headerCell={headerCell}
+        onPress={() => setActiveStatHelp('W')}
+      />
+      <StandingsStatHeaderCell
+        label="L"
+        width={statWidth}
+        textAlign="right"
+        headerCell={headerCell}
+        onPress={() => setActiveStatHelp('L')}
+      />
+      <StandingsStatHeaderCell
+        label="Win%"
+        width={winPctWidth}
+        textAlign="right"
+        headerCell={headerCell}
+        onPress={() => setActiveStatHelp('Win%')}
+      />
+      <StandingsStatHeaderCell
+        label="PPM"
+        width={statWidth}
+        textAlign="right"
+        headerCell={headerCell}
+        onPress={() => setActiveStatHelp('PPM')}
+      />
+      <StandingsStatHeaderCell
+        label="PAA"
+        width={statWidth}
+        textAlign="right"
+        headerCell={headerCell}
+        onPress={() => setActiveStatHelp('PAA')}
+      />
+    </View>
+  );
+
+  const renderRow = (entry, index) => {
+    const isLastRow = index === standings.length - 1;
+    const rankNumber = Number(entry.rank || index + 1);
+    const medal =
+      showTopThreeMedals && rankNumber >= 1 && rankNumber <= medalCount
+        ? MEDAL_BY_RANK[rankNumber]
+        : null;
+    const playerName = entry.player?.displayName || entry.playerName || entry.playerId;
+
+    return (
+      <View
+        key={`${groupName}-${entry.playerId}`}
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingHorizontal: rowPaddingH,
+          paddingVertical: rowPaddingV,
+          borderBottomWidth: isLastRow ? 0 : 1,
+          borderBottomColor: '#f1f5f9',
+          minWidth: tableMinWidth,
+          ...(medal ? MEDAL_ROW_STYLE_BY_RANK[rankNumber] || null : null),
+        }}
+      >
+        <Text
+          style={{
+            width: playerWidth,
+            color: tournamentColors.text,
+            fontWeight: medal ? '700' : '500',
+            fontSize: playerFontSize,
+          }}
+          numberOfLines={2}
+        >
+          {medal ? `${medal} ` : ''}
+          {playerName}
+        </Text>
+        <Text style={{ ...bodyCell, width: hcpWidth, textAlign: 'right' }}>
+          {handicapEnabled && entry.player?.handicapEnabled ? entry.player.handicapValue : '—'}
+        </Text>
+        <Text style={{ ...bodyCell, width: statWidth, textAlign: 'right' }}>
+          {entry.stats?.matchesWon ?? entry.wins ?? 0}
+        </Text>
+        <Text style={{ ...bodyCell, width: statWidth, textAlign: 'right' }}>{entry.losses || 0}</Text>
+        <Text style={{ ...bodyCell, width: winPctWidth, textAlign: 'right' }}>
+          {entry.stats?.winPct ?? 0}%
+        </Text>
+        <Text style={{ ...bodyCell, width: statWidth, textAlign: 'right' }}>{entry.stats?.ppm ?? 0}</Text>
+        <Text style={{ ...bodyCell, width: statWidth, textAlign: 'right' }}>{entry.stats?.paa ?? 0}</Text>
+      </View>
+    );
+  };
+
+  return (
+    <>
+      <ScrollView horizontal showsHorizontalScrollIndicator nestedScrollEnabled bounces={false}>
+        <View style={{ minWidth: tableMinWidth }}>
+          {renderHeader()}
+          {standings.map(renderRow)}
+        </View>
+      </ScrollView>
+
+      <FeedbackModal
+        visible={Boolean(activeStatHelp && STANDINGS_STAT_HELP[activeStatHelp])}
+        title={STANDINGS_STAT_HELP[activeStatHelp]?.title || ''}
+        message={STANDINGS_STAT_HELP[activeStatHelp]?.message || ''}
+        emoji={STANDINGS_STAT_HELP[activeStatHelp]?.emoji || 'ℹ️'}
+        onDismiss={() => setActiveStatHelp(null)}
+      />
+    </>
+  );
+}
+
 export function GroupStandingsCard({
   groupName,
   standings,
   resolvePlayerGameStats,
   showExtendedStats = false,
+  showScoresheetStats = false,
+  handicapEnabled = false,
   showTopThreeMedals = false,
   medalCount = 3,
+  entityLabel = 'Player',
 }) {
+  const { sp, isWide } = useTypography();
+  const col = (width) => (isWide ? sp(width) : width);
+
   return (
     <View style={discoverUi.listCard}>
-      <View style={{ padding: 14, gap: 10 }}>
+      <View style={{ padding: isWide ? sp(14) : 14, gap: isWide ? sp(10) : 10 }}>
         <Text style={{ fontSize: 16, fontWeight: '800', color: tournamentColors.text }}>{groupName}</Text>
 
         {standings.length === 0 ? (
           <Text style={{ color: tournamentColors.textMuted, fontSize: 13 }}>No players in this group yet.</Text>
+        ) : showScoresheetStats ? (
+          <View style={{ borderWidth: 1, borderColor: tournamentColors.borderLight, borderRadius: 10, overflow: 'hidden' }}>
+            <ScoresheetStandingsTable
+              groupName={groupName}
+              standings={standings}
+              handicapEnabled={handicapEnabled}
+              showTopThreeMedals={showTopThreeMedals}
+              medalCount={medalCount}
+              col={col}
+            />
+          </View>
         ) : (
           <View style={{ borderWidth: 1, borderColor: tournamentColors.borderLight, borderRadius: 10, overflow: 'hidden' }}>
             <View
@@ -315,21 +603,29 @@ export function GroupStandingsCard({
                 paddingVertical: 8,
               }}
             >
-              <Text style={{ width: 32, fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }}>#</Text>
-              <Text style={{ flex: 1, fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }}>Player</Text>
-              {showExtendedStats && (
+              <Text style={{ width: col(28), fontWeight: '700', fontSize: 10, color: tournamentColors.textMuted }}>#</Text>
+              <Text style={{ flex: 1, minWidth: col(72), fontWeight: '700', fontSize: 10, color: tournamentColors.textMuted }}>
+                {entityLabel}
+              </Text>
+              {showExtendedStats ? (
                 <>
-                  <Text style={{ width: 34, textAlign: 'right', fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }}>
+                  <Text style={{ width: col(34), textAlign: 'right', fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }}>
                     GP
                   </Text>
-                  <Text style={{ width: 34, textAlign: 'right', fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }}>
+                  <Text style={{ width: col(34), textAlign: 'right', fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }}>
                     GR
                   </Text>
+                  <Text style={{ width: col(30), textAlign: 'right', fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }}>W</Text>
+                  <Text style={{ width: col(30), textAlign: 'right', fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }}>L</Text>
+                  <Text style={{ width: col(36), textAlign: 'right', fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }}>Pts</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={{ width: col(30), textAlign: 'right', fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }}>W</Text>
+                  <Text style={{ width: col(30), textAlign: 'right', fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }}>L</Text>
+                  <Text style={{ width: col(36), textAlign: 'right', fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }}>Pts</Text>
                 </>
               )}
-              <Text style={{ width: 30, textAlign: 'right', fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }}>W</Text>
-              <Text style={{ width: 30, textAlign: 'right', fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }}>L</Text>
-              <Text style={{ width: 36, textAlign: 'right', fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }}>Pts</Text>
             </View>
 
             {standings.map((entry, index) => {
@@ -356,34 +652,44 @@ export function GroupStandingsCard({
                     ...(medal ? MEDAL_ROW_STYLE_BY_RANK[rankNumber] || null : null),
                   }}
                 >
-                  <Text style={{ width: 32, color: tournamentColors.text, fontWeight: '700' }}>
+                  <Text style={{ width: col(28), color: tournamentColors.text, fontWeight: '700', fontSize: 12 }}>
                     {medal ? medal : `#${rankNumber}`}
                   </Text>
                   <Text
                     style={{
                       flex: 1,
+                      minWidth: col(72),
                       color: tournamentColors.text,
                       fontWeight: medal ? '700' : '400',
+                      fontSize: 12,
                     }}
-                    numberOfLines={1}
+                    numberOfLines={entityLabel === 'Team' ? 2 : 1}
                   >
                     {entry.player?.displayName || entry.playerName || entry.playerId}
                   </Text>
-                  {showExtendedStats && (
+                  {showExtendedStats ? (
                     <>
-                      <Text style={{ width: 34, textAlign: 'right', color: tournamentColors.text }}>
+                      <Text style={{ width: col(34), textAlign: 'right', color: tournamentColors.text, fontSize: 12 }}>
                         {playerGameStats.gamesPlayed}
                       </Text>
-                      <Text style={{ width: 34, textAlign: 'right', color: tournamentColors.text }}>
+                      <Text style={{ width: col(34), textAlign: 'right', color: tournamentColors.text, fontSize: 12 }}>
                         {playerGameStats.gamesRemaining}
+                      </Text>
+                      <Text style={{ width: col(30), textAlign: 'right', color: tournamentColors.text, fontSize: 12 }}>{entry.wins || 0}</Text>
+                      <Text style={{ width: col(30), textAlign: 'right', color: tournamentColors.text, fontSize: 12 }}>{entry.losses || 0}</Text>
+                      <Text style={{ width: col(36), textAlign: 'right', color: tournamentColors.text, fontWeight: '700', fontSize: 12 }}>
+                        {entry.points || 0}
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={{ width: col(30), textAlign: 'right', color: tournamentColors.text, fontSize: 12 }}>{entry.wins || 0}</Text>
+                      <Text style={{ width: col(30), textAlign: 'right', color: tournamentColors.text, fontSize: 12 }}>{entry.losses || 0}</Text>
+                      <Text style={{ width: col(36), textAlign: 'right', color: tournamentColors.text, fontWeight: '700', fontSize: 12 }}>
+                        {entry.points || 0}
                       </Text>
                     </>
                   )}
-                  <Text style={{ width: 30, textAlign: 'right', color: tournamentColors.text }}>{entry.wins || 0}</Text>
-                  <Text style={{ width: 30, textAlign: 'right', color: tournamentColors.text }}>{entry.losses || 0}</Text>
-                  <Text style={{ width: 36, textAlign: 'right', color: tournamentColors.text, fontWeight: '700' }}>
-                    {entry.points || 0}
-                  </Text>
                 </View>
               );
             })}
@@ -427,20 +733,22 @@ export function InfoBanner({ title, message, tone = 'info', emoji }) {
 }
 
 export function TabStatsRow({ stats = [] }) {
+  const { sp, isWide } = useTypography();
+
   if (stats.length === 0) {
     return null;
   }
 
   return (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: isWide ? sp(10) : 8 }}>
       {stats.map((stat) => (
         <View
           key={stat.label}
           style={{
             flexGrow: 1,
             minWidth: '28%',
-            paddingVertical: 10,
-            paddingHorizontal: 12,
+            paddingVertical: isWide ? sp(12) : 10,
+            paddingHorizontal: isWide ? sp(14) : 12,
             borderRadius: 12,
             backgroundColor: '#f8fafc',
             borderWidth: 1,
@@ -458,10 +766,14 @@ export function TabStatsRow({ stats = [] }) {
 }
 
 export function ChipSelector({ label, options, value, onChange }) {
+  const { sp, isWide } = useTypography();
+
   return (
     <View style={{ marginBottom: 4 }}>
-      <Text style={{ fontWeight: '700', fontSize: 13, color: tournamentColors.textMuted, marginBottom: 8 }}>{label}</Text>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+      <Text style={{ fontWeight: '700', fontSize: 13, color: tournamentColors.textMuted, marginBottom: isWide ? sp(10) : 8 }}>
+        {label}
+      </Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: isWide ? sp(10) : 8 }}>
         {options.map((option) => {
           const selected = String(value) === String(option.value);
 
@@ -470,8 +782,8 @@ export function ChipSelector({ label, options, value, onChange }) {
               key={option.value}
               onPress={() => onChange(option.value)}
               style={({ pressed }) => ({
-                paddingHorizontal: 14,
-                paddingVertical: 10,
+                paddingHorizontal: isWide ? sp(16) : 14,
+                paddingVertical: isWide ? sp(12) : 10,
                 borderRadius: 999,
                 borderWidth: 1,
                 borderColor: selected ? tournamentColors.primary : tournamentColors.border,
@@ -578,7 +890,7 @@ export function FixtureFilterPanel({
   );
 }
 
-export function ToolbarIconButton({ label, onPress, disabled }) {
+export function ToolbarIconButton({ label, onPress, disabled, active = false, fullWidth = false }) {
   return (
     <Pressable
       onPress={onPress}
@@ -587,11 +899,23 @@ export function ToolbarIconButton({ label, onPress, disabled }) {
         paddingHorizontal: 12,
         paddingVertical: 8,
         borderRadius: 10,
-        backgroundColor: '#f1f5f9',
+        backgroundColor: active ? '#dbeafe' : '#f1f5f9',
+        borderWidth: 1,
+        borderColor: active ? tournamentColors.primary : '#e2e8f0',
         opacity: disabled ? 0.5 : 1,
+        alignItems: 'center',
+        ...(fullWidth ? { flex: 1, alignSelf: 'stretch' } : {}),
       }}
     >
-      <Text style={{ fontSize: 14, fontWeight: '700', color: tournamentColors.primary }}>{label}</Text>
+      <Text
+        style={{
+          fontSize: 14,
+          fontWeight: '700',
+          color: active ? tournamentColors.primary : tournamentColors.text,
+        }}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }

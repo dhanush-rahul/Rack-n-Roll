@@ -24,6 +24,15 @@ const divisionSchema = new mongoose.Schema(
       ],
       default: [],
     },
+    teamIds: {
+      type: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Team',
+        },
+      ],
+      default: [],
+    },
     status: {
       type: String,
       enum: ['open', 'closed'],

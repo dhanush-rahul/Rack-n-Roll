@@ -45,6 +45,7 @@ const getUserProfile = async (userId) => {
       name: user.name,
       email: user.email,
       memberSince: user.createdAt,
+      handicap: Number(user.handicap ?? 0),
     },
     stats: {
       tournamentsHosted,
@@ -58,6 +59,27 @@ const getUserProfile = async (userId) => {
   };
 };
 
+const updateUserHandicap = async (userId, handicap) => {
+  const parsedHandicap = Number.parseInt(handicap, 10);
+
+  if (!Number.isFinite(parsedHandicap) || parsedHandicap < 0 || parsedHandicap > 300) {
+    throw new ApiError(400, 'INVALID_HANDICAP', 'handicap must be an integer between 0 and 300');
+  }
+
+  const user = await User.findByIdAndUpdate(
+    userId,
+    { handicap: parsedHandicap },
+    { new: true }
+  ).lean();
+
+  if (!user) {
+    throw new ApiError(404, 'USER_NOT_FOUND', 'User not found');
+  }
+
+  return getUserProfile(userId);
+};
+
 module.exports = {
   getUserProfile,
+  updateUserHandicap,
 };
