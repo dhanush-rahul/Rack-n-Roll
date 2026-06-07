@@ -151,10 +151,36 @@ const tournamentSchema = new mongoose.Schema(
       default: [],
       validate: {
         validator: (value) => Array.isArray(value) && value.length <= 2,
-        message: 'A tournament can have at most 2 score editors',
+        message: 'A tournament can have at most 2 proctors',
+      },
+    },
+    proctorTransferRequest: {
+      fromUserId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        default: null,
+      },
+      toUserId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        default: null,
+      },
+      requestedAt: {
+        type: Date,
+        default: null,
       },
     },
     competitionConfig: {
+      format: {
+        type: String,
+        enum: ['singles', 'doubles'],
+        default: 'singles',
+      },
+      pairFormationMode: {
+        type: String,
+        enum: ['playerPicksPartner', 'hostAssigns'],
+        default: 'playerPicksPartner',
+      },
       groupCount: {
         type: Number,
         default: null,
@@ -180,6 +206,18 @@ const tournamentSchema = new mongoose.Schema(
         default: 2,
         min: 1,
         max: 32,
+      },
+      handicapEnabled: {
+        type: Boolean,
+        default: false,
+      },
+      groupStageProctored: {
+        type: Boolean,
+        default: false,
+      },
+      finalStageProctored: {
+        type: Boolean,
+        default: false,
       },
     },
     progressionState: {

@@ -43,24 +43,28 @@ export function useScoreInputs({ groupStageBestOf = 1, finalStageBestOf = 3 } = 
           (left, right) => left.gameNumber - right.gameNumber
         );
 
-        const entries =
-          savedEntries.length > 0
-            ? savedEntries
-            : [
-                {
-                  gameNumber: 1,
-                  playerAScore: '',
-                  playerBScore: '',
-                },
-              ];
+        const seriesMaxGames = Math.max(
+          Number(game.bestOf || 1),
+          game.stage === 'groupStage' ? configuredGroupStageBestOf : configuredFinalStageBestOf,
+          savedEntries.length,
+          1
+        );
+
+        const entries = Array.from({ length: seriesMaxGames }, (_, index) => {
+          const gameNumber = index + 1;
+          return (
+            existingEntriesByGameNumber.get(gameNumber) || {
+              gameNumber,
+              playerAScore: '',
+              playerBScore: '',
+            }
+          );
+        });
 
         nextState[game.id] = {
           status: game.status || 'scheduled',
           entries,
-          seriesMaxGames: Math.max(
-            Number(game.bestOf || 1),
-            game.stage === 'groupStage' ? configuredGroupStageBestOf : configuredFinalStageBestOf
-          ),
+          seriesMaxGames,
         };
       });
 

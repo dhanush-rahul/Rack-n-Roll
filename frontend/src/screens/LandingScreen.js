@@ -1,9 +1,11 @@
 import { useIsFocused } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
+import { ScaledText as Text } from '../components/ui/ScaledText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthFeature, AuthLandingHero, AuthPrimaryButton } from '../components/auth/AuthChrome';
+import { LegalFooter } from '../components/legal/LegalLinks';
 import { ActionButton } from '../components/tournament/TournamentChrome';
 import { authUi } from '../styles/authUi';
 
@@ -62,6 +64,8 @@ export function LandingScreen({ navigation }) {
         <Text style={[authUi.mutedText, { marginTop: 16, fontSize: 12 }]}>
           Fair play and accurate scoring keep every tournament honest. See you at the table.
         </Text>
+
+        <LegalFooter style={{ marginTop: 20 }} />
       </View>
     </ScrollView>
     </>

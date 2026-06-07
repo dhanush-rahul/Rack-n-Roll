@@ -1,10 +1,15 @@
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { ScaledText as Text } from '../components/ui/ScaledText';
+import { ScaledTextInput as TextInput } from '../components/ui/ScaledTextInput';
 import { useFocusEffect } from '@react-navigation/native';
+import { LegalMenuSection } from '../components/legal/LegalLinks';
 import { ActionButton, SectionCard } from '../components/tournament/TournamentChrome';
 import { useAuth } from '../context/AuthContext';
-import { fetchMyProfile } from '../services/userService';
+import { fetchMyProfile, updateMyHandicap } from '../services/userService';
+import { useScreenInsets } from '../hooks/useScreenInsets';
 import { discoverUi, tournamentColors, tournamentUi } from '../styles/tournamentUi';
+import { useResponsiveLayout, centeredContentStyle } from '../utils/responsive';
 
 function StatCard({ label, value, accent }) {
   return (
@@ -54,10 +59,14 @@ function formatMemberSince(value) {
 
 export function ProfileScreen({ navigation }) {
   const { signOut, currentUser } = useAuth();
+  const { scrollPaddingBottom } = useScreenInsets();
+  const { contentMaxWidth } = useResponsiveLayout();
   const [profile, setProfile] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorText, setErrorText] = useState('');
+  const [handicapInput, setHandicapInput] = useState('0');
+  const [isSavingHandicap, setIsSavingHandicap] = useState(false);
 
   const loadProfile = useCallback(async ({ refreshing = false } = {}) => {
     try {
@@ -70,6 +79,7 @@ export function ProfileScreen({ navigation }) {
       setErrorText('');
       const data = await fetchMyProfile();
       setProfile(data);
+      setHandicapInput(String(data?.user?.handicap ?? 0));
     } catch (error) {
       setErrorText(error.message || 'Unable to load your profile.');
     } finally {
@@ -91,7 +101,7 @@ export function ProfileScreen({ navigation }) {
   return (
     <View style={tournamentUi.screen}>
       <ScrollView
-        contentContainerStyle={[tournamentUi.content, { paddingBottom: 32 }]}
+        contentContainerStyle={[tournamentUi.content, centeredContentStyle(contentMaxWidth), { paddingBottom: scrollPaddingBottom }]}
         refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => loadProfile({ refreshing: true })} />}
         showsVerticalScrollIndicator={false}
       >
@@ -155,6 +165,35 @@ export function ProfileScreen({ navigation }) {
               </View>
             </SectionCard>
 
+            <SectionCard title="Handicap" subtitle="Lower number = stronger player (APA-style skill index).">
+              <TextInput
+                style={tournamentUi.input}
+                value={handicapInput}
+                onChangeText={(value) => setHandicapInput(value.replace(/[^\d]/g, ''))}
+                keyboardType="number-pad"
+                placeholder="0–300"
+              />
+              <View style={{ marginTop: 10 }}>
+                <ActionButton
+                  label={isSavingHandicap ? 'Saving…' : 'Save handicap'}
+                  onPress={async () => {
+                    try {
+                      setIsSavingHandicap(true);
+                      const updated = await updateMyHandicap(Number(handicapInput || 0));
+                      setProfile(updated);
+                      setHandicapInput(String(updated?.user?.handicap ?? 0));
+                    } catch (error) {
+                      setErrorText(error.message || 'Unable to update handicap.');
+                    } finally {
+                      setIsSavingHandicap(false);
+                    }
+                  }}
+                  disabled={isSavingHandicap}
+                  fullWidth
+                />
+              </View>
+            </SectionCard>
+
             <View style={{ marginTop: 14 }}>
               <SectionCard title="Match record" subtitle="Completed matches across your tournaments">
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
@@ -169,8 +208,15 @@ export function ProfileScreen({ navigation }) {
                 </View>
               </SectionCard>
             </View>
+
           </>
         )}
+
+        <View style={{ marginTop: 14 }}>
+          <SectionCard title="Legal" subtitle="Terms and privacy information">
+            <LegalMenuSection />
+          </SectionCard>
+        </View>
 
         <View style={{ marginTop: 20, gap: 10 }}>
           <ActionButton label="Sign out" onPress={signOut} variant="danger" fullWidth />

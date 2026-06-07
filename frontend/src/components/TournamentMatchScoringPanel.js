@@ -28,6 +28,9 @@ export function TournamentMatchScoringPanel({
   filterToolbar = null,
   isLoading = false,
   emptyFilterMessage = null,
+  useLiveSessionScoring = false,
+  onStartGame,
+  onScheduleMatch,
 }) {
   return (
     <>
@@ -58,6 +61,9 @@ export function TournamentMatchScoringPanel({
           showSaveButton={showSaveButton}
           showAddSeriesButton={showAddSeriesButton}
           showFinaleActions={showFinaleActions}
+          useLiveSessionScoring={useLiveSessionScoring}
+          onStartGame={onStartGame}
+          onScheduleMatch={onScheduleMatch}
         />
       )}
     </>

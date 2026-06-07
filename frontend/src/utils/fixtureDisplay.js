@@ -177,27 +177,73 @@ export const dedupeRoundMatches = (matches = []) => {
   });
 };
 
+const resolveMatchDisplayStatus = (game) => {
+  const bestOf = Math.max(Number(game.bestOf || 1), 1);
+  const winsRequired = Math.floor(bestOf / 2) + 1;
+  const winsA = Number(game.playerASeriesWins || 0);
+  const winsB = Number(game.playerBSeriesWins || 0);
+  const storedStatus = game.status || 'scheduled';
+
+  if (game.winnerPlayerId || game.winnerTeamId || winsA >= winsRequired || winsB >= winsRequired) {
+    return 'completed';
+  }
+
+  if (storedStatus === 'inProgress') {
+    return 'inProgress';
+  }
+
+  return storedStatus;
+};
+
+const resolveSideDisplay = (game, side) => {
+  const isTeamMatch = Boolean(game.teamAId || game.teamBId || game.teamA || game.teamB);
+
+  if (isTeamMatch) {
+    const team = side === 'A' ? game.teamA : game.teamB;
+    const teamId = side === 'A' ? game.teamAId : game.teamBId;
+
+    return {
+      id: team?.id || teamId,
+      name: team?.displayName || teamId || (side === 'A' ? 'Team A' : 'Team B'),
+    };
+  }
+
+  const player = side === 'A' ? game.playerA : game.playerB;
+  const playerId = side === 'A' ? game.playerAId : game.playerBId;
+
+  return {
+    id: player?.userId || player?.id || playerId,
+    name: player?.displayName || playerId,
+  };
+};
+
 export const mapGameToDisplayMatch = (game, { groupStageBestOf = 1, isPlayedScoreEntry } = {}) => {
   const configuredBestOf = Math.max(Number(groupStageBestOf || 1), 1);
   const bestOf = Math.max(Number(game.bestOf || 1), configuredBestOf);
   const playedEntryCount = Array.isArray(game.scoreEntries)
     ? game.scoreEntries.filter((entry) => (isPlayedScoreEntry ? isPlayedScoreEntry(entry) : false)).length
     : 0;
+  const playerA = resolveSideDisplay(game, 'A');
+  const playerB = resolveSideDisplay(game, 'B');
+  const isTeamMatch = Boolean(game.teamAId || game.teamBId || game.teamA || game.teamB);
 
   return {
     matchNumber: Number(game.matchNumber || 0),
     gameId: game.id,
+    tournamentId: game.tournamentId ? String(game.tournamentId) : null,
     bestOf,
-    status: game.status || 'scheduled',
+    status: resolveMatchDisplayStatus(game),
+    playerASeriesWins: Number(game.playerASeriesWins || 0),
+    playerBSeriesWins: Number(game.playerBSeriesWins || 0),
     completedGamesCount: Math.min(playedEntryCount, bestOf),
-    playerA: {
-      id: game.playerA?.userId || game.playerA?.id || game.playerAId,
-      name: game.playerA?.displayName || game.playerAId,
-    },
-    playerB: {
-      id: game.playerB?.userId || game.playerB?.id || game.playerBId,
-      name: game.playerB?.displayName || game.playerBId,
-    },
+    playerA,
+    playerB,
+    isTeamMatch,
+    teamAId: game.teamAId ? String(game.teamAId) : null,
+    teamBId: game.teamBId ? String(game.teamBId) : null,
+    canEditMatch: Boolean(game.canEditMatch),
+    canScheduleMatch: Boolean(game.canScheduleMatch),
+    scheduledStartAt: game.scheduledStartAt || null,
   };
 };
 
@@ -205,16 +251,28 @@ const extractParticipantsFromGames = (games = []) => {
   const playersById = new Map();
 
   games.forEach((game) => {
-    const sides = [
-      {
-        id: String(game.playerA?.userId || game.playerA?.id || game.playerAId || '').trim(),
-        name: game.playerA?.displayName || game.playerAId,
-      },
-      {
-        id: String(game.playerB?.userId || game.playerB?.id || game.playerBId || '').trim(),
-        name: game.playerB?.displayName || game.playerBId,
-      },
-    ];
+    const isTeamMatch = Boolean(game.teamAId || game.teamBId || game.teamA || game.teamB);
+    const sides = isTeamMatch
+      ? [
+          {
+            id: String(game.teamA?.id || game.teamAId || '').trim(),
+            name: game.teamA?.displayName || game.teamAId,
+          },
+          {
+            id: String(game.teamB?.id || game.teamBId || '').trim(),
+            name: game.teamB?.displayName || game.teamBId,
+          },
+        ]
+      : [
+          {
+            id: String(game.playerA?.userId || game.playerA?.id || game.playerAId || '').trim(),
+            name: game.playerA?.displayName || game.playerAId,
+          },
+          {
+            id: String(game.playerB?.userId || game.playerB?.id || game.playerBId || '').trim(),
+            name: game.playerB?.displayName || game.playerBId,
+          },
+        ];
 
     sides.forEach((side) => {
       if (!side.id || playersById.has(side.id)) {

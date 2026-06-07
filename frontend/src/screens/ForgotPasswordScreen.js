@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Text, View } from 'react-native';
+import { Alert, View } from 'react-native';
+import { ScaledText as Text } from '../components/ui/ScaledText';
 import { ActionButton } from '../components/tournament/TournamentChrome';
 import {
   AuthErrorBanner,
@@ -14,6 +15,7 @@ import {
   AuthSuccessBanner,
   AuthTextLink,
 } from '../components/auth/AuthChrome';
+import { LegalFooter } from '../components/legal/LegalLinks';
 import { confirmPasswordReset, requestPasswordResetPin, validatePasswordResetPin } from '../services/authService';
 import { authUi } from '../styles/authUi';
 import {
@@ -337,6 +339,7 @@ export function ForgotPasswordScreen({ navigation }) {
       </AuthFormCard>
 
       <AuthTextLink prompt="Remembered it?" actionLabel="Back to sign in" onPress={() => navigation.navigate('SignIn')} />
+      <LegalFooter style={{ marginTop: 4 }} />
     </AuthScreenShell>
   );
 }

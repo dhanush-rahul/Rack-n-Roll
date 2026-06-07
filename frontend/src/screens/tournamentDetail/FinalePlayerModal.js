@@ -1,5 +1,6 @@
 import React from 'react';
-import { Button, Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { Button, Modal, Pressable, ScrollView, View } from 'react-native';
+import { ScaledText as Text } from '../../components/ui/ScaledText';
 import { tournamentUi } from '../../styles/tournamentUi';
 
 const FINAL_BEST_OF_OPTIONS = ['1', '3', '5'];
@@ -18,14 +19,21 @@ export function FinalePlayerModal({
   onStartFinalStage,
   finalBestOfInput,
   onFinalBestOfChange,
+  finalStageProctored = false,
+  onFinalStageProctoredChange,
+  isDoubles = false,
 }) {
   return (
     <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
       <View style={tournamentUi.modalOverlay}>
         <Pressable style={tournamentUi.modalBackdrop} onPress={onClose} />
         <View style={[tournamentUi.modalCard, { maxHeight: '80%' }]}>
-          <Text style={tournamentUi.modalTitle}>Select Finale Players</Text>
-          <Text style={{ marginTop: 4 }}>Pick players from groups to move to finale (minimum 2).</Text>
+          <Text style={tournamentUi.modalTitle}>
+            {isDoubles ? 'Select Finale Teams' : 'Select Finale Players'}
+          </Text>
+          <Text style={{ marginTop: 4 }}>
+            Pick {isDoubles ? 'teams' : 'players'} from groups to move to finale (minimum 2).
+          </Text>
           <Text style={{ marginTop: 4, color: '#065f46' }}>Selected: {selectedFinalistCount}</Text>
 
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
@@ -53,64 +61,117 @@ export function FinalePlayerModal({
             })}
           </View>
 
+          {!isDoubles && (
+            <>
+              <Text style={{ marginTop: 12, fontWeight: '600' }}>Finale scoring</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                <Pressable
+                  onPress={() => onFinalStageProctoredChange?.(false)}
+                  style={{
+                    flex: 1,
+                    minWidth: 140,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: !finalStageProctored ? '#2563eb' : '#d1d5db',
+                    backgroundColor: !finalStageProctored ? '#eff6ff' : '#ffffff',
+                  }}
+                >
+                  <Text style={{ color: !finalStageProctored ? '#2563eb' : '#374151', fontWeight: '700' }}>Manual</Text>
+                  <Text style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>Grid scores on the Finale tab</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => onFinalStageProctoredChange?.(true)}
+                  style={{
+                    flex: 1,
+                    minWidth: 140,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: finalStageProctored ? '#2563eb' : '#d1d5db',
+                    backgroundColor: finalStageProctored ? '#eff6ff' : '#ffffff',
+                  }}
+                >
+                  <Text style={{ color: finalStageProctored ? '#2563eb' : '#374151', fontWeight: '700' }}>Proctored</Text>
+                  <Text style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>Live match scoring with proctors</Text>
+                </Pressable>
+              </View>
+            </>
+          )}
+
+          {isDoubles && (
+            <Text style={{ marginTop: 12, color: '#64748b', fontSize: 13 }}>
+              Doubles finale uses manual team scoring only.
+            </Text>
+          )}
+
           {isLoadingFinaleCandidates && <Text style={{ marginTop: 8 }}>Loading group standings...</Text>}
           {!isLoadingFinaleCandidates && groupStandings.length === 0 && (
             <Text style={{ marginTop: 8 }}>No group standings available.</Text>
           )}
 
           <ScrollView style={{ marginTop: 10 }} contentContainerStyle={{ gap: 8 }}>
-            {groupStandings.map((group) => (
-              <View
-                key={group.divisionId}
-                style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, padding: 8, gap: 6 }}
-              >
-                <Text style={{ fontWeight: '600' }}>{group.divisionName}</Text>
-                {(group.standings || []).map((entry) => {
-                  const playerLabel = entry.player?.displayName || entry.playerId;
-                  const selected = Boolean(selectedFinalistIds[entry.playerId]);
-                  const isSuggested = Boolean(suggestedFinalistIds[entry.playerId]);
+            {groupStandings.map((group) => {
+              const entries = isDoubles ? group.teamStandings || [] : group.standings || [];
 
-                  return (
-                    <Pressable
-                      key={`${group.divisionId}-${entry.playerId}`}
-                      onPress={() => onToggleFinalist(entry.playerId)}
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: 8,
-                        paddingVertical: 6,
-                        paddingHorizontal: 4,
-                        borderRadius: 6,
-                        backgroundColor: selected ? '#eff6ff' : 'transparent',
-                      }}
-                    >
-                      <View
+              return (
+                <View
+                  key={group.divisionId}
+                  style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, padding: 8, gap: 6 }}
+                >
+                  <Text style={{ fontWeight: '600' }}>{group.divisionName}</Text>
+                  {entries.map((entry) => {
+                    const finalistId = isDoubles ? entry.teamId : entry.playerId;
+                    const label = isDoubles
+                      ? entry.team?.displayName || entry.teamId
+                      : entry.player?.displayName || entry.playerId;
+                    const selected = Boolean(selectedFinalistIds[finalistId]);
+                    const isSuggested = Boolean(suggestedFinalistIds[finalistId]);
+
+                    return (
+                      <Pressable
+                        key={`${group.divisionId}-${finalistId}`}
+                        onPress={() => onToggleFinalist(finalistId)}
                         style={{
-                          width: 22,
-                          height: 22,
-                          borderRadius: 4,
-                          borderWidth: 2,
-                          borderColor: selected ? '#2563eb' : '#9ca3af',
-                          backgroundColor: selected ? '#2563eb' : '#ffffff',
+                          flexDirection: 'row',
                           alignItems: 'center',
-                          justifyContent: 'center',
+                          gap: 8,
+                          paddingVertical: 6,
+                          paddingHorizontal: 4,
+                          borderRadius: 6,
+                          backgroundColor: selected ? '#eff6ff' : 'transparent',
                         }}
                       >
-                        {selected ? <Text style={{ color: '#ffffff', fontSize: 14 }}>✓</Text> : null}
-                      </View>
-                      <View style={{ flex: 1, gap: 2 }}>
-                        <Text>
-                          #{entry.rank} {playerLabel} ({entry.points} pts)
-                        </Text>
-                        {isSuggested ? (
-                          <Text style={{ color: '#2563eb', fontSize: 12, fontWeight: '600' }}>Top 2 suggested</Text>
-                        ) : null}
-                      </View>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            ))}
+                        <View
+                          style={{
+                            width: 22,
+                            height: 22,
+                            borderRadius: 4,
+                            borderWidth: 2,
+                            borderColor: selected ? '#2563eb' : '#9ca3af',
+                            backgroundColor: selected ? '#2563eb' : '#ffffff',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          {selected ? <Text style={{ color: '#ffffff', fontSize: 14 }}>✓</Text> : null}
+                        </View>
+                        <View style={{ flex: 1, gap: 2 }}>
+                          <Text>
+                            #{entry.rank} {label} ({entry.points} pts)
+                          </Text>
+                          {isSuggested ? (
+                            <Text style={{ color: '#2563eb', fontSize: 12, fontWeight: '600' }}>Top 2 suggested</Text>
+                          ) : null}
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              );
+            })}
           </ScrollView>
 
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>

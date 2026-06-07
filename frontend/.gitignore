@@ -47,4 +47,3 @@ Thumbs.db
 # Optional local tooling
 .idea/
 .vscode/
-package-lock.json

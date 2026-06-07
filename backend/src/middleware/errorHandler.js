@@ -5,6 +5,10 @@ const errorHandler = (err, req, res, next) => {
   const message = isApiError ? err.message || 'Request failed' : 'Unexpected error occurred';
   const safeDetails = isApiError ? err.details : undefined;
 
+  if (!isApiError) {
+    console.error('[errorHandler]', err);
+  }
+
   return res.status(status).json({
     success: false,
     error: {

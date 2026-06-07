@@ -42,6 +42,12 @@ const userSchema = new mongoose.Schema(
       select: false,
       min: 0,
     },
+    handicap: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 300,
+    },
   },
   {
     timestamps: true,

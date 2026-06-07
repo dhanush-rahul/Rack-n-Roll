@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import { clearToken, getToken, setToken } from '../utils/tokenStore';
 import { loginUser, signupUser } from '../services/authService';
 import { apiGet } from '../services/api';
+import { wakeBackendIfNeeded } from '../services/systemService';
 
 const AuthContext = createContext(undefined);
 
@@ -14,6 +15,7 @@ export function AuthProvider({ children }) {
     let isMounted = true;
 
     const bootstrap = async () => {
+      await wakeBackendIfNeeded();
       const restoredToken = await getToken();
 
       if (isMounted) {

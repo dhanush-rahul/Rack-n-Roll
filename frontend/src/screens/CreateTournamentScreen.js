@@ -1,11 +1,23 @@
 import React, { useMemo, useState } from 'react';
-import { Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, ScrollView, View } from 'react-native';
+import { ScaledText as Text } from '../components/ui/ScaledText';
+import { ScaledTextInput as TextInput } from '../components/ui/ScaledTextInput';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { FeedbackModal } from '../components/FeedbackModal';
+import { ChipSelector } from '../components/tournament/TournamentChrome';
+import { StickyFooterScreen } from '../components/layout/ScreenLayout';
 import { createTournament } from '../services/tournamentService';
 import { tournamentColors, tournamentUi } from '../styles/tournamentUi';
+import { useResponsiveLayout, centeredContentStyle } from '../utils/responsive';
 
 const PLAYER_PRESETS = [8, 16, 32, 64];
+
+const GROUP_STAGE_BEST_OF_OPTIONS = [
+  { value: '1', label: 'Best of 1' },
+  { value: '3', label: 'Best of 3' },
+  { value: '5', label: 'Best of 5' },
+  { value: '7', label: 'Best of 7' },
+];
 
 const buildDefaultStartsAt = () => {
   const defaultStart = new Date();
@@ -100,6 +112,7 @@ function ModeOption({ label, description, selected, onPress }) {
 }
 
 export function CreateTournamentScreen({ navigation }) {
+  const { contentMaxWidth } = useResponsiveLayout();
   const defaultStartsAt = useMemo(() => buildDefaultStartsAt(), []);
   const [name, setName] = useState('');
   const [maxParticipants, setMaxParticipants] = useState('16');
@@ -108,6 +121,11 @@ export function CreateTournamentScreen({ navigation }) {
   const [startsAt, setStartsAt] = useState(defaultStartsAt);
   const [activePicker, setActivePicker] = useState(null);
   const [venue, setVenue] = useState('');
+  const [groupStageBestOf, setGroupStageBestOf] = useState('3');
+  const [competitionFormat, setCompetitionFormat] = useState('singles');
+  const [pairFormationMode, setPairFormationMode] = useState('playerPicksPartner');
+  const [handicapEnabled, setHandicapEnabled] = useState(false);
+  const [groupStageProctored, setGroupStageProctored] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
   const [errorText, setErrorText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -198,6 +216,13 @@ export function CreateTournamentScreen({ navigation }) {
         location: {
           formattedAddress: validated.trimmedVenue,
         },
+        competitionConfig: {
+          format: competitionFormat,
+          pairFormationMode: competitionFormat === 'doubles' ? pairFormationMode : undefined,
+          groupStageBestOf: Number(groupStageBestOf),
+          handicapEnabled: competitionFormat === 'doubles' ? false : handicapEnabled,
+          groupStageProctored: competitionFormat === 'doubles' ? false : groupStageProctored,
+        },
       };
 
       const createdTournament = await createTournament(payload);
@@ -211,7 +236,11 @@ export function CreateTournamentScreen({ navigation }) {
       setInviteCode('');
       setFieldErrors({});
     } catch (error) {
-      setErrorText(`${error.code || 'ERROR'}: ${error.message || 'Unable to create tournament'}`);
+      const message =
+        error.code === 'NETWORK_ERROR'
+          ? 'Server is waking up. Please wait a moment and try again.'
+          : error.message || 'Unable to create tournament';
+      setErrorText(`${error.code || 'ERROR'}: ${message}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -235,7 +264,28 @@ export function CreateTournamentScreen({ navigation }) {
       emoji="🎉"
       onDismiss={onSuccessDismiss}
     />
-    <ScrollView style={tournamentUi.screen} contentContainerStyle={{ padding: 16, paddingBottom: 28, gap: 14 }}>
+    <StickyFooterScreen
+      style={tournamentUi.screen}
+      keyboardAvoiding
+      contentContainerStyle={[centeredContentStyle(contentMaxWidth), { gap: 14 }]}
+      footer={
+        <Pressable
+          onPress={onSubmit}
+          disabled={isSubmitting}
+          style={({ pressed }) => ({
+            backgroundColor: isSubmitting ? tournamentColors.primaryMuted : tournamentColors.primary,
+            borderRadius: 12,
+            paddingVertical: 16,
+            alignItems: 'center',
+            opacity: pressed || isSubmitting ? 0.85 : 1,
+          })}
+        >
+          <Text style={{ color: tournamentColors.white, fontSize: 16, fontWeight: '700' }}>
+            {isSubmitting ? 'Creating tournament...' : 'Launch tournament'}
+          </Text>
+        </Pressable>
+      }
+    >
       <View
         style={{
           borderRadius: 16,
@@ -309,6 +359,96 @@ export function CreateTournamentScreen({ navigation }) {
           </View>
           {Boolean(fieldErrors.maxParticipants) && <Text style={errorTextStyle}>{fieldErrors.maxParticipants}</Text>}
         </View>
+      </SectionCard>
+
+      <SectionCard title="Competition format" subtitle="Singles or doubles for the entire tournament.">
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <ModeOption
+            label="Singles"
+            description="One player per side. Handicap and proctored scoring available."
+            selected={competitionFormat === 'singles'}
+            onPress={() => setCompetitionFormat('singles')}
+          />
+          <ModeOption
+            label="Doubles"
+            description="Two players per team. Manual team scoring only; handicap is off."
+            selected={competitionFormat === 'doubles'}
+            onPress={() => setCompetitionFormat('doubles')}
+          />
+        </View>
+
+        {competitionFormat === 'doubles' && (
+          <View style={{ marginTop: 12, gap: 8 }}>
+            <FieldLabel>How teams form</FieldLabel>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <ModeOption
+                label="Players pick"
+                description="Approved players choose a solo partner after joining."
+                selected={pairFormationMode === 'playerPicksPartner'}
+                onPress={() => setPairFormationMode('playerPicksPartner')}
+              />
+              <ModeOption
+                label="Host assigns"
+                description="You form or break teams from the Players tab."
+                selected={pairFormationMode === 'hostAssigns'}
+                onPress={() => setPairFormationMode('hostAssigns')}
+              />
+            </View>
+          </View>
+        )}
+      </SectionCard>
+
+      <SectionCard title="Match format" subtitle="Group-stage series length before the finale (finale configured later).">
+        <ChipSelector
+          label="Games per match (group stage)"
+          options={GROUP_STAGE_BEST_OF_OPTIONS}
+          value={groupStageBestOf}
+          onChange={setGroupStageBestOf}
+        />
+        {competitionFormat === 'singles' && (
+        <Pressable
+          onPress={() => setHandicapEnabled((current) => !current)}
+          style={({ pressed }) => ({
+            marginTop: 12,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 10,
+            padding: 12,
+            borderRadius: 10,
+            borderWidth: 1,
+            borderColor: handicapEnabled ? tournamentColors.primary : tournamentColors.border,
+            backgroundColor: handicapEnabled ? '#eff6ff' : tournamentColors.white,
+            opacity: pressed ? 0.9 : 1,
+          })}
+        >
+          <Text style={{ fontSize: 18 }}>{handicapEnabled ? '☑' : '☐'}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontWeight: '700', color: tournamentColors.text }}>Use handicap in standings</Text>
+            <Text style={{ fontSize: 12, color: tournamentColors.textMuted, marginTop: 2 }}>
+              Lower handicap = stronger player (APA-style). Copies profile handicap when players join.
+            </Text>
+          </View>
+        </Pressable>
+        )}
+        {competitionFormat === 'singles' && (
+        <View style={{ marginTop: 12, gap: 8 }}>
+          <FieldLabel>Group-stage scoring</FieldLabel>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <ModeOption
+              label="Manual"
+              description="Players and host enter scores in a grid on the Games tab."
+              selected={!groupStageProctored}
+              onPress={() => setGroupStageProctored(false)}
+            />
+            <ModeOption
+              label="Proctored"
+              description="Assigned proctors run live match scoring with leg and takeover."
+              selected={groupStageProctored}
+              onPress={() => setGroupStageProctored(true)}
+            />
+          </View>
+        </View>
+        )}
       </SectionCard>
 
       <SectionCard title="Registration" subtitle="Choose who can request a spot.">
@@ -435,23 +575,7 @@ export function CreateTournamentScreen({ navigation }) {
       </View>
 
       {Boolean(errorText) && <Text style={errorTextStyle}>{errorText}</Text>}
-
-      <Pressable
-        onPress={onSubmit}
-        disabled={isSubmitting}
-        style={({ pressed }) => ({
-          backgroundColor: isSubmitting ? tournamentColors.primaryMuted : tournamentColors.primary,
-          borderRadius: 12,
-          paddingVertical: 16,
-          alignItems: 'center',
-          opacity: pressed || isSubmitting ? 0.85 : 1,
-        })}
-      >
-        <Text style={{ color: tournamentColors.white, fontSize: 16, fontWeight: '700' }}>
-          {isSubmitting ? 'Creating tournament...' : 'Launch tournament'}
-        </Text>
-      </Pressable>
-    </ScrollView>
+    </StickyFooterScreen>
   </>
   );
 }

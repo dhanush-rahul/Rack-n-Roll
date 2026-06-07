@@ -14,10 +14,22 @@ const leaderboardSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    standingsType: {
+      type: String,
+      enum: ['player', 'team'],
+      default: 'player',
+      index: true,
+    },
     playerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Player',
-      required: true,
+      default: null,
+      index: true,
+    },
+    teamId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Team',
+      default: null,
       index: true,
     },
     rank: {
@@ -65,7 +77,14 @@ const leaderboardSchema = new mongoose.Schema(
 );
 
 leaderboardSchema.index({ tournamentId: 1, divisionId: 1, rank: 1 });
-leaderboardSchema.index({ tournamentId: 1, divisionId: 1, playerId: 1 }, { unique: true });
+leaderboardSchema.index(
+  { tournamentId: 1, divisionId: 1, standingsType: 1, playerId: 1 },
+  { unique: true, partialFilterExpression: { standingsType: 'player', playerId: { $type: 'objectId' } } }
+);
+leaderboardSchema.index(
+  { tournamentId: 1, divisionId: 1, standingsType: 1, teamId: 1 },
+  { unique: true, partialFilterExpression: { standingsType: 'team', teamId: { $type: 'objectId' } } }
+);
 
 const Leaderboard = mongoose.model('Leaderboard', leaderboardSchema);
 

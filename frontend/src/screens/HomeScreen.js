@@ -7,21 +7,23 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
-  Text,
-  TextInput,
   View,
 } from 'react-native';
+import { ScaledText as Text } from '../components/ui/ScaledText';
+import { ScaledTextInput as TextInput } from '../components/ui/ScaledTextInput';
 import { useAuth } from '../context/AuthContext';
 import {
   fetchDiscoverTournaments,
   submitTournamentRegistrationRequest,
   validateTournamentInviteCode,
 } from '../services/tournamentService';
+import { useScreenInsets } from '../hooks/useScreenInsets';
 import { discoverUi, tournamentColors, tournamentUi } from '../styles/tournamentUi';
+import { useResponsiveLayout, centeredContentStyle } from '../utils/responsive';
 
 const HIGHLIGHT_BLINK_DURATION_MS = 6000;
 const PAGE_SIZE_OPTIONS = [10, 20, 30];
-const EXPANDED_SECTION_MAX_HEIGHT = 440;
+const EXPANDED_SECTION_MAX_HEIGHT = 720;
 const FILTER_OPTIONS = [
   { id: 'all', label: 'All' },
   { id: 'open', label: 'Open' },
@@ -779,15 +781,19 @@ function DiscoverTournamentCard({
             </View>
           </View>
 
-          <View style={{ gap: 8, paddingLeft: 56 }}>
-            <MetaRow icon="📍" label={locationLabel} />
-            {Boolean(startsAtLabel) && <MetaRow icon="📅" label={startsAtLabel} emphasis />}
-            <MetaRow icon="👥" label={`Up to ${item.maxParticipants} players`} />
-          </View>
+          {!isExpanded && (
+            <Text
+              style={{ paddingLeft: 56, fontSize: 13, color: tournamentColors.textMuted }}
+              numberOfLines={1}
+            >
+              {startsAtLabel ? `${startsAtLabel} · ` : ''}
+              {locationLabel}
+            </Text>
+          )}
 
           {!isExpanded && (
             <Text style={{ paddingLeft: 56, fontSize: 12, fontWeight: '600', color: tournamentColors.primary }}>
-              Tap for actions & registration →
+              Tap to expand →
             </Text>
           )}
         </Pressable>
@@ -804,7 +810,13 @@ function DiscoverTournamentCard({
               backgroundColor: '#fafbfc',
             }}
           >
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+            <View style={{ gap: 8, marginTop: 10 }}>
+              <MetaRow icon="📍" label={locationLabel} />
+              {Boolean(startsAtLabel) && <MetaRow icon="📅" label={startsAtLabel} emphasis />}
+              <MetaRow icon="👥" label={`Up to ${item.maxParticipants} players`} />
+            </View>
+
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {isHostTournament && (
                 <DiscoverActionButton
                   label="Host dashboard"
@@ -881,6 +893,8 @@ function DiscoverTournamentCard({
 
 export function HomeScreen({ navigation, route }) {
   const { currentUser } = useAuth();
+  const { scrollPaddingBottom } = useScreenInsets();
+  const { contentMaxWidth, horizontalPadding } = useResponsiveLayout();
   const [discoveryItems, setDiscoveryItems] = useState([]);
   const [discoveryMeta, setDiscoveryMeta] = useState(null);
   const [discoveryError, setDiscoveryError] = useState('');
@@ -1253,7 +1267,10 @@ export function HomeScreen({ navigation, route }) {
   return (
     <ScrollView
       style={tournamentUi.screen}
-      contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
+      contentContainerStyle={[
+        { padding: horizontalPadding, paddingBottom: scrollPaddingBottom },
+        centeredContentStyle(contentMaxWidth),
+      ]}
       removeClippedSubviews={false}
       keyboardShouldPersistTaps="handled"
       refreshControl={

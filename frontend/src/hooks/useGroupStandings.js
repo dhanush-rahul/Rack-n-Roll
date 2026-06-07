@@ -8,6 +8,11 @@ import { buildGroupDisplayName } from '../utils/groupNaming';
 
 export function useGroupStandings(tournamentId) {
   const [groupsTabItems, setGroupsTabItems] = useState([]);
+  const [handicapEnabled, setHandicapEnabled] = useState(false);
+  const [finalStageEnabled, setFinalStageEnabled] = useState(false);
+  const [completedWithFinale, setCompletedWithFinale] = useState(false);
+  const [finaleStandings, setFinaleStandings] = useState([]);
+  const [tournamentWinners, setTournamentWinners] = useState([]);
   const [groupPlayerGameStatsById, setGroupPlayerGameStatsById] = useState({});
   const [isLoading, setIsLoading] = useState(false);
 
@@ -91,6 +96,11 @@ export function useGroupStandings(tournamentId) {
     ]);
 
     let nextGroups = standingsResponse.groups || [];
+    setHandicapEnabled(Boolean(standingsResponse.handicapEnabled));
+    setFinalStageEnabled(Boolean(standingsResponse.finalStageEnabled));
+    setCompletedWithFinale(Boolean(standingsResponse.completedWithFinale));
+    setFinaleStandings(standingsResponse.finaleStandings || []);
+    setTournamentWinners(standingsResponse.tournamentWinners || []);
     const fallbackByDivisionId = fallbackData.divisionsById;
 
     setGroupPlayerGameStatsById(
@@ -155,6 +165,11 @@ export function useGroupStandings(tournamentId) {
 
   return {
     groupsTabItems,
+    handicapEnabled,
+    finalStageEnabled,
+    completedWithFinale,
+    finaleStandings,
+    tournamentWinners,
     groupPlayerGameStatsById,
     isLoading,
     refreshGroupsTabData,

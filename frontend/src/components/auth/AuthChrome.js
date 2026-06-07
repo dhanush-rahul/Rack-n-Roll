@@ -1,9 +1,12 @@
 import React, { useMemo, useRef } from 'react';
-import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
+import { ScaledText as Text } from '../ui/ScaledText';
+import { ScaledTextInput as TextInput } from '../ui/ScaledTextInput';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActionButton } from '../tournament/TournamentChrome';
 import { authUi } from '../../styles/authUi';
 import { tournamentColors } from '../../styles/tournamentUi';
+import { useResponsiveLayout, centeredContentStyle } from '../../utils/responsive';
 
 export function AuthHero({ eyebrow, title, subtitle, compact = false }) {
   return (
@@ -157,14 +160,18 @@ export function AuthPasswordMatchHint({ password, confirmPassword }) {
 }
 
 export function AuthScreenShell({ children, keyboardVerticalOffset = 0 }) {
+  const insets = useSafeAreaInsets();
+  const scrollBottom = 16 + insets.bottom;
+  const { contentMaxWidth } = useResponsiveLayout();
+
   return (
     <KeyboardAvoidingView
       style={authUi.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={keyboardVerticalOffset}
     >
       <ScrollView
-        contentContainerStyle={authUi.scrollContent}
+        contentContainerStyle={[authUi.scrollContent, { paddingBottom: scrollBottom }, centeredContentStyle(contentMaxWidth)]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >

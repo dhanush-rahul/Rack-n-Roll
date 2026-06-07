@@ -4,8 +4,19 @@ const Division = require('../models/division.model');
 const Player = require('../models/player.model');
 const Game = require('../models/game.model');
 const Leaderboard = require('../models/leaderboard.model');
+const Team = require('../models/team.model');
 const User = require('../models/user.model');
 const ApiError = require('../utils/ApiError');
+const { computePoolStats, getHandicapBonusPoints } = require('../utils/handicapScoring');
+const {
+  isDoublesTournament,
+  resolveDoublesPairingForGroupAssign,
+  randomPairSolos,
+  pairByeWithPlayer,
+  buildTeamSummaryById,
+  listTournamentTeams,
+  listSoloPlayers,
+} = require('./team.service');
 
 const normalizeLocation = (location) => {
   const formattedAddress = String(location?.formattedAddress || '').trim();
@@ -38,12 +49,30 @@ const parseStartsAt = (value) => {
   return parsedDate;
 };
 
+const parseBestOf = (value, fallbackValue = 1) => {
+  const parsedValue = Number.parseInt(value, 10);
+
+  if ([1, 3, 5, 7].includes(parsedValue)) {
+    return parsedValue;
+  }
+
+  return fallbackValue;
+};
+
 const normalizeTournamentInput = (input, hostUserId) => {
   if (!hostUserId) {
     throw new ApiError(401, 'UNAUTHORIZED', 'Authentication required');
   }
 
   const registrationMode = input?.registrationMode === 'inviteOnly' ? 'inviteOnly' : 'public';
+
+  const groupStageBestOf = parseBestOf(
+    input?.competitionConfig?.groupStageBestOf ?? input?.groupStageBestOf,
+    1
+  );
+  const format = input?.competitionConfig?.format === 'doubles' ? 'doubles' : 'singles';
+  const pairFormationMode =
+    input?.competitionConfig?.pairFormationMode === 'hostAssigns' ? 'hostAssigns' : 'playerPicksPartner';
 
   return {
     name: String(input?.name || '').trim(),
@@ -60,6 +89,16 @@ const normalizeTournamentInput = (input, hostUserId) => {
     location: normalizeLocation(input?.location),
     startsAt: parseStartsAt(input?.startsAt),
     status: 'draft',
+    competitionConfig: {
+      format,
+      pairFormationMode,
+      groupStageBestOf,
+      handicapEnabled: format === 'doubles' ? false : Boolean(input?.competitionConfig?.handicapEnabled ?? input?.handicapEnabled),
+      groupStageProctored:
+        format === 'doubles'
+          ? false
+          : Boolean(input?.competitionConfig?.groupStageProctored ?? input?.groupStageProctored ?? false),
+    },
   };
 };
 
@@ -108,16 +147,6 @@ const parsePositiveInteger = (value, fallbackValue) => {
   }
 
   return parsedValue;
-};
-
-const parseBestOf = (value, fallbackValue = 1) => {
-  const parsedValue = Number.parseInt(value, 10);
-
-  if ([1, 3, 5, 7].includes(parsedValue)) {
-    return parsedValue;
-  }
-
-  return fallbackValue;
 };
 
 const shuffleArray = (items = []) => {
@@ -196,12 +225,24 @@ const mapHostTournamentDetail = (tournament, pendingParticipantsCount = 0) => ({
   status: tournament.status,
   progressionState: tournament.progressionState || 'registration',
   scoreEditorUserIds: (tournament.scoreEditorUserIds || []).map((value) => String(value)),
+  proctorTransferRequest: tournament.proctorTransferRequest?.toUserId
+    ? {
+        fromUserId: String(tournament.proctorTransferRequest.fromUserId || ''),
+        toUserId: String(tournament.proctorTransferRequest.toUserId || ''),
+        requestedAt: tournament.proctorTransferRequest.requestedAt || null,
+      }
+    : null,
   competitionConfig: {
+    format: tournament.competitionConfig?.format || 'singles',
+    pairFormationMode: tournament.competitionConfig?.pairFormationMode || 'playerPicksPartner',
     groupCount: tournament.competitionConfig?.groupCount || null,
     groupStageBestOf: tournament.competitionConfig?.groupStageBestOf || 1,
     finalStageEnabled: Boolean(tournament.competitionConfig?.finalStageEnabled),
     finalStageBestOf: tournament.competitionConfig?.finalStageBestOf || 3,
     finalStageTopPerGroup: tournament.competitionConfig?.finalStageTopPerGroup || 2,
+    handicapEnabled: Boolean(tournament.competitionConfig?.handicapEnabled),
+    groupStageProctored: Boolean(tournament.competitionConfig?.groupStageProctored),
+    finalStageProctored: Boolean(tournament.competitionConfig?.finalStageProctored),
   },
   createdAt: tournament.createdAt,
   updatedAt: tournament.updatedAt,
@@ -481,7 +522,7 @@ const buildUserSummaryById = async (userIds = []) => {
   }
 
   const users = await User.find({ _id: { $in: normalizedUniqueUserIds } })
-    .select({ _id: 1, name: 1, email: 1 })
+    .select({ _id: 1, name: 1, email: 1, handicap: 1 })
     .lean();
 
   return users.reduce((accumulator, user) => {
@@ -498,7 +539,7 @@ const buildPlayerSummaryById = async (playerIds = []) => {
   }
 
   const players = await Player.find({ _id: { $in: normalizedUniquePlayerIds } })
-    .select({ _id: 1, userId: 1, displayName: 1 })
+    .select({ _id: 1, userId: 1, displayName: 1, handicapEnabled: 1, handicapValue: 1 })
     .lean();
 
   return players.reduce((accumulator, player) => {
@@ -506,6 +547,8 @@ const buildPlayerSummaryById = async (playerIds = []) => {
       id: String(player._id),
       userId: player.userId ? String(player.userId) : null,
       displayName: player.displayName,
+      handicapEnabled: Boolean(player.handicapEnabled),
+      handicapValue: Number(player.handicapValue || 0),
     });
     return accumulator;
   }, new Map());
@@ -894,6 +937,8 @@ const reviewRegistrationRequest = async (tournamentId, registrationId, hostUserI
       );
     }
 
+    await materializeApprovedPlayerForUser(tournamentId, approvedRegistration.userId);
+
     const groupSync = await syncApprovedPlayerToGroups(tournamentId, approvedRegistration.userId);
 
     return {
@@ -980,6 +1025,8 @@ const manuallyAddParticipant = async (tournamentId, hostUserId, targetUserId) =>
         );
       }
 
+      await materializeApprovedPlayerForUser(tournamentId, normalizedTargetUserId);
+
       const groupSync = await syncApprovedPlayerToGroups(tournamentId, normalizedTargetUserId);
 
       return {
@@ -995,6 +1042,8 @@ const manuallyAddParticipant = async (tournamentId, hostUserId, targetUserId) =>
       reviewedByUserId: hostUserId,
       reviewedAt,
     });
+
+    await materializeApprovedPlayerForUser(tournamentId, normalizedTargetUserId);
 
     const groupSync = await syncApprovedPlayerToGroups(tournamentId, normalizedTargetUserId);
 
@@ -1112,18 +1161,11 @@ const assignScoreEditor = async (tournamentId, hostUserId, editorUserId) => {
     throw new ApiError(409, 'SCORE_EDITOR_ALREADY_ASSIGNED', 'User is already a score editor');
   }
 
-  if (currentEditors.length >= 2) {
-    throw new ApiError(409, 'SCORE_EDITOR_LIMIT_REACHED', 'A tournament can have at most 2 score editors');
-  }
-
   const updatedTournament = await Tournament.findOneAndUpdate(
     {
       _id: tournamentId,
       hostUserId,
       scoreEditorUserIds: { $ne: normalizedEditorUserId },
-      $expr: {
-        $lt: [{ $size: { $ifNull: ['$scoreEditorUserIds', []] } }, 2],
-      },
     },
     {
       $addToSet: {
@@ -1139,7 +1181,7 @@ const assignScoreEditor = async (tournamentId, hostUserId, editorUserId) => {
     throw new ApiError(
       409,
       'SCORE_EDITOR_ASSIGNMENT_CONFLICT',
-      'Unable to assign score editor due to concurrent update or limit reached'
+      'Unable to assign score editor due to concurrent update'
     );
   }
 
@@ -1182,6 +1224,297 @@ const removeScoreEditor = async (tournamentId, hostUserId, editorUserId) => {
   return mapScoreEditorResponse(updatedTournament);
 };
 
+const requestProctorTransfer = async (tournamentId, actorUserId, targetUserId) => {
+  const normalizedTargetUserId = String(targetUserId || '').trim();
+
+  if (!normalizedTargetUserId) {
+    throw new ApiError(400, 'PROCTOR_TRANSFER_TARGET_REQUIRED', 'targetUserId is required');
+  }
+
+  const tournament = await Tournament.findById(tournamentId).lean();
+
+  if (!tournament) {
+    throw new ApiError(404, 'TOURNAMENT_NOT_FOUND', 'Tournament not found');
+  }
+
+  const normalizedActorUserId = String(actorUserId);
+  const isHost = String(tournament.hostUserId) === normalizedActorUserId;
+  const currentEditors = (tournament.scoreEditorUserIds || []).map((value) => String(value));
+  const isProctor = currentEditors.includes(normalizedActorUserId);
+
+  if (!isHost && !isProctor) {
+    throw new ApiError(403, 'FORBIDDEN_PROCTOR', 'Only the host or an assigned proctor can request a transfer');
+  }
+
+  if (String(tournament.hostUserId) === normalizedTargetUserId) {
+    throw new ApiError(400, 'INVALID_TRANSFER_TARGET', 'Cannot transfer proctor role to the host');
+  }
+
+  if (currentEditors.includes(normalizedTargetUserId)) {
+    throw new ApiError(409, 'PROCTOR_ALREADY_ASSIGNED', 'Target user is already a proctor');
+  }
+
+  if (!isHost && !currentEditors.includes(normalizedActorUserId)) {
+    throw new ApiError(403, 'FORBIDDEN_PROCTOR', 'Only current proctors can initiate a handoff');
+  }
+
+  const fromUserId = isHost && !isProctor ? normalizedActorUserId : normalizedActorUserId;
+
+  const updatedTournament = await Tournament.findByIdAndUpdate(
+    tournamentId,
+    {
+      proctorTransferRequest: {
+        fromUserId,
+        toUserId: normalizedTargetUserId,
+        requestedAt: new Date(),
+      },
+    },
+    { new: true }
+  ).lean();
+
+  return {
+    ...mapScoreEditorResponse(updatedTournament),
+    proctorTransferRequest: mapHostTournamentDetail(updatedTournament).proctorTransferRequest,
+  };
+};
+
+const acceptProctorTransfer = async (tournamentId, actorUserId) => {
+  const tournament = await Tournament.findById(tournamentId).lean();
+
+  if (!tournament) {
+    throw new ApiError(404, 'TOURNAMENT_NOT_FOUND', 'Tournament not found');
+  }
+
+  const transfer = tournament.proctorTransferRequest;
+
+  if (!transfer?.toUserId) {
+    throw new ApiError(404, 'PROCTOR_TRANSFER_NOT_FOUND', 'No pending proctor transfer request');
+  }
+
+  if (String(transfer.toUserId) !== String(actorUserId)) {
+    throw new ApiError(403, 'FORBIDDEN_PROCTOR_ACCEPT', 'Only the requested user can accept the transfer');
+  }
+
+  const fromUserId = String(transfer.fromUserId || '');
+  const toUserId = String(transfer.toUserId);
+  const currentEditors = (tournament.scoreEditorUserIds || []).map((value) => String(value));
+  const nextEditors = currentEditors.filter((id) => id !== fromUserId);
+
+  if (!nextEditors.includes(toUserId)) {
+    nextEditors.push(toUserId);
+  }
+
+  const updatedTournament = await Tournament.findByIdAndUpdate(
+    tournamentId,
+    {
+      scoreEditorUserIds: nextEditors,
+      proctorTransferRequest: {
+        fromUserId: null,
+        toUserId: null,
+        requestedAt: null,
+      },
+    },
+    { new: true }
+  ).lean();
+
+  return {
+    ...mapScoreEditorResponse(updatedTournament),
+    proctorTransferRequest: null,
+  };
+};
+
+const declineProctorTransfer = async (tournamentId, actorUserId) => {
+  const tournament = await Tournament.findById(tournamentId).lean();
+
+  if (!tournament?.proctorTransferRequest?.toUserId) {
+    throw new ApiError(404, 'PROCTOR_TRANSFER_NOT_FOUND', 'No pending proctor transfer request');
+  }
+
+  const normalizedActorUserId = String(actorUserId);
+  const isHost = String(tournament.hostUserId) === normalizedActorUserId;
+  const isTarget = String(tournament.proctorTransferRequest.toUserId) === normalizedActorUserId;
+
+  if (!isHost && !isTarget) {
+    throw new ApiError(403, 'FORBIDDEN_PROCTOR_DECLINE', 'Only the host or target user can decline the transfer');
+  }
+
+  const updatedTournament = await Tournament.findByIdAndUpdate(
+    tournamentId,
+    {
+      proctorTransferRequest: {
+        fromUserId: null,
+        toUserId: null,
+        requestedAt: null,
+      },
+    },
+    { new: true }
+  ).lean();
+
+  return {
+    ...mapScoreEditorResponse(updatedTournament),
+    proctorTransferRequest: null,
+  };
+};
+
+const isStageProctored = (competitionConfig = {}, stage = 'groupStage') => {
+  if (stage === 'finalStage') {
+    return Boolean(competitionConfig.finalStageProctored);
+  }
+  return Boolean(competitionConfig.groupStageProctored);
+};
+
+const isActiveTournamentParticipant = async (tournamentId, userId) => {
+  if (!userId) {
+    return false;
+  }
+
+  const player = await Player.findOne({
+    tournamentId,
+    userId,
+    status: 'active',
+  })
+    .select({ _id: 1 })
+    .lean();
+
+  return Boolean(player);
+};
+
+const canUserEditGameScores = (tournament, userId, game, playerSummaryById = new Map(), teamSummaryById = new Map()) => {
+  if (!userId || !tournament || !game) {
+    return false;
+  }
+
+  const normalizedUserId = String(userId);
+  const isHost = String(tournament.hostUserId) === normalizedUserId;
+  const isAssignedEditor = (tournament.scoreEditorUserIds || []).some(
+    (editorUserId) => String(editorUserId) === normalizedUserId
+  );
+  const stage = game.stage || 'groupStage';
+  const proctored = isStageProctored(tournament.competitionConfig || {}, stage);
+
+  if (proctored) {
+    return isHost || isAssignedEditor;
+  }
+
+  if (isHost) {
+    return true;
+  }
+
+  if (game.teamAId && game.teamBId) {
+    const teamA = teamSummaryById?.get?.(String(game.teamAId));
+    const teamB = teamSummaryById?.get?.(String(game.teamBId));
+    const memberUserIds = [
+      teamA?.player1?.userId,
+      teamA?.player2?.userId,
+      teamB?.player1?.userId,
+      teamB?.player2?.userId,
+    ];
+    return memberUserIds.some((matchUserId) => matchUserId && String(matchUserId) === normalizedUserId);
+  }
+
+  const playerA = playerSummaryById.get(String(game.playerAId));
+  const playerB = playerSummaryById.get(String(game.playerBId));
+  return [playerA?.userId, playerB?.userId].some(
+    (matchUserId) => matchUserId && String(matchUserId) === normalizedUserId
+  );
+};
+
+const isUserInMatch = (userId, game, playerSummaryById, teamSummaryById) => {
+  const normalizedUserId = String(userId);
+
+  if (game.teamAId && game.teamBId) {
+    const teamA = teamSummaryById?.get?.(String(game.teamAId));
+    const teamB = teamSummaryById?.get?.(String(game.teamBId));
+    const memberUserIds = [
+      teamA?.player1?.userId,
+      teamA?.player2?.userId,
+      teamB?.player1?.userId,
+      teamB?.player2?.userId,
+    ];
+
+    return memberUserIds.some((matchUserId) => matchUserId && String(matchUserId) === normalizedUserId);
+  }
+
+  const playerA = playerSummaryById.get(String(game.playerAId));
+  const playerB = playerSummaryById.get(String(game.playerBId));
+
+  return [playerA?.userId, playerB?.userId].some(
+    (matchUserId) => matchUserId && String(matchUserId) === normalizedUserId
+  );
+};
+
+const canUserScheduleMatch = (tournament, userId, game, playerSummaryById, teamSummaryById) => {
+  if (!userId) {
+    return false;
+  }
+
+  if (String(tournament.hostUserId) === String(userId)) {
+    return true;
+  }
+
+  return isUserInMatch(userId, game, playerSummaryById, teamSummaryById);
+};
+
+const assertUserCanScheduleMatch = async (tournamentId, userId, game) => {
+  if (!userId) {
+    throw new ApiError(401, 'UNAUTHORIZED', 'Authentication required');
+  }
+
+  const tournament = await Tournament.findById(tournamentId)
+    .select({ hostUserId: 1 })
+    .lean();
+
+  if (!tournament) {
+    throw new ApiError(404, 'TOURNAMENT_NOT_FOUND', 'Tournament not found');
+  }
+
+  const playerSummaryById = await buildPlayerSummaryById(
+    [game.playerAId, game.playerBId].filter(Boolean)
+  );
+  const teamSummaryById = await buildTeamSummaryById(
+    [game.teamAId, game.teamBId].filter(Boolean)
+  );
+  const allowed = canUserScheduleMatch(tournament, userId, game, playerSummaryById, teamSummaryById);
+
+  if (!allowed) {
+    throw new ApiError(
+      403,
+      'FORBIDDEN_SCHEDULE_EDIT',
+      'Only the host or players in this match can schedule it'
+    );
+  }
+};
+
+const assertCanEditGameScores = async (tournamentId, userId, game) => {
+  if (!userId) {
+    throw new ApiError(401, 'UNAUTHORIZED', 'Authentication required');
+  }
+
+  const tournament = await Tournament.findById(tournamentId)
+    .select({ hostUserId: 1, scoreEditorUserIds: 1, competitionConfig: 1 })
+    .lean();
+
+  if (!tournament) {
+    throw new ApiError(404, 'TOURNAMENT_NOT_FOUND', 'Tournament not found');
+  }
+
+  const playerSummaryById = await buildPlayerSummaryById(
+    [game.playerAId, game.playerBId].filter(Boolean)
+  );
+  const teamSummaryById = await buildTeamSummaryById(
+    [game.teamAId, game.teamBId].filter(Boolean)
+  );
+  const allowed = canUserEditGameScores(tournament, userId, game, playerSummaryById, teamSummaryById);
+
+  if (!allowed) {
+    throw new ApiError(
+      403,
+      'FORBIDDEN_SCORE_EDIT',
+      'Only the host, assigned proctors, or players in this match can edit scores'
+    );
+  }
+};
+
 const canUserEditTournamentScores = async (tournamentId, userId) => {
   if (!userId) {
     return false;
@@ -1216,7 +1549,48 @@ const assertCanEditTournamentScores = async (tournamentId, userId) => {
   }
 };
 
-const mapGameForScoresheet = (game, playerSummaryById = new Map(), divisionNameById = new Map()) => ({
+const resolveGameDisplayStatus = (game) => {
+  const scoreEntries = game.scoreEntries || [];
+  const seriesOutcome = computeSeriesOutcome(game, scoreEntries);
+  const storedStatus = game.status || 'scheduled';
+
+  if (seriesOutcome.winnerPlayerId || storedStatus === 'completed') {
+    return 'completed';
+  }
+
+  if (storedStatus === 'inProgress') {
+    return 'inProgress';
+  }
+
+  return storedStatus;
+};
+
+const mapGameForScoresheet = (
+  game,
+  playerSummaryById = new Map(),
+  divisionNameById = new Map(),
+  {
+    canEditMatch = false,
+    canScheduleMatch = false,
+    teamSummaryById = new Map(),
+    tournamentMeta = null,
+    viewerUserId = null,
+  } = {}
+) => {
+  const seriesOutcome = computeSeriesOutcome(game, game.scoreEntries || []);
+  const resolvedCanScheduleMatch =
+    canScheduleMatch ||
+    (tournamentMeta && viewerUserId
+      ? canUserScheduleMatch(
+          tournamentMeta,
+          viewerUserId,
+          game,
+          playerSummaryById,
+          teamSummaryById
+        )
+      : false);
+
+  return {
   id: String(game._id),
   tournamentId: String(game.tournamentId),
   divisionId: game.divisionId ? String(game.divisionId) : null,
@@ -1224,21 +1598,38 @@ const mapGameForScoresheet = (game, playerSummaryById = new Map(), divisionNameB
   stage: game.stage || 'groupStage',
   roundNumber: Number(game.roundNumber || 1),
   bestOf: parseBestOf(game.bestOf, 1),
-  playerAId: String(game.playerAId),
-  playerBId: String(game.playerBId),
-  playerA: playerSummaryById.get(String(game.playerAId)) || null,
-  playerB: playerSummaryById.get(String(game.playerBId)) || null,
-  playerASeriesWins: Number(game.playerASeriesWins || 0),
-  playerBSeriesWins: Number(game.playerBSeriesWins || 0),
-  winnerPlayerId: game.winnerPlayerId ? String(game.winnerPlayerId) : null,
-  status: game.status,
+  playerAId: game.playerAId ? String(game.playerAId) : null,
+  playerBId: game.playerBId ? String(game.playerBId) : null,
+  teamAId: game.teamAId ? String(game.teamAId) : null,
+  teamBId: game.teamBId ? String(game.teamBId) : null,
+  playerA: game.playerAId ? playerSummaryById.get(String(game.playerAId)) || null : null,
+  playerB: game.playerBId ? playerSummaryById.get(String(game.playerBId)) || null : null,
+  teamA: game.teamAId ? teamSummaryById.get(String(game.teamAId)) || null : null,
+  teamB: game.teamBId ? teamSummaryById.get(String(game.teamBId)) || null : null,
+  playerASeriesWins: seriesOutcome.playerASeriesWins,
+  playerBSeriesWins: seriesOutcome.playerBSeriesWins,
+  winnerPlayerId: seriesOutcome.winnerPlayerId
+    ? String(seriesOutcome.winnerPlayerId)
+    : game.winnerPlayerId
+      ? String(game.winnerPlayerId)
+      : null,
+  winnerTeamId: seriesOutcome.winnerTeamId
+    ? String(seriesOutcome.winnerTeamId)
+    : game.winnerTeamId
+      ? String(game.winnerTeamId)
+      : null,
+  status: resolveGameDisplayStatus(game),
+  canEditMatch,
+  canScheduleMatch: resolvedCanScheduleMatch,
+  scheduledStartAt: game.scheduledStartAt ? new Date(game.scheduledStartAt).toISOString() : null,
   scoreEntries: (game.scoreEntries || []).map((entry) => ({
     gameNumber: entry.gameNumber,
     playerAScore: entry.playerAScore,
     playerBScore: entry.playerBScore,
   })),
   updatedAt: game.updatedAt,
-});
+};
+};
 
 const normalizeDivisionScopeValue = (divisionId) => {
   if (divisionId === undefined || divisionId === null || divisionId === '') {
@@ -1319,10 +1710,17 @@ const computeSeriesOutcome = (game, scoreEntries = []) => {
   });
 
   const winnerPlayerId =
-    playerASeriesWins >= winsRequired
+    !game?.teamAId && playerASeriesWins >= winsRequired
       ? game.playerAId
-      : playerBSeriesWins >= winsRequired
+      : !game?.teamAId && playerBSeriesWins >= winsRequired
         ? game.playerBId
+        : null;
+
+  const winnerTeamId =
+    game?.teamAId && playerASeriesWins >= winsRequired
+      ? game.teamAId
+      : game?.teamAId && playerBSeriesWins >= winsRequired
+        ? game.teamBId
         : null;
 
   return {
@@ -1331,6 +1729,7 @@ const computeSeriesOutcome = (game, scoreEntries = []) => {
     playerASeriesWins,
     playerBSeriesWins,
     winnerPlayerId,
+    winnerTeamId,
     scoreForA,
     scoreForB,
   };
@@ -1342,6 +1741,9 @@ const listTournamentScoresheet = async (tournamentId, userId, query = {}) => {
   }
 
   const canEdit = await canUserEditTournamentScores(tournamentId, userId);
+  const tournamentMeta = await Tournament.findById(tournamentId)
+    .select({ proctorTransferRequest: 1, scoreEditorUserIds: 1, hostUserId: 1, competitionConfig: 1, progressionState: 1 })
+    .lean();
 
   const page = parsePositiveInteger(query.page, 1);
   const requestedPageSize = parsePositiveInteger(query.pageSize, 25);
@@ -1453,15 +1855,46 @@ const listTournamentScoresheet = async (tournamentId, userId, query = {}) => {
   );
 
   const playerSummaryById = await buildPlayerSummaryById(
-    games.flatMap((game) => [game.playerAId, game.playerBId])
+    games.flatMap((game) => [game.playerAId, game.playerBId].filter(Boolean))
+  );
+  const teamSummaryById = await buildTeamSummaryById(
+    games.flatMap((game) => [game.teamAId, game.teamBId].filter(Boolean))
   );
 
   const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
 
+  const editorUserIds = (tournamentMeta?.scoreEditorUserIds || []).map((value) => String(value));
+  const editorSummaryById = await buildUserSummaryById(editorUserIds);
+
   return {
     tournamentId: String(tournamentId),
     canEdit,
-    items: games.map((game) => mapGameForScoresheet(game, playerSummaryById, divisionNameById)),
+    format: tournamentMeta?.competitionConfig?.format || 'singles',
+    pairFormationMode: tournamentMeta?.competitionConfig?.pairFormationMode || 'playerPicksPartner',
+    progressionState: tournamentMeta?.progressionState || 'registration',
+    groupStageProctored: Boolean(tournamentMeta?.competitionConfig?.groupStageProctored),
+    finalStageProctored: Boolean(tournamentMeta?.competitionConfig?.finalStageProctored),
+    hostUserId: tournamentMeta?.hostUserId ? String(tournamentMeta.hostUserId) : null,
+    proctors: editorUserIds.map((userId) => ({
+      userId,
+      displayName: editorSummaryById.get(userId)?.name || 'Proctor',
+      email: editorSummaryById.get(userId)?.email || null,
+    })),
+    proctorTransferRequest: tournamentMeta?.proctorTransferRequest?.toUserId
+      ? {
+          fromUserId: String(tournamentMeta.proctorTransferRequest.fromUserId || ''),
+          toUserId: String(tournamentMeta.proctorTransferRequest.toUserId || ''),
+          requestedAt: tournamentMeta.proctorTransferRequest.requestedAt || null,
+        }
+      : null,
+    items: games.map((game) =>
+      mapGameForScoresheet(game, playerSummaryById, divisionNameById, {
+        canEditMatch: canUserEditGameScores(tournamentMeta, userId, game, playerSummaryById, teamSummaryById),
+        teamSummaryById,
+        tournamentMeta,
+        viewerUserId: userId,
+      })
+    ),
     pagination: {
       page,
       pageSize,
@@ -1471,8 +1904,232 @@ const listTournamentScoresheet = async (tournamentId, userId, query = {}) => {
   };
 };
 
+const recomputeDoublesLeaderboardForScope = async (tournamentId, divisionId, scopeFilter) => {
+  const completedGames = await Game.find({
+    ...scopeFilter,
+    status: 'completed',
+    teamAId: { $ne: null },
+    teamBId: { $ne: null },
+  })
+    .sort({ createdAt: 1, _id: 1 })
+    .lean();
+
+  const teams = await Team.find({
+    tournamentId,
+    status: 'active',
+    ...(divisionId ? { divisionId: normalizeDivisionScopeValue(divisionId) } : {}),
+  }).lean();
+
+  const teamMembersByTeamId = new Map(
+    teams.map((team) => [String(team._id), [String(team.player1Id), String(team.player2Id)]])
+  );
+
+  const statsByTeamId = new Map();
+  const statsByPlayerId = new Map();
+
+  const ensureTeamStats = (teamId) => {
+    const normalizedTeamId = String(teamId);
+    if (!statsByTeamId.has(normalizedTeamId)) {
+      statsByTeamId.set(normalizedTeamId, {
+        teamId: normalizedTeamId,
+        points: 0,
+        wins: 0,
+        draws: 0,
+        losses: 0,
+        scoreFor: 0,
+        scoreAgainst: 0,
+        scoreDifferential: 0,
+      });
+    }
+    return statsByTeamId.get(normalizedTeamId);
+  };
+
+  const ensurePlayerStats = (playerId) => {
+    const normalizedPlayerId = String(playerId);
+    if (!statsByPlayerId.has(normalizedPlayerId)) {
+      statsByPlayerId.set(normalizedPlayerId, {
+        playerId: normalizedPlayerId,
+        points: 0,
+        wins: 0,
+        draws: 0,
+        losses: 0,
+        scoreFor: 0,
+        scoreAgainst: 0,
+        scoreDifferential: 0,
+      });
+    }
+    return statsByPlayerId.get(normalizedPlayerId);
+  };
+
+  const applyOutcomeToMembers = (teamId, scoreFor, scoreAgainst, outcome) => {
+    const members = teamMembersByTeamId.get(String(teamId)) || [];
+    members.forEach((playerId) => {
+      const playerStats = ensurePlayerStats(playerId);
+      playerStats.scoreFor += scoreFor;
+      playerStats.scoreAgainst += scoreAgainst;
+      playerStats.scoreDifferential = playerStats.scoreFor - playerStats.scoreAgainst;
+      if (outcome === 'win') {
+        playerStats.wins += 1;
+        playerStats.points += 2;
+      } else if (outcome === 'loss') {
+        playerStats.losses += 1;
+      } else {
+        playerStats.draws += 1;
+        playerStats.points += 1;
+      }
+    });
+  };
+
+  completedGames.forEach((game) => {
+    const scoreEntries = Array.isArray(game.scoreEntries) ? game.scoreEntries : [];
+    if (scoreEntries.length === 0) {
+      return;
+    }
+
+    const seriesOutcome = computeSeriesOutcome(game, scoreEntries);
+    const teamAStats = ensureTeamStats(game.teamAId);
+    const teamBStats = ensureTeamStats(game.teamBId);
+
+    teamAStats.scoreFor += seriesOutcome.scoreForA;
+    teamAStats.scoreAgainst += seriesOutcome.scoreForB;
+    teamAStats.scoreDifferential = teamAStats.scoreFor - teamAStats.scoreAgainst;
+    teamBStats.scoreFor += seriesOutcome.scoreForB;
+    teamBStats.scoreAgainst += seriesOutcome.scoreForA;
+    teamBStats.scoreDifferential = teamBStats.scoreFor - teamBStats.scoreAgainst;
+
+    if (seriesOutcome.playerASeriesWins > seriesOutcome.playerBSeriesWins) {
+      teamAStats.wins += 1;
+      teamAStats.points += 2;
+      teamBStats.losses += 1;
+      applyOutcomeToMembers(game.teamAId, seriesOutcome.scoreForA, seriesOutcome.scoreForB, 'win');
+      applyOutcomeToMembers(game.teamBId, seriesOutcome.scoreForB, seriesOutcome.scoreForA, 'loss');
+      return;
+    }
+
+    if (seriesOutcome.playerBSeriesWins > seriesOutcome.playerASeriesWins) {
+      teamBStats.wins += 1;
+      teamBStats.points += 2;
+      teamAStats.losses += 1;
+      applyOutcomeToMembers(game.teamBId, seriesOutcome.scoreForB, seriesOutcome.scoreForA, 'win');
+      applyOutcomeToMembers(game.teamAId, seriesOutcome.scoreForA, seriesOutcome.scoreForB, 'loss');
+      return;
+    }
+
+    teamAStats.draws += 1;
+    teamBStats.draws += 1;
+    teamAStats.points += 1;
+    teamBStats.points += 1;
+    applyOutcomeToMembers(game.teamAId, seriesOutcome.scoreForA, seriesOutcome.scoreForB, 'draw');
+    applyOutcomeToMembers(game.teamBId, seriesOutcome.scoreForB, seriesOutcome.scoreForA, 'draw');
+  });
+
+  const sortEntries = (entries) =>
+    [...entries].sort((left, right) => {
+      if (right.points !== left.points) return right.points - left.points;
+      if (right.scoreDifferential !== left.scoreDifferential) return right.scoreDifferential - left.scoreDifferential;
+      if (right.scoreFor !== left.scoreFor) return right.scoreFor - left.scoreFor;
+      if (right.wins !== left.wins) return right.wins - left.wins;
+      return String(left.teamId || left.playerId).localeCompare(String(right.teamId || right.playerId));
+    });
+
+  const orderedTeams = sortEntries([...statsByTeamId.values()]);
+  const orderedPlayers = sortEntries([...statsByPlayerId.values()]);
+
+  await Leaderboard.deleteMany({
+    ...scopeFilter,
+    standingsType: { $in: ['team', 'player'] },
+  });
+
+  const leaderboardRows = [
+    ...orderedTeams.map((entry, index) => ({
+      tournamentId,
+      divisionId: normalizeDivisionScopeValue(divisionId),
+      standingsType: 'team',
+      teamId: entry.teamId,
+      rank: index + 1,
+      points: entry.points,
+      wins: entry.wins,
+      draws: entry.draws,
+      losses: entry.losses,
+      scoreFor: entry.scoreFor,
+      scoreAgainst: entry.scoreAgainst,
+      scoreDifferential: entry.scoreDifferential,
+    })),
+    ...orderedPlayers.map((entry, index) => ({
+      tournamentId,
+      divisionId: normalizeDivisionScopeValue(divisionId),
+      standingsType: 'player',
+      playerId: entry.playerId,
+      rank: index + 1,
+      points: entry.points,
+      wins: entry.wins,
+      draws: entry.draws,
+      losses: entry.losses,
+      scoreFor: entry.scoreFor,
+      scoreAgainst: entry.scoreAgainst,
+      scoreDifferential: entry.scoreDifferential,
+    })),
+  ];
+
+  if (leaderboardRows.length > 0) {
+    try {
+      await Leaderboard.insertMany(leaderboardRows);
+    } catch (error) {
+      if (error?.code === 11000) {
+        throw new ApiError(
+          409,
+          'LEADERBOARD_INDEX_CONFLICT',
+          'Leaderboard database indexes are out of date. Restart the backend or run: npm run fix:leaderboard-indexes'
+        );
+      }
+
+      throw error;
+    }
+  }
+
+  return {
+    tournamentId: String(tournamentId),
+    divisionId: normalizeDivisionScopeValue(divisionId),
+    items: orderedPlayers.map((entry, index) => ({
+      id: `player-${entry.playerId}`,
+      playerId: entry.playerId,
+      rank: index + 1,
+      points: entry.points,
+      wins: entry.wins,
+      draws: entry.draws,
+      losses: entry.losses,
+      scoreFor: entry.scoreFor,
+      scoreAgainst: entry.scoreAgainst,
+      scoreDifferential: entry.scoreDifferential,
+    })),
+  };
+};
+
 const recomputeLeaderboardForScope = async (tournamentId, divisionId) => {
   const scopeFilter = buildScopeFilter(tournamentId, divisionId);
+  const tournament = await Tournament.findById(tournamentId)
+    .select({ competitionConfig: 1 })
+    .lean();
+
+  if (isDoublesTournament(tournament)) {
+    return recomputeDoublesLeaderboardForScope(tournamentId, divisionId, scopeFilter);
+  }
+
+  const handicapEnabled = Boolean(tournament?.competitionConfig?.handicapEnabled);
+  const playerHandicapById = new Map();
+
+  if (handicapEnabled) {
+    const tournamentPlayers = await Player.find({ tournamentId })
+      .select({ _id: 1, handicapEnabled: 1, handicapValue: 1 })
+      .lean();
+
+    tournamentPlayers.forEach((player) => {
+      playerHandicapById.set(
+        String(player._id),
+        player.handicapEnabled ? Number(player.handicapValue || 0) : 0
+      );
+    });
+  }
 
   const completedGames = await Game.find({
     ...scopeFilter,
@@ -1550,18 +2207,30 @@ const recomputeLeaderboardForScope = async (tournamentId, divisionId) => {
     playerBStats.scoreDifferential = playerBStats.scoreFor - playerBStats.scoreAgainst;
 
     if (seriesOutcome.playerASeriesWins > seriesOutcome.playerBSeriesWins) {
+      const handicapBonus = handicapEnabled
+        ? getHandicapBonusPoints(
+            playerHandicapById.get(String(game.playerAId)) || 0,
+            playerHandicapById.get(String(game.playerBId)) || 0
+          )
+        : 0;
       playerAStats.wins += 1;
-      playerAStats.points += 2;
+      playerAStats.points += 2 + handicapBonus;
       playerBStats.losses += 1;
-      recordHeadToHeadPoints(game.playerAId, game.playerBId, 2, 0);
+      recordHeadToHeadPoints(game.playerAId, game.playerBId, 2 + handicapBonus, 0);
       return;
     }
 
     if (seriesOutcome.playerBSeriesWins > seriesOutcome.playerASeriesWins) {
+      const handicapBonus = handicapEnabled
+        ? getHandicapBonusPoints(
+            playerHandicapById.get(String(game.playerBId)) || 0,
+            playerHandicapById.get(String(game.playerAId)) || 0
+          )
+        : 0;
       playerBStats.wins += 1;
-      playerBStats.points += 2;
+      playerBStats.points += 2 + handicapBonus;
       playerAStats.losses += 1;
-      recordHeadToHeadPoints(game.playerAId, game.playerBId, 0, 2);
+      recordHeadToHeadPoints(game.playerAId, game.playerBId, 0, 2 + handicapBonus);
       return;
     }
 
@@ -1620,13 +2289,14 @@ const recomputeLeaderboardForScope = async (tournamentId, divisionId) => {
     return left.playerId.localeCompare(right.playerId);
   });
 
-  await Leaderboard.deleteMany(scopeFilter);
+  await Leaderboard.deleteMany({ ...scopeFilter, standingsType: 'player' });
 
   if (orderedEntries.length > 0) {
     await Leaderboard.insertMany(
       orderedEntries.map((entry, index) => ({
         tournamentId,
         divisionId: normalizeDivisionScopeValue(divisionId),
+        standingsType: 'player',
         playerId: entry.playerId,
         rank: index + 1,
         points: entry.points,
@@ -1640,7 +2310,9 @@ const recomputeLeaderboardForScope = async (tournamentId, divisionId) => {
     );
   }
 
-  const refreshedEntries = await Leaderboard.find(scopeFilter).sort({ rank: 1, playerId: 1 }).lean();
+  const refreshedEntries = await Leaderboard.find({ ...scopeFilter, standingsType: 'player' })
+    .sort({ rank: 1, playerId: 1 })
+    .lean();
 
   return {
     tournamentId: String(tournamentId),
@@ -1660,10 +2332,36 @@ const recomputeLeaderboardForScope = async (tournamentId, divisionId) => {
   };
 };
 
-const listTournamentLeaderboard = async (tournamentId, divisionId) => {
-  const scopeFilter = buildScopeFilter(tournamentId, divisionId);
+const listTournamentLeaderboard = async (tournamentId, divisionId, standingsType = 'player') => {
+  const scopeFilter = {
+    ...buildScopeFilter(tournamentId, divisionId),
+    standingsType,
+  };
 
-  const entries = await Leaderboard.find(scopeFilter).sort({ rank: 1, playerId: 1 }).lean();
+  const entries = await Leaderboard.find(scopeFilter).sort({ rank: 1, playerId: 1, teamId: 1 }).lean();
+
+  if (standingsType === 'team') {
+    const teamSummaryById = await buildTeamSummaryById(entries.map((entry) => entry.teamId));
+    return {
+      tournamentId: String(tournamentId),
+      divisionId: normalizeDivisionScopeValue(divisionId),
+      standingsType,
+      items: entries.map((entry) => ({
+        id: String(entry._id),
+        teamId: String(entry.teamId),
+        team: teamSummaryById.get(String(entry.teamId)) || null,
+        rank: entry.rank,
+        points: entry.points,
+        wins: entry.wins,
+        draws: entry.draws,
+        losses: entry.losses,
+        scoreFor: entry.scoreFor,
+        scoreAgainst: entry.scoreAgainst,
+        scoreDifferential: entry.scoreDifferential,
+      })),
+    };
+  }
+
   const playerSummaryById = await buildPlayerSummaryById(entries.map((entry) => entry.playerId));
 
   return {
@@ -1686,8 +2384,6 @@ const listTournamentLeaderboard = async (tournamentId, divisionId) => {
 };
 
 const updateGameScores = async (tournamentId, gameId, userId, payload = {}) => {
-  await assertCanEditTournamentScores(tournamentId, userId);
-
   const existingGame = await Game.findOne({
     _id: gameId,
     tournamentId,
@@ -1697,17 +2393,29 @@ const updateGameScores = async (tournamentId, gameId, userId, payload = {}) => {
     throw new ApiError(404, 'GAME_NOT_FOUND', 'Game not found for this tournament');
   }
 
+  const tournament = await Tournament.findById(tournamentId)
+    .select({ hostUserId: 1, scoreEditorUserIds: 1, competitionConfig: 1 })
+    .lean();
+
+  if (!tournament) {
+    throw new ApiError(404, 'TOURNAMENT_NOT_FOUND', 'Tournament not found');
+  }
+
+  const gameStage = existingGame.stage || 'groupStage';
+
+  if (isStageProctored(tournament.competitionConfig || {}, gameStage)) {
+    throw new ApiError(
+      403,
+      'MANUAL_SCORING_DISABLED',
+      'This stage uses proctored live scoring. Enter scores from the live match session.'
+    );
+  }
+
+  await assertCanEditGameScores(tournamentId, userId, existingGame);
+
   let effectiveBestOf = parseBestOf(existingGame.bestOf, 1);
 
-  if (existingGame.stage === 'groupStage') {
-    const tournament = await Tournament.findById(tournamentId)
-      .select({ competitionConfig: 1 })
-      .lean();
-
-    if (!tournament) {
-      throw new ApiError(404, 'TOURNAMENT_NOT_FOUND', 'Tournament not found');
-    }
-
+  if (gameStage === 'groupStage') {
     const configuredGroupStageBestOf = parseBestOf(tournament.competitionConfig?.groupStageBestOf, effectiveBestOf);
     effectiveBestOf = Math.max(effectiveBestOf, configuredGroupStageBestOf);
   }
@@ -1725,7 +2433,7 @@ const updateGameScores = async (tournamentId, gameId, userId, payload = {}) => {
     },
     normalizedScoreEntries
   );
-  const isSeriesComplete = Boolean(seriesOutcome.winnerPlayerId);
+  const isSeriesComplete = Boolean(seriesOutcome.winnerPlayerId || seriesOutcome.winnerTeamId);
   const nextStatus =
     payload.status === 'scheduled'
       ? 'scheduled'
@@ -1746,6 +2454,7 @@ const updateGameScores = async (tournamentId, gameId, userId, payload = {}) => {
         playerASeriesWins: seriesOutcome.playerASeriesWins,
         playerBSeriesWins: seriesOutcome.playerBSeriesWins,
         winnerPlayerId: seriesOutcome.winnerPlayerId,
+        winnerTeamId: seriesOutcome.winnerTeamId,
       },
     },
     {
@@ -1756,20 +2465,95 @@ const updateGameScores = async (tournamentId, gameId, userId, payload = {}) => {
 
   await recomputeLeaderboardForScope(tournamentId, updatedGame.divisionId);
 
-  const playerSummaryById = await buildPlayerSummaryById([updatedGame.playerAId, updatedGame.playerBId]);
+  const playerSummaryById = await buildPlayerSummaryById(
+    [updatedGame.playerAId, updatedGame.playerBId].filter(Boolean)
+  );
+  const teamSummaryById = await buildTeamSummaryById(
+    [updatedGame.teamAId, updatedGame.teamBId].filter(Boolean)
+  );
 
-  return mapGameForScoresheet(updatedGame, playerSummaryById);
+  return mapGameForScoresheet(updatedGame, playerSummaryById, new Map(), {
+    canEditMatch: canUserEditGameScores(tournament, userId, updatedGame, playerSummaryById, teamSummaryById),
+    teamSummaryById,
+    tournamentMeta: tournament,
+    viewerUserId: userId,
+  });
+};
+
+const updateGameSchedule = async (tournamentId, gameId, userId, payload = {}) => {
+  const existingGame = await Game.findOne({
+    _id: gameId,
+    tournamentId,
+  }).lean();
+
+  if (!existingGame) {
+    throw new ApiError(404, 'GAME_NOT_FOUND', 'Game not found for this tournament');
+  }
+
+  await assertUserCanScheduleMatch(tournamentId, userId, existingGame);
+
+  let scheduledStartAt = null;
+
+  if (payload.scheduledStartAt !== undefined && payload.scheduledStartAt !== null && payload.scheduledStartAt !== '') {
+    const parsedDate = new Date(payload.scheduledStartAt);
+
+    if (Number.isNaN(parsedDate.getTime())) {
+      throw new ApiError(400, 'INVALID_SCHEDULE', 'scheduledStartAt must be a valid date/time');
+    }
+
+    scheduledStartAt = parsedDate;
+  }
+
+  const updatedGame = await Game.findOneAndUpdate(
+    {
+      _id: gameId,
+      tournamentId,
+    },
+    {
+      $set: {
+        scheduledStartAt,
+        scheduledByUserId: scheduledStartAt ? userId : null,
+      },
+    },
+    {
+      new: true,
+    }
+  ).lean();
+
+  const tournament = await Tournament.findById(tournamentId)
+    .select({ hostUserId: 1, scoreEditorUserIds: 1, competitionConfig: 1 })
+    .lean();
+
+  const playerSummaryById = await buildPlayerSummaryById(
+    [updatedGame.playerAId, updatedGame.playerBId].filter(Boolean)
+  );
+  const teamSummaryById = await buildTeamSummaryById(
+    [updatedGame.teamAId, updatedGame.teamBId].filter(Boolean)
+  );
+
+  return mapGameForScoresheet(updatedGame, playerSummaryById, new Map(), {
+    canEditMatch: canUserEditGameScores(tournament, userId, updatedGame, playerSummaryById, teamSummaryById),
+    teamSummaryById,
+    tournamentMeta: tournament,
+    viewerUserId: userId,
+  });
 };
 
 const upsertAndScoreGroupStageGame = async (tournamentId, userId, payload = {}) => {
-  await assertCanEditTournamentScores(tournamentId, userId);
-
   const tournament = await Tournament.findById(tournamentId)
-    .select({ competitionConfig: 1 })
+    .select({ hostUserId: 1, scoreEditorUserIds: 1, competitionConfig: 1 })
     .lean();
 
   if (!tournament) {
     throw new ApiError(404, 'TOURNAMENT_NOT_FOUND', 'Tournament not found');
+  }
+
+  if (Boolean(tournament.competitionConfig?.groupStageProctored)) {
+    throw new ApiError(
+      403,
+      'MANUAL_SCORING_DISABLED',
+      'Group stage uses proctored live scoring. Enter scores from the live match session.'
+    );
   }
 
   const roundNumber = parsePositiveInteger(payload.roundNumber, 0);
@@ -1841,6 +2625,12 @@ const upsertAndScoreGroupStageGame = async (tournamentId, userId, payload = {}) 
 
   const playerAId = String(playerA._id);
   const playerBId = String(playerB._id);
+
+  await assertCanEditGameScores(tournamentId, userId, {
+    stage: 'groupStage',
+    playerAId,
+    playerBId,
+  });
 
   let game = await Game.findOne({
     tournamentId,
@@ -1930,7 +2720,9 @@ const upsertAndScoreGroupStageGame = async (tournamentId, userId, payload = {}) 
   await recomputeLeaderboardForScope(tournamentId, game.divisionId);
   const playerSummaryById = await buildPlayerSummaryById([game.playerAId, game.playerBId]);
 
-  return mapGameForScoresheet(game, playerSummaryById);
+  return mapGameForScoresheet(game, playerSummaryById, new Map(), {
+    canEditMatch: canUserEditGameScores(tournament, userId, game, playerSummaryById),
+  });
 };
 
 const pickDivisionForNewPlayer = (inputDivisions = []) => {
@@ -1953,6 +2745,191 @@ const countPairGames = (games, playerAId, playerBId) => {
     const pair = [String(game.playerAId), String(game.playerBId)].sort().join(':');
     return pair === normalizedPair;
   }).length;
+};
+
+const countPairTeamGames = (games, teamAId, teamBId) => {
+  const normalizedPair = [String(teamAId), String(teamBId)].sort().join(':');
+
+  return games.filter((game) => {
+    const pair = [String(game.teamAId), String(game.teamBId)].sort().join(':');
+    return pair === normalizedPair;
+  }).length;
+};
+
+const pickDivisionForNewTeam = (inputDivisions = []) => {
+  const divisions = inputDivisions.filter((division) => String(division.name || '') !== 'Final Stage');
+
+  if (divisions.length === 0) {
+    return null;
+  }
+
+  const minCount = Math.min(...divisions.map((division) => (division.teamIds || []).length));
+  const candidates = divisions.filter((division) => (division.teamIds || []).length === minCount);
+
+  return shuffleArray(candidates)[0] || null;
+};
+
+const createIncrementalGroupStageGamesForTeam = async ({
+  tournamentId,
+  divisionId,
+  newTeamId,
+  opponentTeamIds,
+  bestOf,
+  existingGames,
+}) => {
+  const groupStageLegs = 2;
+  let maxRoundNumber = existingGames.reduce(
+    (max, game) => Math.max(max, Number(game.roundNumber || 0)),
+    0
+  );
+  const gameDocuments = [];
+
+  opponentTeamIds.forEach((opponentTeamId) => {
+    let playedLegs = countPairTeamGames(existingGames, newTeamId, opponentTeamId);
+
+    while (playedLegs < groupStageLegs) {
+      maxRoundNumber += 1;
+      const swapSides = playedLegs === 1;
+
+      gameDocuments.push({
+        tournamentId,
+        divisionId: normalizeDivisionScopeValue(divisionId),
+        stage: 'groupStage',
+        roundNumber: maxRoundNumber,
+        bestOf: parseBestOf(bestOf, 1),
+        teamAId: swapSides ? opponentTeamId : newTeamId,
+        teamBId: swapSides ? newTeamId : opponentTeamId,
+        scoreEntries: [],
+        playerASeriesWins: 0,
+        playerBSeriesWins: 0,
+        winnerTeamId: null,
+        status: 'scheduled',
+      });
+
+      playedLegs += 1;
+    }
+  });
+
+  if (gameDocuments.length === 0) {
+    return [];
+  }
+
+  return Game.insertMany(gameDocuments);
+};
+
+const syncDoublesApprovedPlayerToGroups = async (tournamentId, userId, divisions, tournament) => {
+  const players = await ensurePlayersFromApprovedRegistrations(tournamentId);
+  const normalizedUserId = String(userId || '').trim();
+  const player = players.find((entry) => String(entry.userId) === normalizedUserId);
+
+  if (!player) {
+    return null;
+  }
+
+  const playerId = String(player.id);
+  const existingAssignment = divisions.find((division) =>
+    (division.playerIds || []).map((value) => String(value)).includes(playerId)
+  );
+
+  if (existingAssignment) {
+    return {
+      alreadyAssigned: true,
+      divisionId: String(existingAssignment._id),
+      divisionName: existingAssignment.name,
+      gamesCreated: 0,
+    };
+  }
+
+  const hostUserId = String(tournament.hostUserId);
+  let team = null;
+  let targetDivision = null;
+
+  const byePlayer = await Player.findOne({
+    tournamentId,
+    status: 'active',
+    teamId: null,
+    awaitingPartner: true,
+  }).lean();
+
+  if (byePlayer && String(byePlayer._id) !== playerId) {
+    team = await pairByeWithPlayer(tournamentId, hostUserId, playerId);
+    targetDivision =
+      divisions.find((division) =>
+        (division.playerIds || []).map((value) => String(value)).includes(String(byePlayer._id))
+      ) || pickDivisionForNewTeam(divisions);
+  } else {
+    targetDivision = pickDivisionForNewPlayer(divisions);
+  }
+
+  if (!targetDivision) {
+    return null;
+  }
+
+  if (!team) {
+    await Division.updateOne(
+      { _id: targetDivision._id },
+      {
+        $addToSet: {
+          playerIds: playerId,
+        },
+      }
+    );
+
+    await Player.updateOne({ _id: playerId }, { $set: { awaitingPartner: true, teamId: null } });
+
+    return {
+      divisionId: String(targetDivision._id),
+      divisionName: targetDivision.name,
+      gamesCreated: 0,
+      awaitingPartner: true,
+      alreadyAssigned: false,
+    };
+  }
+
+  const teamId = String(team.id);
+  const opponentTeamIds = (targetDivision.teamIds || [])
+    .map((value) => String(value))
+    .filter((value) => value !== teamId);
+
+  await Division.updateOne(
+    { _id: targetDivision._id },
+    {
+      $addToSet: {
+        playerIds: { $each: [String(team.player1Id), String(team.player2Id)] },
+        teamIds: teamId,
+      },
+    }
+  );
+
+  await Team.updateOne({ _id: teamId }, { $set: { divisionId: targetDivision._id } });
+
+  const existingGames = await Game.find({
+    tournamentId,
+    divisionId: targetDivision._id,
+    stage: 'groupStage',
+  }).lean();
+
+  const bestOf = parseBestOf(tournament?.competitionConfig?.groupStageBestOf, 1);
+  const createdGames = await createIncrementalGroupStageGamesForTeam({
+    tournamentId,
+    divisionId: String(targetDivision._id),
+    newTeamId: teamId,
+    opponentTeamIds,
+    bestOf,
+    existingGames,
+  });
+
+  if (createdGames.length > 0) {
+    await recomputeLeaderboardForScope(tournamentId, targetDivision._id);
+  }
+
+  return {
+    divisionId: String(targetDivision._id),
+    divisionName: targetDivision.name,
+    teamId,
+    gamesCreated: createdGames.length,
+    alreadyAssigned: false,
+  };
 };
 
 const createIncrementalGroupStageGamesForPlayer = async ({
@@ -2015,6 +2992,14 @@ const syncApprovedPlayerToGroups = async (tournamentId, userId) => {
     return null;
   }
 
+  const tournament = await Tournament.findById(tournamentId)
+    .select({ competitionConfig: 1, hostUserId: 1 })
+    .lean();
+
+  if (isDoublesTournament(tournament)) {
+    return syncDoublesApprovedPlayerToGroups(tournamentId, userId, divisions, tournament);
+  }
+
   const players = await ensurePlayersFromApprovedRegistrations(tournamentId);
   const normalizedUserId = String(userId || '').trim();
   const player = players.find((entry) => String(entry.userId) === normalizedUserId);
@@ -2062,7 +3047,6 @@ const syncApprovedPlayerToGroups = async (tournamentId, userId) => {
     stage: 'groupStage',
   }).lean();
 
-  const tournament = await Tournament.findById(tournamentId).lean();
   const bestOf = parseBestOf(tournament?.competitionConfig?.groupStageBestOf, 1);
   const createdGames = await createIncrementalGroupStageGamesForPlayer({
     tournamentId,
@@ -2173,6 +3157,8 @@ const closeTournamentRegistration = async (tournamentId, hostUserId) => {
     throw new ApiError(409, 'REGISTRATION_ALREADY_CLOSED', 'Registration is already closed');
   }
 
+  await materializeApprovedPlayers(tournamentId);
+
   const pendingParticipantsCount = await TournamentRegistration.countDocuments({
     tournamentId,
     status: 'underReview',
@@ -2181,7 +3167,87 @@ const closeTournamentRegistration = async (tournamentId, hostUserId) => {
   return mapHostTournamentDetail(updatedTournament, pendingParticipantsCount);
 };
 
-const ensurePlayersFromApprovedRegistrations = async (tournamentId) => {
+const dedupeActivePlayersForTournament = async (tournamentId) => {
+  const activePlayers = await Player.find({ tournamentId, status: 'active' })
+    .sort({ createdAt: 1, _id: 1 })
+    .select({ _id: 1, userId: 1 })
+    .lean();
+
+  const keeperByUserId = new Map();
+  const duplicatePlayerIds = [];
+
+  activePlayers.forEach((player) => {
+    const userKey = String(player.userId || '').trim();
+
+    if (!userKey) {
+      return;
+    }
+
+    if (keeperByUserId.has(userKey)) {
+      duplicatePlayerIds.push(player._id);
+      return;
+    }
+
+    keeperByUserId.set(userKey, player._id);
+  });
+
+  if (duplicatePlayerIds.length === 0) {
+    return 0;
+  }
+
+  await Player.updateMany(
+    { _id: { $in: duplicatePlayerIds }, tournamentId, status: 'active' },
+    { $set: { status: 'removed' } }
+  );
+
+  return duplicatePlayerIds.length;
+};
+
+const upsertActivePlayerForRegistration = async (
+  tournamentId,
+  registration,
+  { useHandicap, usersById }
+) => {
+  const normalizedUserId = String(registration.userId);
+  const user = usersById.get(normalizedUserId);
+  const displayName = user?.name || user?.email || `Player ${normalizedUserId.slice(-6)}`;
+
+  const player = await Player.findOneAndUpdate(
+    {
+      tournamentId,
+      userId: registration.userId,
+      status: 'active',
+    },
+    {
+      $setOnInsert: {
+        tournamentId,
+        userId: registration.userId,
+        displayName,
+        handicapEnabled: useHandicap,
+        handicapValue: useHandicap ? Number(user?.handicap ?? 0) : 0,
+        status: 'active',
+        teamId: null,
+        awaitingPartner: false,
+      },
+    },
+    {
+      upsert: true,
+      new: true,
+      setDefaultsOnInsert: true,
+    }
+  ).lean();
+
+  return player;
+};
+
+const materializeApprovedPlayers = async (tournamentId, { minimumCount = 0 } = {}) => {
+  await dedupeActivePlayersForTournament(tournamentId);
+
+  const tournament = await Tournament.findById(tournamentId)
+    .select({ competitionConfig: 1 })
+    .lean();
+  const useHandicap = Boolean(tournament?.competitionConfig?.handicapEnabled);
+
   const approvedRegistrations = await TournamentRegistration.find({
     tournamentId,
     status: 'approved',
@@ -2189,59 +3255,127 @@ const ensurePlayersFromApprovedRegistrations = async (tournamentId) => {
     .sort({ createdAt: 1, _id: 1 })
     .lean();
 
-  if (approvedRegistrations.length < 2) {
+  if (approvedRegistrations.length < minimumCount) {
     throw new ApiError(
       409,
       'INSUFFICIENT_APPROVED_PARTICIPANTS',
-      'At least 2 approved participants are required'
+      `At least ${minimumCount} approved participants are required`
     );
   }
 
+  if (approvedRegistrations.length === 0) {
+    return [];
+  }
+
   const usersById = await buildUserSummaryById(approvedRegistrations.map((registration) => registration.userId));
-  const existingPlayers = await Player.find({
-    tournamentId,
-    status: 'active',
-    userId: {
-      $in: approvedRegistrations.map((registration) => registration.userId),
-    },
-  })
-    .select({ _id: 1, userId: 1, displayName: 1 })
-    .lean();
-
-  const playerByUserId = existingPlayers.reduce((accumulator, player) => {
-    accumulator.set(String(player.userId), player);
-    return accumulator;
-  }, new Map());
-
   const players = [];
 
   for (const registration of approvedRegistrations) {
-    const normalizedUserId = String(registration.userId);
-    const existingPlayer = playerByUserId.get(normalizedUserId);
-
-    if (existingPlayer) {
-      players.push(existingPlayer);
-      continue;
-    }
-
-    const user = usersById.get(normalizedUserId);
-    const createdPlayer = await Player.create({
-      tournamentId,
-      userId: registration.userId,
-      displayName: user?.name || user?.email || `Player ${normalizedUserId.slice(-6)}`,
-      handicapEnabled: false,
-      handicapValue: 0,
-      status: 'active',
+    const player = await upsertActivePlayerForRegistration(tournamentId, registration, {
+      useHandicap,
+      usersById,
     });
-
-    players.push(createdPlayer.toObject());
+    players.push(player);
   }
+
+  await dedupeActivePlayersForTournament(tournamentId);
 
   return players.map((player) => ({
     id: String(player._id),
     userId: player.userId ? String(player.userId) : null,
     displayName: player.displayName,
+    teamId: player.teamId ? String(player.teamId) : null,
+    awaitingPartner: Boolean(player.awaitingPartner),
   }));
+};
+
+const materializeApprovedPlayerForUser = async (tournamentId, userId) => {
+  const normalizedUserId = String(userId || '').trim();
+
+  if (!normalizedUserId) {
+    return null;
+  }
+
+  await dedupeActivePlayersForTournament(tournamentId);
+
+  const registration = await TournamentRegistration.findOne({
+    tournamentId,
+    userId: normalizedUserId,
+    status: 'approved',
+  }).lean();
+
+  if (!registration) {
+    return null;
+  }
+
+  const tournament = await Tournament.findById(tournamentId)
+    .select({ competitionConfig: 1 })
+    .lean();
+  const useHandicap = Boolean(tournament?.competitionConfig?.handicapEnabled);
+  const usersById = await buildUserSummaryById([normalizedUserId]);
+
+  const player = await upsertActivePlayerForRegistration(tournamentId, registration, {
+    useHandicap,
+    usersById,
+  });
+
+  return {
+    id: String(player._id),
+    userId: String(player.userId),
+    displayName: player.displayName,
+    teamId: player.teamId ? String(player.teamId) : null,
+    awaitingPartner: Boolean(player.awaitingPartner),
+  };
+};
+
+const ensurePlayersFromApprovedRegistrations = async (tournamentId) =>
+  materializeApprovedPlayers(tournamentId, { minimumCount: 2 });
+
+const createRoundRobinTeamGamesForStage = async ({ tournamentId, divisionId, stage, teamIds, bestOf }) => {
+  const participantIds = [...teamIds];
+
+  if (participantIds.length < 2) {
+    return [];
+  }
+
+  const rounds = buildRoundRobinRounds(
+    participantIds.map((teamId) => ({ id: teamId })),
+    stage === 'groupStage' ? 2 : 1
+  );
+
+  const gameDocuments = [];
+
+  rounds.forEach((round) => {
+    round.matches.forEach((match) => {
+      gameDocuments.push({
+        tournamentId,
+        divisionId: normalizeDivisionScopeValue(divisionId),
+        stage,
+        roundNumber: round.roundNumber,
+        bestOf: parseBestOf(bestOf, 1),
+        teamAId: match.playerA.id,
+        teamBId: match.playerB.id,
+        scoreEntries: [],
+        playerASeriesWins: 0,
+        playerBSeriesWins: 0,
+        winnerTeamId: null,
+        status: 'scheduled',
+      });
+    });
+  });
+
+  if (gameDocuments.length === 0) {
+    return [];
+  }
+
+  const createdGames = await Game.insertMany(gameDocuments);
+  const teamSummaryById = await buildTeamSummaryById(
+    createdGames.flatMap((game) => [game.teamAId, game.teamBId])
+  );
+
+  return createdGames.map((game) =>
+    mapGameForScoresheet(game.toObject(), new Map(), new Map(), { teamSummaryById })
+  );
 };
 
 const createRoundRobinGamesForStage = async ({ tournamentId, divisionId, stage, playerIds, bestOf }) => {
@@ -2292,6 +3426,12 @@ const createRoundRobinGamesForStage = async ({ tournamentId, divisionId, stage, 
 
 const buildGroupStandingsList = async (tournamentId, query = {}) => {
   const defaultTopPerGroup = Math.min(parsePositiveInteger(query.topPerGroup, 2), 8);
+  const tournament = await Tournament.findById(tournamentId)
+    .select({ competitionConfig: 1, progressionState: 1 })
+    .lean();
+  const handicapEnabled = Boolean(tournament?.competitionConfig?.handicapEnabled);
+  const format = tournament?.competitionConfig?.format || 'singles';
+  const pairFormationMode = tournament?.competitionConfig?.pairFormationMode || 'playerPicksPartner';
   const divisions = await Division.find({
     tournamentId,
     name: { $ne: 'Final Stage' },
@@ -2314,34 +3454,177 @@ const buildGroupStandingsList = async (tournamentId, query = {}) => {
     const rankedPlayerIdSet = new Set(rankedStandings.map((entry) => String(entry.playerId)));
     const unrankedPlayerIds = divisionPlayerIds.filter((playerId) => !rankedPlayerIdSet.has(playerId));
 
+    const enrichStandingEntry = (entry) => ({
+      ...entry,
+      player: divisionPlayerSummaryById.get(String(entry.playerId)) || entry.player || null,
+      stats: computePoolStats(entry),
+    });
+
     const mergedStandings = [
-      ...rankedStandings,
-      ...unrankedPlayerIds.map((playerId, index) => ({
-        id: `group-${String(division._id)}-${playerId}`,
-        playerId,
-        player: divisionPlayerSummaryById.get(playerId) || null,
-        rank: Number(rankedStandings.length + index + 1),
-        points: 0,
-        wins: 0,
-        draws: 0,
-        losses: 0,
-        scoreFor: 0,
-        scoreAgainst: 0,
-        scoreDifferential: 0,
-      })),
+      ...rankedStandings.map(enrichStandingEntry),
+      ...unrankedPlayerIds.map((playerId, index) =>
+        enrichStandingEntry({
+          id: `group-${String(division._id)}-${playerId}`,
+          playerId,
+          player: divisionPlayerSummaryById.get(playerId) || null,
+          rank: Number(rankedStandings.length + index + 1),
+          points: 0,
+          wins: 0,
+          draws: 0,
+          losses: 0,
+          scoreFor: 0,
+          scoreAgainst: 0,
+          scoreDifferential: 0,
+        })
+      ),
     ];
+
+    let teamStandings = [];
+
+    if (format === 'doubles') {
+      const teamLeaderboard = await listTournamentLeaderboard(tournamentId, division._id, 'team');
+      const divisionTeamIds = (division.teamIds || []).map((value) => String(value));
+      const teamSummaryById = await buildTeamSummaryById(divisionTeamIds);
+      const rankedTeamStandings = (teamLeaderboard.items || []).filter((entry) =>
+        divisionTeamIds.includes(String(entry.teamId))
+      );
+      const rankedTeamIdSet = new Set(rankedTeamStandings.map((entry) => String(entry.teamId)));
+      const unrankedTeamIds = divisionTeamIds.filter((teamId) => !rankedTeamIdSet.has(teamId));
+
+      const enrichTeamStandingEntry = (entry) => ({
+        ...entry,
+        team: teamSummaryById.get(String(entry.teamId)) || entry.team || null,
+        stats: computePoolStats(entry),
+      });
+
+      teamStandings = [
+        ...rankedTeamStandings.map(enrichTeamStandingEntry),
+        ...unrankedTeamIds.map((teamId, index) =>
+          enrichTeamStandingEntry({
+            id: `group-${String(division._id)}-team-${teamId}`,
+            teamId,
+            team: teamSummaryById.get(teamId) || null,
+            rank: Number(rankedTeamStandings.length + index + 1),
+            points: 0,
+            wins: 0,
+            draws: 0,
+            losses: 0,
+            scoreFor: 0,
+            scoreAgainst: 0,
+            scoreDifferential: 0,
+          })
+        ),
+      ];
+    }
 
     groups.push({
       divisionId: String(division._id),
       divisionName: division.name,
-      suggestedFinalists: mergedStandings.slice(0, defaultTopPerGroup).map((entry) => entry.playerId),
+      suggestedFinalists:
+        format === 'doubles'
+          ? teamStandings.slice(0, defaultTopPerGroup).map((entry) => entry.teamId)
+          : mergedStandings.slice(0, defaultTopPerGroup).map((entry) => entry.playerId),
       standings: mergedStandings,
+      ...(format === 'doubles' ? { teamStandings, playerStandings: mergedStandings } : {}),
     });
   }
+
+  const finalStageEnabled = Boolean(tournament?.competitionConfig?.finalStageEnabled);
+  const completedWithFinale =
+    tournament?.progressionState === 'completed' && finalStageEnabled;
+  let finaleStandings = [];
+
+  if (finalStageEnabled) {
+    const finalDivision = await Division.findOne({
+      tournamentId,
+      name: 'Final Stage',
+    }).lean();
+
+    if (finalDivision) {
+      if (format === 'doubles') {
+        const divisionTeamIds = (finalDivision.teamIds || []).map((value) => String(value));
+        const finaleLeaderboard = await listTournamentLeaderboard(tournamentId, finalDivision._id, 'team');
+        const teamSummaryById = await buildTeamSummaryById(divisionTeamIds);
+        const rankedStandings = (finaleLeaderboard.items || []).filter((entry) =>
+          divisionTeamIds.includes(String(entry.teamId))
+        );
+        const rankedTeamIdSet = new Set(rankedStandings.map((entry) => String(entry.teamId)));
+        const unrankedTeamIds = divisionTeamIds.filter((teamId) => !rankedTeamIdSet.has(teamId));
+
+        const enrichFinaleTeamStandingEntry = (entry) => ({
+          ...entry,
+          team: teamSummaryById.get(String(entry.teamId)) || entry.team || null,
+          stats: computePoolStats(entry),
+        });
+
+        finaleStandings = [
+          ...rankedStandings.map(enrichFinaleTeamStandingEntry),
+          ...unrankedTeamIds.map((teamId, index) =>
+            enrichFinaleTeamStandingEntry({
+              id: `final-${String(finalDivision._id)}-team-${teamId}`,
+              teamId,
+              team: teamSummaryById.get(teamId) || null,
+              rank: Number(rankedStandings.length + index + 1),
+              points: 0,
+              wins: 0,
+              draws: 0,
+              losses: 0,
+              scoreFor: 0,
+              scoreAgainst: 0,
+              scoreDifferential: 0,
+            })
+          ),
+        ];
+      } else {
+        const divisionPlayerIds = (finalDivision.playerIds || []).map((value) => String(value));
+        const finaleLeaderboard = await listTournamentLeaderboard(tournamentId, finalDivision._id, 'player');
+        const playerSummaryById = await buildPlayerSummaryById(divisionPlayerIds);
+        const rankedStandings = (finaleLeaderboard.items || []).filter((entry) =>
+          divisionPlayerIds.includes(String(entry.playerId))
+        );
+        const rankedPlayerIdSet = new Set(rankedStandings.map((entry) => String(entry.playerId)));
+        const unrankedPlayerIds = divisionPlayerIds.filter((playerId) => !rankedPlayerIdSet.has(playerId));
+
+        const enrichFinaleStandingEntry = (entry) => ({
+          ...entry,
+          player: playerSummaryById.get(String(entry.playerId)) || entry.player || null,
+          stats: computePoolStats(entry),
+        });
+
+        finaleStandings = [
+          ...rankedStandings.map(enrichFinaleStandingEntry),
+          ...unrankedPlayerIds.map((playerId, index) =>
+            enrichFinaleStandingEntry({
+              id: `final-${String(finalDivision._id)}-${playerId}`,
+              playerId,
+              rank: Number(rankedStandings.length + index + 1),
+              points: 0,
+              wins: 0,
+              draws: 0,
+              losses: 0,
+              scoreFor: 0,
+              scoreAgainst: 0,
+              scoreDifferential: 0,
+            })
+          ),
+        ];
+      }
+    }
+  }
+
+  const tournamentWinners = completedWithFinale ? finaleStandings.slice(0, 3) : [];
 
   return {
     tournamentId: String(tournamentId),
     topPerGroup: defaultTopPerGroup,
+    handicapEnabled,
+    format,
+    pairFormationMode,
+    progressionState: tournament?.progressionState || 'registration',
+    finalStageEnabled,
+    completedWithFinale,
+    finaleStandings,
+    tournamentWinners,
     groups,
   };
 };
@@ -2365,6 +3648,110 @@ const listGroupStandingsForHost = async (tournamentId, hostUserId, query = {}) =
   return buildGroupStandingsList(tournamentId, query);
 };
 
+const assignRandomGroupsDoubles = async (tournamentId, hostUserId, payload = {}, tournament) => {
+  if (payload.pairTeamsRandom) {
+    await randomPairSolos(tournamentId, hostUserId);
+  } else {
+    await resolveDoublesPairingForGroupAssign(tournamentId);
+  }
+
+  const teams = await Team.find({ tournamentId, status: 'active' }).sort({ createdAt: 1, _id: 1 }).lean();
+
+  if (teams.length < 1) {
+    throw new ApiError(409, 'NO_TEAMS', 'At least one team is required before assigning groups');
+  }
+
+  const normalizedGroupCount = parsePositiveInteger(payload.groupCount, 2);
+  if (normalizedGroupCount > 8) {
+    throw new ApiError(400, 'GROUP_COUNT_OUT_OF_RANGE', 'groupCount must be between 1 and 8');
+  }
+
+  const groupCount = Math.min(normalizedGroupCount, Math.max(teams.length, 1));
+  const groupStageBestOf = parseBestOf(payload.groupStageBestOf, 1);
+  const randomTeams = shuffleArray(teams);
+
+  await Division.deleteMany({ tournamentId });
+  await Game.deleteMany({ tournamentId, stage: 'groupStage' });
+  await Leaderboard.deleteMany({ tournamentId });
+  await Team.updateMany({ tournamentId, status: 'active' }, { $set: { divisionId: null } });
+
+  const groups = Array.from({ length: groupCount }, (_, groupIndex) => ({
+    name: buildGroupName(groupIndex),
+    playerIds: [],
+    teamIds: [],
+  }));
+
+  randomTeams.forEach((team, index) => {
+    const targetGroupIndex = index % groupCount;
+    groups[targetGroupIndex].teamIds.push(String(team._id));
+    groups[targetGroupIndex].playerIds.push(String(team.player1Id), String(team.player2Id));
+  });
+
+  const insertedDivisions = await Division.insertMany(
+    groups.map((group) => ({
+      tournamentId,
+      name: group.name,
+      playerIds: group.playerIds,
+      teamIds: group.teamIds,
+      status: 'open',
+    }))
+  );
+
+  const createdGamesByDivision = [];
+
+  for (const division of insertedDivisions) {
+    const divisionTeamIds = (division.teamIds || []).map((teamId) => String(teamId));
+
+    await Team.updateMany(
+      { _id: { $in: divisionTeamIds }, tournamentId, status: 'active' },
+      { $set: { divisionId: division._id } }
+    );
+
+    const createdGames = await createRoundRobinTeamGamesForStage({
+      tournamentId,
+      divisionId: String(division._id),
+      stage: 'groupStage',
+      teamIds: divisionTeamIds,
+      bestOf: groupStageBestOf,
+    });
+
+    await recomputeLeaderboardForScope(tournamentId, division._id);
+
+    createdGamesByDivision.push({
+      divisionId: String(division._id),
+      divisionName: division.name,
+      gameCount: createdGames.length,
+    });
+  }
+
+  await Tournament.updateOne(
+    { _id: tournamentId },
+    {
+      $set: {
+        progressionState: 'groupStage',
+        'competitionConfig.groupCount': groupCount,
+        'competitionConfig.groupStageBestOf': groupStageBestOf,
+      },
+    }
+  );
+
+  return {
+    tournamentId: String(tournamentId),
+    groupCount,
+    groupStageBestOf,
+    format: 'doubles',
+    groups: insertedDivisions.map((division) => ({
+      divisionId: String(division._id),
+      name: division.name,
+      teamCount: (division.teamIds || []).length,
+      playerCount: (division.playerIds || []).length,
+      teamIds: (division.teamIds || []).map((value) => String(value)),
+      playerIds: (division.playerIds || []).map((value) => String(value)),
+    })),
+    gameSummary: createdGamesByDivision,
+  };
+};
+
 const assignRandomGroups = async (tournamentId, hostUserId, payload = {}) => {
   const tournament = await assertHostAccess(tournamentId, hostUserId);
 
@@ -2378,6 +3765,10 @@ const assignRandomGroups = async (tournamentId, hostUserId, payload = {}) => {
       'GROUP_PATTERN_LOCKED',
       'Group pattern is locked after fixtures are generated'
     );
+  }
+
+  if (isDoublesTournament(tournament)) {
+    return assignRandomGroupsDoubles(tournamentId, hostUserId, payload, tournament);
   }
 
   const players = await ensurePlayersFromApprovedRegistrations(tournamentId);
@@ -2541,15 +3932,143 @@ const regenerateGroupStageFixtures = async (tournamentId, hostUserId) => {
 };
 
 const startFinalStageFromGroups = async (tournamentId, hostUserId, payload = {}) => {
-  await assertHostAccess(tournamentId, hostUserId);
+  const tournament = await assertHostAccess(tournamentId, hostUserId);
 
   const topPerGroup = Math.min(parsePositiveInteger(payload.topPerGroup, 2), 8);
   const finalStageBestOf = parseBestOf(payload.finalStageBestOf, 3);
+  const isDoubles = isDoublesTournament(tournament);
+  const finalStageProctored = isDoubles ? false : Boolean(payload.finalStageProctored);
 
   const divisions = await Division.find({ tournamentId }).sort({ name: 1, _id: 1 }).lean();
 
   if (divisions.length === 0) {
     throw new ApiError(409, 'GROUPS_NOT_CONFIGURED', 'Groups must be configured before starting finals');
+  }
+
+  if (isDoubles) {
+    const finalistTeamIds = [];
+    const selectedTeamIds = Array.isArray(payload.selectedTeamIds)
+      ? [...new Set(payload.selectedTeamIds.map((value) => String(value)).filter(Boolean))]
+      : [];
+
+    if (selectedTeamIds.length > 0) {
+      const selectedTeams = await Team.find({
+        tournamentId,
+        _id: { $in: selectedTeamIds },
+        status: 'active',
+      })
+        .select({ _id: 1 })
+        .lean();
+
+      if (selectedTeams.length !== selectedTeamIds.length) {
+        throw new ApiError(400, 'INVALID_FINALIST_SELECTION', 'One or more selected finalist teams are invalid');
+      }
+
+      finalistTeamIds.push(...selectedTeamIds);
+    }
+
+    if (selectedTeamIds.length === 0) {
+      for (const division of divisions) {
+        if (String(division.name || '') === 'Final Stage') {
+          continue;
+        }
+
+        await recomputeLeaderboardForScope(tournamentId, division._id);
+        const teamLeaderboard = await listTournamentLeaderboard(tournamentId, division._id, 'team');
+        const topItems = (teamLeaderboard.items || []).slice(0, topPerGroup);
+
+        if (topItems.length > 0) {
+          finalistTeamIds.push(...topItems.map((entry) => String(entry.teamId)));
+          continue;
+        }
+
+        finalistTeamIds.push(...(division.teamIds || []).slice(0, topPerGroup).map((value) => String(value)));
+      }
+    }
+
+    const uniqueFinalistTeamIds = [...new Set(finalistTeamIds)];
+
+    if (uniqueFinalistTeamIds.length < 2) {
+      throw new ApiError(409, 'INSUFFICIENT_FINALISTS', 'Need at least 2 finalist teams to start final stage');
+    }
+
+    const finalistTeams = await Team.find({
+      tournamentId,
+      _id: { $in: uniqueFinalistTeamIds },
+      status: 'active',
+    }).lean();
+
+    const uniqueFinalistPlayerIds = [
+      ...new Set(finalistTeams.flatMap((team) => [String(team.player1Id), String(team.player2Id)])),
+    ];
+
+    let finalDivision = await Division.findOne({
+      tournamentId,
+      name: 'Final Stage',
+    }).lean();
+
+    if (!finalDivision) {
+      finalDivision = (
+        await Division.create({
+          tournamentId,
+          name: 'Final Stage',
+          playerIds: uniqueFinalistPlayerIds,
+          teamIds: uniqueFinalistTeamIds,
+          status: 'open',
+        })
+      ).toObject();
+    } else {
+      await Division.updateOne(
+        { _id: finalDivision._id },
+        {
+          $set: {
+            playerIds: uniqueFinalistPlayerIds,
+            teamIds: uniqueFinalistTeamIds,
+            status: 'open',
+          },
+        }
+      );
+    }
+
+    await Game.deleteMany({
+      tournamentId,
+      stage: 'finalStage',
+    });
+
+    const createdFinalGames = await createRoundRobinTeamGamesForStage({
+      tournamentId,
+      divisionId: String(finalDivision._id),
+      stage: 'finalStage',
+      teamIds: uniqueFinalistTeamIds,
+      bestOf: finalStageBestOf,
+    });
+
+    await recomputeLeaderboardForScope(tournamentId, finalDivision._id);
+
+    await Tournament.updateOne(
+      { _id: tournamentId },
+      {
+        $set: {
+          progressionState: 'finalStage',
+          'competitionConfig.finalStageEnabled': true,
+          'competitionConfig.finalStageBestOf': finalStageBestOf,
+          'competitionConfig.finalStageTopPerGroup': topPerGroup,
+          'competitionConfig.finalStageProctored': finalStageProctored,
+        },
+      }
+    );
+
+    return {
+      tournamentId: String(tournamentId),
+      finalDivisionId: String(finalDivision._id),
+      format: 'doubles',
+      finalistCount: uniqueFinalistTeamIds.length,
+      finalistTeamIds: uniqueFinalistTeamIds,
+      finalistPlayerIds: uniqueFinalistPlayerIds,
+      finalStageBestOf,
+      finalStageProctored,
+      gameCount: createdFinalGames.length,
+    };
   }
 
   const finalistPlayerIds = [];
@@ -2648,6 +4167,7 @@ const startFinalStageFromGroups = async (tournamentId, hostUserId, payload = {})
         'competitionConfig.finalStageEnabled': true,
         'competitionConfig.finalStageBestOf': finalStageBestOf,
         'competitionConfig.finalStageTopPerGroup': topPerGroup,
+        'competitionConfig.finalStageProctored': finalStageProctored,
       },
     }
   );
@@ -2658,6 +4178,7 @@ const startFinalStageFromGroups = async (tournamentId, hostUserId, payload = {})
     finalistCount: uniqueFinalistPlayerIds.length,
     finalistPlayerIds: uniqueFinalistPlayerIds,
     finalStageBestOf,
+    finalStageProctored,
     gameCount: createdFinalGames.length,
   };
 };
@@ -2769,10 +4290,18 @@ module.exports = {
   manuallyRemoveParticipant,
   assignScoreEditor,
   removeScoreEditor,
+  requestProctorTransfer,
+  acceptProctorTransfer,
+  declineProctorTransfer,
+  isStageProctored,
+  canUserEditGameScores,
   canUserEditTournamentScores,
   assertCanEditTournamentScores,
+  assertCanEditGameScores,
+  assertUserCanScheduleMatch,
   listTournamentScoresheet,
   updateGameScores,
+  updateGameSchedule,
   upsertAndScoreGroupStageGame,
   getRoundRobinPlayingPattern,
   recomputeLeaderboardForScope,
@@ -2786,4 +4315,6 @@ module.exports = {
   startFinalStageFromGroups,
   finalizeTournamentWithoutFinalStage,
   finalizeTournamentWithFinalStage,
+  materializeApprovedPlayers,
+  materializeApprovedPlayerForUser,
 };

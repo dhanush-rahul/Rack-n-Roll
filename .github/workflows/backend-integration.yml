@@ -1,0 +1,56 @@
+name: Backend Integration CI
+
+on:
+  pull_request:
+    paths:
+      - backend/**
+      - .github/workflows/backend-integration.yml
+  push:
+    branches:
+      - main
+    paths:
+      - backend/**
+      - .github/workflows/backend-integration.yml
+
+concurrency:
+  group: backend-integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration-tests:
+    name: Backend integration tests
+    runs-on: ubuntu-latest
+
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run integration test pack
+        env:
+          TEST_MONGODB_URI: mongodb://127.0.0.1:27017/rack-n-roll-ci
+        run: npm run test:integration
