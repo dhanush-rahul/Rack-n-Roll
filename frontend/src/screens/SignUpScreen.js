@@ -23,6 +23,8 @@ export function SignUpScreen({ navigation }) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fieldErrors, setFieldErrors] = useState({ name: '', email: '', password: '', confirmPassword: '' });
+  const [acceptedLegal, setAcceptedLegal] = useState(false);
+  const [legalError, setLegalError] = useState('');
   const [errorText, setErrorText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -30,7 +32,13 @@ export function SignUpScreen({ navigation }) {
     const { errors, sanitized } = validateSignUpInput({ name, email, password, confirmPassword });
     setFieldErrors(errors);
 
-    if (hasValidationErrors(errors)) {
+    if (!acceptedLegal) {
+      setLegalError('You must accept the Terms and Conditions and Privacy Policy.');
+    } else {
+      setLegalError('');
+    }
+
+    if (hasValidationErrors(errors) || !acceptedLegal) {
       setErrorText('Please fix the highlighted fields.');
       return;
     }
