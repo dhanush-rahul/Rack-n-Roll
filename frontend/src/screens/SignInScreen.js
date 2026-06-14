@@ -11,6 +11,8 @@ import {
 } from '../components/auth/AuthChrome';
 import { ActionButton } from '../components/tournament/TournamentChrome';
 import { LegalFooter } from '../components/legal/LegalLinks';
+import { GoogleSignInSection } from '../components/auth/GoogleSignInSection';
+import { isGoogleSignInConfigured } from '../config/googleAuth';
 import { useAuth } from '../context/AuthContext';
 import { hasValidationErrors, validateSignInInput } from '../utils/authValidation';
 
@@ -29,12 +31,13 @@ const navigateAfterAuth = (navigation, returnTo) => {
 };
 
 export function SignInScreen({ navigation, route }) {
-  const { signIn } = useAuth();
+  const { signIn, signInWithGoogle } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fieldErrors, setFieldErrors] = useState({ email: '', password: '' });
   const [errorText, setErrorText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
 
   const onSubmit = async () => {
     const { errors, sanitized } = validateSignInInput({ email, password });
@@ -57,11 +60,34 @@ export function SignInScreen({ navigation, route }) {
             ? 'Unable to reach the server. Start the backend (node src/index.js) and restart Expo with -c. Check the Metro log for [rack-n-roll] API base URL.'
             : 'Unable to reach the server. Check your connection and try again.'
         );
+      } else if (error?.code === 'GOOGLE_AUTH_REQUIRED') {
+        setErrorText('This account uses Google sign-in. Continue with Google or set a password in Profile.');
       } else {
         setErrorText('Invalid email or password. Please try again.');
       }
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleGoogleIdToken = async (idToken) => {
+    try {
+      setIsGoogleSubmitting(true);
+      setErrorText('');
+      await signInWithGoogle(idToken);
+      navigateAfterAuth(navigation, route.params?.returnTo);
+    } catch (error) {
+      if (error?.code === 'NETWORK_ERROR') {
+        setErrorText(
+          __DEV__
+            ? 'Unable to reach the server. Start the backend (node src/index.js) and restart Expo with -c. Check the Metro log for [rack-n-roll] API base URL.'
+            : 'Unable to reach the server. Check your connection and try again.'
+        );
+      } else {
+        setErrorText(error.message || 'Google sign-in failed. Please try again.');
+      }
+    } finally {
+      setIsGoogleSubmitting(false);
     }
   };
 
@@ -115,7 +141,14 @@ export function SignInScreen({ navigation, route }) {
           <ActionButton label="Forgot password?" onPress={() => navigation.navigate('ForgotPassword')} variant="ghost" fullWidth />
         </View>
 
-        <AuthPrimaryButton label="Sign in" onPress={onSubmit} disabled={isSubmitting} loading={isSubmitting} />
+        <AuthPrimaryButton label="Sign in" onPress={onSubmit} disabled={isSubmitting || isGoogleSubmitting} loading={isSubmitting} />
+
+        {isGoogleSignInConfigured() ? (
+          <GoogleSignInSection
+            onIdToken={handleGoogleIdToken}
+            disabled={isSubmitting || isGoogleSubmitting}
+          />
+        ) : null}
       </AuthFormCard>
 
       <AuthTextLink prompt="New here?" actionLabel="Create an account" onPress={() => navigation.navigate('SignUp')} />

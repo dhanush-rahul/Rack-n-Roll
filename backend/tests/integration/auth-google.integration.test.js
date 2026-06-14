@@ -133,4 +133,50 @@ describe('Google auth integration', () => {
     expect(loginResponse.status).toBe(401);
     expect(loginResponse.body.error.code).toBe('GOOGLE_AUTH_REQUIRED');
   });
+
+  test('happy path: Google user can set a password in profile and sign in with it', async () => {
+    const googleResponse = await request(app).post('/api/auth/google').send({
+      idToken: 'valid-google-token',
+    });
+
+    expect(googleResponse.status).toBe(200);
+    const token = googleResponse.body.data.token;
+
+    const setPasswordResponse = await request(app)
+      .post('/api/users/me/password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ password: 'NewPassword123!' });
+
+    expect(setPasswordResponse.status).toBe(200);
+    expect(setPasswordResponse.body.data.user.hasPassword).toBe(true);
+    expect(setPasswordResponse.body.data.user.authProvider).toBe('google');
+
+    const loginResponse = await request(app).post('/api/auth/login').send({
+      email: 'google.user@example.com',
+      password: 'NewPassword123!',
+    });
+
+    expect(loginResponse.status).toBe(200);
+    expect(loginResponse.body.data.user.hasPassword).toBe(true);
+  });
+
+  test('failure path: cannot set password twice', async () => {
+    const googleResponse = await request(app).post('/api/auth/google').send({
+      idToken: 'valid-google-token',
+    });
+    const token = googleResponse.body.data.token;
+
+    await request(app)
+      .post('/api/users/me/password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ password: 'NewPassword123!' });
+
+    const secondAttempt = await request(app)
+      .post('/api/users/me/password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ password: 'AnotherPassword123!' });
+
+    expect(secondAttempt.status).toBe(409);
+    expect(secondAttempt.body.error.code).toBe('PASSWORD_ALREADY_SET');
+  });
 });

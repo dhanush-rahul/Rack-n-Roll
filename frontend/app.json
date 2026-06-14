@@ -14,6 +14,7 @@
     "assetBundlePatterns": [
       "**/*"
     ],
+    "scheme": "racknroll",
     "plugins": [
       "@react-native-community/datetimepicker",
       [
@@ -24,7 +25,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "extra": {
       "eas": {

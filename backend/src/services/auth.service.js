@@ -420,10 +420,31 @@ const resetPasswordWithToken = async ({ email, resetToken, newPassword }) => {
   };
 };
 
+const setAccountPassword = async (userId, { password }) => {
+  const normalizedPassword = validatePassword(password, 'Password must be at least 8 characters long');
+  const user = await User.findById(userId).select('+passwordHash');
+
+  if (!user) {
+    throw new ApiError(404, 'USER_NOT_FOUND', 'User not found');
+  }
+
+  if (user.passwordHash) {
+    throw new ApiError(409, 'PASSWORD_ALREADY_SET', 'A password is already set for this account');
+  }
+
+  user.passwordHash = await bcrypt.hash(normalizedPassword, SALT_ROUNDS);
+  await user.save();
+
+  return {
+    hasPassword: true,
+  };
+};
+
 module.exports = {
   signup,
   login,
   signInWithGoogle,
+  setAccountPassword,
   requestPasswordReset,
   validatePasswordResetPin,
   resetPasswordWithToken,
