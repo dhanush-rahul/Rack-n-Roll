@@ -155,9 +155,10 @@ const validateCreateTournament = (req) => {
 
 const validateInviteCodePayload = (req) => {
   ensureObjectIdParam(req, 'tournamentId');
+  const body = parseBody(req);
 
-  if (!ensureString(parseBody(req).inviteCode, 1)) {
-    throw new ApiError(400, 'INVITE_CODE_REQUIRED', 'inviteCode is required');
+  if (body.inviteCode !== undefined && typeof body.inviteCode !== 'string') {
+    throw new ApiError(400, 'INVALID_INVITE_CODE', 'inviteCode must be a string when provided');
   }
 };
 

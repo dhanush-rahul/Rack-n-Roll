@@ -132,6 +132,49 @@ describe('M6-S2 integration pack: discover -> register -> host approve', () => {
     expect(Array.isArray(standingsResponse.body.data.groups)).toBe(true);
   });
 
+  test('public read path: discover, scoresheet, and standings work without authentication', async () => {
+    const unique = Date.now();
+    const host = await signup('Public Read Host', `public.read.host.${unique}@example.com`);
+
+    const createResponse = await request(app)
+      .post('/api/tournaments')
+      .set(authHeader(host.token))
+      .send(buildTournamentPayload({ name: 'Public Read Open' }));
+
+    expect(createResponse.status).toBe(201);
+    const tournamentId = extractTournamentId(createResponse.body);
+
+    const discoverResponse = await request(app).get('/api/tournaments/discover');
+    expect(discoverResponse.status).toBe(200);
+    expect(discoverResponse.body.success).toBe(true);
+    expect(discoverResponse.body.data.items.some((item) => item.id === tournamentId)).toBe(true);
+
+    const scoresheetResponse = await request(app).get(
+      `/api/tournaments/${tournamentId}/scoresheet?page=1&pageSize=5`
+    );
+    expect(scoresheetResponse.status).toBe(200);
+    expect(scoresheetResponse.body.success).toBe(true);
+    expect(scoresheetResponse.body.data.canEdit).toBe(false);
+
+    const standingsResponse = await request(app).get(
+      `/api/tournaments/${tournamentId}/groups/standings`
+    );
+    expect(standingsResponse.status).toBe(200);
+    expect(standingsResponse.body.success).toBe(true);
+
+    const inviteValidationResponse = await request(app)
+      .post(`/api/tournaments/${tournamentId}/validate-invite-code`)
+      .send({});
+    expect(inviteValidationResponse.status).toBe(200);
+    expect(inviteValidationResponse.body.success).toBe(true);
+
+    const registrationWithoutAuth = await request(app)
+      .post(`/api/tournaments/${tournamentId}/registrations`)
+      .send({});
+    expect(registrationWithoutAuth.status).toBe(401);
+    expect(registrationWithoutAuth.body.error.code).toBe('UNAUTHORIZED');
+  });
+
   test('discover supports name search and startsSoon sort', async () => {
     const unique = Date.now();
     const host = await signup('Discover Host', `discover.host.${unique}@example.com`);

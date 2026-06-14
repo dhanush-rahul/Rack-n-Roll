@@ -57,13 +57,13 @@ const {
   randomPairTeamsController,
 } = require('../controllers/team.controller');
 
-router.get('/discover', requireAuth, discoverTournamentsController);
+router.get('/discover', discoverTournamentsController);
 router.get('/:tournamentId/host-detail', requireAuth, getHostTournamentDetailController);
 router.get('/:tournamentId/export/xlsx', requireAuth, exportTournamentXlsxController);
 router.post('/:tournamentId/export/email', requireAuth, emailTournamentExportController);
 router.post('/:tournamentId/registration/close', requireAuth, closeTournamentRegistrationController);
 router.patch('/:tournamentId/settings', requireAuth, updateHostTournamentSettingsController);
-router.post('/:tournamentId/validate-invite-code', requireAuth, validateInviteCodeController);
+router.post('/:tournamentId/validate-invite-code', validateInviteCodeController);
 router.post('/:tournamentId/registrations', requireAuth, submitRegistrationRequestController);
 router.get('/:tournamentId/registrations/pending', requireAuth, listPendingRegistrationRequestsController);
 router.get('/:tournamentId/registrations/host-list', requireAuth, listHostRegistrationsController);
@@ -85,7 +85,7 @@ router.delete('/:tournamentId/score-editors/:editorUserId', requireAuth, removeS
 router.post('/:tournamentId/proctor-transfer', requireAuth, requestProctorTransferController);
 router.post('/:tournamentId/proctor-transfer/accept', requireAuth, acceptProctorTransferController);
 router.post('/:tournamentId/proctor-transfer/decline', requireAuth, declineProctorTransferController);
-router.get('/:tournamentId/scoresheet', requireAuth, listTournamentScoresheetController);
+router.get('/:tournamentId/scoresheet', listTournamentScoresheetController);
 router.post('/:tournamentId/games/:gameId/start', requireAuth, startGameSessionController);
 router.get('/:tournamentId/games/:gameId/live', requireAuth, getLiveMatchStateController);
 router.post('/:tournamentId/games/:gameId/live/takeover-request', requireAuth, requestLiveMatchTakeoverController);
@@ -109,7 +109,7 @@ router.post('/:tournamentId/teams/host-form', requireAuth, hostFormTeamControlle
 router.post('/:tournamentId/teams/:teamId/break', requireAuth, breakTeamController);
 router.patch('/:tournamentId/teams/:teamId/display-name', requireAuth, updateTeamDisplayNameController);
 router.post('/:tournamentId/groups/regenerate', requireAuth, regenerateGroupStageFixturesController);
-router.get('/:tournamentId/groups/standings', requireAuth, listGroupStandingsForHostController);
+router.get('/:tournamentId/groups/standings', listGroupStandingsForHostController);
 router.post('/:tournamentId/final-stage/start', requireAuth, startFinalStageFromGroupsController);
 router.post('/:tournamentId/final-stage/skip-and-complete', requireAuth, finalizeTournamentWithoutFinalStageController);
 router.post('/:tournamentId/final-stage/complete', requireAuth, finalizeTournamentWithFinalStageController);
