@@ -1,12 +1,14 @@
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
-import {
-  fetchTournamentGroupStandings,
-  fetchTournamentScoresheet,
-} from '../services/tournamentService';
+import { fetchTournamentGroupStandings } from '../services/tournamentService';
 import { buildPlayerGameStatsFromGames } from '../utils/fixtureDisplay';
 import { buildGroupDisplayName } from '../utils/groupNaming';
+import { STANDINGS_STALE_TIME_MS } from '../config/queryClient';
+import { queryKeys } from './queries/queryKeys';
+import { fetchAllScoresheetPages } from './queries/tournamentQueryUtils';
 
 export function useGroupStandings(tournamentId) {
+  const queryClient = useQueryClient();
   const [groupsTabItems, setGroupsTabItems] = useState([]);
   const [handicapEnabled, setHandicapEnabled] = useState(false);
   const [finalStageEnabled, setFinalStageEnabled] = useState(false);
@@ -16,33 +18,19 @@ export function useGroupStandings(tournamentId) {
   const [groupPlayerGameStatsById, setGroupPlayerGameStatsById] = useState({});
   const [isLoading, setIsLoading] = useState(false);
 
+  const { data: standingsData, refetch: refetchStandings } = useQuery({
+    queryKey: queryKeys.standings(tournamentId),
+    queryFn: () => fetchTournamentGroupStandings(tournamentId),
+    staleTime: STANDINGS_STALE_TIME_MS,
+    enabled: false,
+  });
+
   const buildGroupFallbackFromScoresheetGames = useCallback(async () => {
-    const games = [];
-    let page = 1;
-    let totalPages = 1;
-
-    while (page <= totalPages) {
-      const response = await fetchTournamentScoresheet(tournamentId, {
-        page,
-        pageSize: 100,
-        stage: 'groupStage',
-      });
-
-      if (page === 1) {
-        totalPages = Math.max(response.pagination?.totalPages || 0, 1);
-        if ((response.pagination?.totalPages || 0) === 0) {
-          totalPages = 0;
-        }
-      }
-
-      games.push(...(response.items || []));
-
-      if (totalPages === 0) {
-        break;
-      }
-
-      page += 1;
-    }
+    const response = await queryClient.fetchQuery({
+      queryKey: queryKeys.scoresheet(tournamentId, { stage: 'groupStage' }),
+      queryFn: () => fetchAllScoresheetPages(tournamentId, { stage: 'groupStage' }),
+    });
+    const games = response.items || [];
 
     const divisionsById = new Map();
 
@@ -87,71 +75,84 @@ export function useGroupStandings(tournamentId) {
       divisionsById,
       gameStatsByPlayerId: buildPlayerGameStatsFromGames(games),
     };
-  }, [tournamentId]);
+  }, [queryClient, tournamentId]);
+
+  const applyStandingsResponse = useCallback(
+    async (standingsResponse, fallbackData) => {
+      let nextGroups = standingsResponse?.groups || [];
+      setHandicapEnabled(Boolean(standingsResponse?.handicapEnabled));
+      setFinalStageEnabled(Boolean(standingsResponse?.finalStageEnabled));
+      setCompletedWithFinale(Boolean(standingsResponse?.completedWithFinale));
+      setFinaleStandings(standingsResponse?.finaleStandings || []);
+      setTournamentWinners(standingsResponse?.tournamentWinners || []);
+      const fallbackByDivisionId = fallbackData.divisionsById;
+
+      setGroupPlayerGameStatsById(
+        fallbackData.gameStatsByPlayerId || buildPlayerGameStatsFromGames(fallbackData.games || [])
+      );
+
+      const shouldApplyFallback =
+        nextGroups.length === 0 ||
+        nextGroups.some((group) => (group.standings || []).length === 0);
+
+      if (shouldApplyFallback) {
+        if (nextGroups.length > 0) {
+          nextGroups = nextGroups.map((group) => {
+            if ((group.standings || []).length > 0) {
+              return group;
+            }
+
+            const fallbackPlayers = [...(fallbackByDivisionId.get(String(group.divisionId))?.values() || [])];
+            const fallbackStandings = fallbackPlayers.map((player, index) => ({
+              playerId: player.id,
+              player,
+              rank: index + 1,
+              wins: 0,
+              losses: 0,
+              points: 0,
+            }));
+
+            return {
+              ...group,
+              standings: fallbackStandings,
+            };
+          });
+        } else if (fallbackByDivisionId.size > 0) {
+          nextGroups = [...fallbackByDivisionId.entries()].map(([divisionId, playersById], index) => ({
+            divisionId,
+            divisionName: buildGroupDisplayName(index),
+            standings: [...playersById.values()].map((player, playerIndex) => ({
+              playerId: player.id,
+              player,
+              rank: playerIndex + 1,
+              wins: 0,
+              losses: 0,
+              points: 0,
+            })),
+          }));
+        }
+      }
+
+      setGroupsTabItems(nextGroups);
+      return nextGroups;
+    },
+    []
+  );
 
   const refreshGroupsTabData = useCallback(async () => {
-    const [standingsResponse, fallbackData] = await Promise.all([
-      fetchTournamentGroupStandings(tournamentId),
+    const [standingsResult, fallbackData] = await Promise.all([
+      refetchStandings(),
       buildGroupFallbackFromScoresheetGames(),
     ]);
 
-    let nextGroups = standingsResponse.groups || [];
-    setHandicapEnabled(Boolean(standingsResponse.handicapEnabled));
-    setFinalStageEnabled(Boolean(standingsResponse.finalStageEnabled));
-    setCompletedWithFinale(Boolean(standingsResponse.completedWithFinale));
-    setFinaleStandings(standingsResponse.finaleStandings || []);
-    setTournamentWinners(standingsResponse.tournamentWinners || []);
-    const fallbackByDivisionId = fallbackData.divisionsById;
+    const standingsResponse = standingsResult.data;
 
-    setGroupPlayerGameStatsById(
-      fallbackData.gameStatsByPlayerId || buildPlayerGameStatsFromGames(fallbackData.games || [])
-    );
-
-    const shouldApplyFallback =
-      nextGroups.length === 0 ||
-      nextGroups.some((group) => (group.standings || []).length === 0);
-
-    if (shouldApplyFallback) {
-      if (nextGroups.length > 0) {
-        nextGroups = nextGroups.map((group) => {
-          if ((group.standings || []).length > 0) {
-            return group;
-          }
-
-          const fallbackPlayers = [...(fallbackByDivisionId.get(String(group.divisionId))?.values() || [])];
-          const fallbackStandings = fallbackPlayers.map((player, index) => ({
-            playerId: player.id,
-            player,
-            rank: index + 1,
-            wins: 0,
-            losses: 0,
-            points: 0,
-          }));
-
-          return {
-            ...group,
-            standings: fallbackStandings,
-          };
-        });
-      } else if (fallbackByDivisionId.size > 0) {
-        nextGroups = [...fallbackByDivisionId.entries()].map(([divisionId, playersById], index) => ({
-          divisionId,
-          divisionName: buildGroupDisplayName(index),
-          standings: [...playersById.values()].map((player, playerIndex) => ({
-            playerId: player.id,
-            player,
-            rank: playerIndex + 1,
-            wins: 0,
-            losses: 0,
-            points: 0,
-          })),
-        }));
-      }
+    if (!standingsResponse) {
+      throw standingsResult.error || new Error('Unable to load group standings');
     }
 
-    setGroupsTabItems(nextGroups);
-    return nextGroups;
-  }, [buildGroupFallbackFromScoresheetGames, tournamentId]);
+    return applyStandingsResponse(standingsResponse, fallbackData);
+  }, [applyStandingsResponse, buildGroupFallbackFromScoresheetGames, refetchStandings]);
 
   const loadGroupsTab = useCallback(async () => {
     setIsLoading(true);

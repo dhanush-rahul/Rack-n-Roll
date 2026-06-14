@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useQueryClient } from '@tanstack/react-query';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { FeedbackModal } from '../components/FeedbackModal';
 import { MatchScheduleModal } from '../components/tournament/MatchScheduleModal';
@@ -9,6 +10,10 @@ import { useGroupStageFixtures } from '../hooks/useGroupStageFixtures';
 import { useGroupStandings } from '../hooks/useGroupStandings';
 import { formatApiError, useScreenFeedback } from '../hooks/useScreenFeedback';
 import { logApiError } from '../utils/errorLogger';
+import { useHostTournamentDetail } from '../hooks/queries/useHostTournamentDetail';
+import { useHostTournamentRegistrations } from '../hooks/queries/useHostTournamentRegistrations';
+import { invalidateTournamentCache } from '../hooks/queries/invalidateTournamentCache';
+import { useFetchScoresheetPages } from '../hooks/queries/useScoresheetPages';
 import { useScoreInputs } from '../hooks/useScoreInputs';
 import {
   approveTournamentRegistrationRequest,
@@ -18,10 +23,7 @@ import {
   completeTournamentWithoutFinalStage,
   downloadTournamentExport,
   emailTournamentExport,
-  fetchHostTournamentDetail,
-  fetchHostTournamentRegistrations,
   fetchTournamentGroupStandings,
-  fetchTournamentScoresheet,
   assignTournamentProctor,
   manuallyAddTournamentParticipant,
   acceptTournamentProctorTransfer,
@@ -91,10 +93,26 @@ function loadingReducer(state, action) {
 export function TournamentDetailScreen({ route, navigation }) {
   const tournamentId = route?.params?.tournamentId;
   const { currentUser } = useAuth();
+  const queryClient = useQueryClient();
+  const fetchScoresheetPages = useFetchScoresheetPages();
+  const detailTabInitializedRef = useRef(null);
+
+  const {
+    data: detail,
+    isLoading: isDetailQueryLoading,
+    refetch: refetchDetail,
+    error: detailQueryError,
+  } = useHostTournamentDetail(tournamentId);
+
+  const {
+    data: registrationsData,
+    isLoading: isRegistrationsQueryLoading,
+    refetch: refetchRegistrations,
+  } = useHostTournamentRegistrations(tournamentId);
+
+  const registrations = registrationsData?.items ?? [];
 
   const [activeTab, setActiveTab] = useState('registrations');
-  const [detail, setDetail] = useState(null);
-  const [registrations, setRegistrations] = useState([]);
   const [loading, dispatchLoading] = useReducer(loadingReducer, initialLoadingState);
 
   const {
@@ -273,35 +291,10 @@ export function TournamentDetailScreen({ route, navigation }) {
 
   const loadFinalStageScores = useCallback(
     async ({ hydrateInputs = false } = {}) => {
-      const items = [];
-      let page = 1;
-      let totalPages = 1;
+      const response = await fetchScoresheetPages(tournamentId, { stage: 'finalStage' });
+      const items = response.items || [];
 
-      while (page <= totalPages) {
-        const response = await fetchTournamentScoresheet(tournamentId, {
-          page,
-          pageSize: 100,
-          stage: 'finalStage',
-        });
-
-        if (page === 1) {
-          setCanEditFinalScores(Boolean(response.canEdit));
-          totalPages = Math.max(response.pagination?.totalPages || 0, 1);
-
-          if ((response.pagination?.totalPages || 0) === 0) {
-            totalPages = 0;
-          }
-        }
-
-        items.push(...(response.items || []));
-
-        if (totalPages === 0) {
-          break;
-        }
-
-        page += 1;
-      }
-
+      setCanEditFinalScores(Boolean(response.canEdit));
       setFinalStageGames(items);
 
       if (hydrateInputs) {
@@ -310,8 +303,51 @@ export function TournamentDetailScreen({ route, navigation }) {
 
       return items;
     },
-    [hydrateScoreInputState, tournamentId]
+    [fetchScoresheetPages, hydrateScoreInputState, tournamentId]
   );
+
+  const loadDetail = useCallback(async () => {
+    await refetchDetail();
+  }, [refetchDetail]);
+
+  const loadRegistrations = useCallback(async () => {
+    await refetchRegistrations();
+  }, [refetchRegistrations]);
+
+  const invalidateTournamentQueries = useCallback(async () => {
+    await invalidateTournamentCache(queryClient, tournamentId);
+  }, [queryClient, tournamentId]);
+
+  useEffect(() => {
+    if (!detail || detailTabInitializedRef.current === tournamentId) {
+      return;
+    }
+
+    detailTabInitializedRef.current = tournamentId;
+    setMaxParticipantsInput(String(detail?.maxParticipants || ''));
+    setActiveTab(
+      detail?.progressionState === 'groupStage'
+        ? 'games'
+        : detail?.progressionState === 'finalStage'
+          ? 'finale'
+          : detail?.registrationStatus === 'closed'
+            ? 'groups'
+            : 'registrations'
+    );
+  }, [detail, tournamentId]);
+
+  useEffect(() => {
+    if (!detailQueryError) {
+      return;
+    }
+
+    showError(formatApiError(detailQueryError, 'Unable to load tournament detail'));
+  }, [detailQueryError, showError]);
+
+  useEffect(() => {
+    dispatchLoading({ type: 'set', key: 'detail', value: isDetailQueryLoading && !detail });
+    dispatchLoading({ type: 'set', key: 'registrations', value: isRegistrationsQueryLoading && !registrationsData });
+  }, [detail, isDetailQueryLoading, isRegistrationsQueryLoading, registrationsData]);
 
   const finalDivisionNameById = useMemo(() => {
     const names = new Map();
@@ -435,46 +471,14 @@ export function TournamentDetailScreen({ route, navigation }) {
       }));
   }, [finalStageGames]);
 
-  const loadDetail = useCallback(async () => {
-    dispatchLoading({ type: 'set', key: 'detail', value: true });
-
-    try {
-      const response = await fetchHostTournamentDetail(tournamentId);
-      setDetail(response);
-      setMaxParticipantsInput(String(response?.maxParticipants || ''));
-      setActiveTab(
-        response?.progressionState === 'groupStage'
-          ? 'games'
-          : response?.progressionState === 'finalStage'
-            ? 'finale'
-            : response?.registrationStatus === 'closed'
-              ? 'groups'
-              : 'registrations'
-      );
-    } finally {
-      dispatchLoading({ type: 'set', key: 'detail', value: false });
-    }
-  }, [tournamentId]);
-
-  const loadRegistrations = useCallback(async () => {
-    dispatchLoading({ type: 'set', key: 'registrations', value: true });
-
-    try {
-      const response = await fetchHostTournamentRegistrations(tournamentId, { page: 1, pageSize: 100 });
-      setRegistrations(response.items || []);
-    } finally {
-      dispatchLoading({ type: 'set', key: 'registrations', value: false });
-    }
-  }, [tournamentId]);
-
-  const bootstrap = useCallback(async () => {
+  const onRefreshDetail = useCallback(async () => {
     try {
       clearError();
-      await Promise.all([loadDetail(), loadRegistrations()]);
+      await Promise.all([refetchDetail(), refetchRegistrations()]);
     } catch (error) {
       showError(formatApiError(error, 'Unable to load tournament detail'));
     }
-  }, [clearError, loadDetail, loadRegistrations, showError]);
+  }, [clearError, refetchDetail, refetchRegistrations, showError]);
 
   const onExportWorkbook = useCallback(async () => {
     if (!tournamentId) {
@@ -521,10 +525,7 @@ export function TournamentDetailScreen({ route, navigation }) {
   }, [clearError, clearSuccess, detail?.name, showError, showSuccess, tournamentId]);
 
   useEffect(() => {
-    bootstrap();
-  }, [bootstrap]);
-
-  useEffect(() => {
+    detailTabInitializedRef.current = null;
     groupsTabLoadStartedRef.current = false;
     gamesTabLoadStartedRef.current = false;
     groupsPrefetchStartedRef.current = false;
@@ -1129,6 +1130,7 @@ export function TournamentDetailScreen({ route, navigation }) {
             const refreshed = await refreshGroupFixtures({ preserveFilter: true });
             hydrateScoreInputState(refreshed);
             await refreshGroupsTabData();
+            await invalidateTournamentQueries();
           },
         });
       } catch (error) {
@@ -1556,7 +1558,7 @@ export function TournamentDetailScreen({ route, navigation }) {
         isExporting={isExportingWorkbook}
         isEmailExporting={isEmailExporting}
         onClose={() => setIsHostInfoModalVisible(false)}
-        onRefresh={bootstrap}
+        onRefresh={onRefreshDetail}
         onExport={onExportWorkbook}
         onEmailExport={onEmailExportWorkbook}
       />

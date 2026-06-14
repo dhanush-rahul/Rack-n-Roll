@@ -2,10 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchDiscoverTournaments } from '../../services/tournamentService';
 import { DISCOVER_STALE_TIME_MS } from '../../config/queryClient';
 
-export const discoverQueryKey = ({ page, pageSize, sort, q }) => [
-  'discover',
-  { page, pageSize, sort, q: q || '' },
-];
+import { discoverQueryKey } from './queryKeys';
 
 export function useDiscoverTournaments({ page, pageSize, sort, q, enabled = true }) {
   return useQuery({

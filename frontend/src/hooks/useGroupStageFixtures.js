@@ -1,5 +1,5 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
-import { fetchTournamentScoresheet } from '../services/tournamentService';
 import {
   buildFixtureSectionsFromGames,
   countFixtureMatches,
@@ -8,6 +8,9 @@ import {
 import { buildGroupDisplayName, buildDivisionOrderIndex } from '../utils/groupNaming';
 import { mergeFilteredGamesAfterSave } from '../utils/fixtureFilterMerge';
 import { buildPlayerSearchIndex, filterGamesByPlayerQueries, filterGamesByUserId } from '../utils/playerSearch';
+import { SCORESHEET_STALE_TIME_MS } from '../config/queryClient';
+import { queryKeys } from './queries/queryKeys';
+import { fetchAllScoresheetPages } from './queries/tournamentQueryUtils';
 
 const isPlayedScoreEntry = (entry) => {
   const playerAScore = Number(entry?.playerAScore);
@@ -38,6 +41,7 @@ export function useGroupStageFixtures(
   groupStageBestOfOrConfig,
   { defaultGamesView = 'all', myGamesUserId = null } = {}
 ) {
+  const queryClient = useQueryClient();
   const resolvedGroupStageBestOf = resolveGroupStageBestOf(groupStageBestOfOrConfig);
   const [games, setGames] = useState([]);
   const [fixtureTotal, setFixtureTotal] = useState(0);
@@ -54,52 +58,32 @@ export function useGroupStageFixtures(
 
   const loadGroupStageScores = useCallback(
     async ({ playerQuery, player2Query, updateMainList = true } = {}) => {
-      const items = [];
-      let page = 1;
-      let totalPages = 1;
       const normalizedPlayerQuery = String(playerQuery || '').trim();
       const normalizedPlayerTwoQuery = String(player2Query || '').trim();
+      const params = {
+        stage: 'groupStage',
+        ...(normalizedPlayerQuery ? { playerQuery: normalizedPlayerQuery } : {}),
+        ...(normalizedPlayerTwoQuery ? { player2Query: normalizedPlayerTwoQuery } : {}),
+      };
 
-      while (page <= totalPages) {
-        const response = await fetchTournamentScoresheet(tournamentId, {
-          page,
-          pageSize: 100,
-          stage: 'groupStage',
-          ...(normalizedPlayerQuery ? { playerQuery: normalizedPlayerQuery } : {}),
-          ...(normalizedPlayerTwoQuery ? { player2Query: normalizedPlayerTwoQuery } : {}),
-        });
+      const response = await queryClient.fetchQuery({
+        queryKey: queryKeys.scoresheet(tournamentId, params),
+        queryFn: () => fetchAllScoresheetPages(tournamentId, params),
+        staleTime: SCORESHEET_STALE_TIME_MS,
+      });
 
-        if (page === 1) {
-          setCanEdit(Boolean(response.canEdit));
-          setGroupStageProctored(Boolean(response.groupStageProctored));
-
-          if (updateMainList) {
-            setFixtureTotal(Number(response.pagination?.total || 0));
-          }
-
-          totalPages = Math.max(response.pagination?.totalPages || 0, 1);
-
-          if ((response.pagination?.totalPages || 0) === 0) {
-            totalPages = 0;
-          }
-        }
-
-        items.push(...(response.items || []));
-
-        if (totalPages === 0) {
-          break;
-        }
-
-        page += 1;
-      }
+      const items = response.items || [];
 
       if (updateMainList) {
+        setCanEdit(Boolean(response.canEdit));
+        setGroupStageProctored(Boolean(response.groupStageProctored));
+        setFixtureTotal(Number(response.pagination?.total || items.length || 0));
         setGames(items);
       }
 
       return items;
     },
-    [tournamentId]
+    [queryClient, tournamentId]
   );
 
   const divisionNameById = useMemo(() => {
