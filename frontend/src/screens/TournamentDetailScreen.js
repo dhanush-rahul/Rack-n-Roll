@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { useGroupStageFixtures } from '../hooks/useGroupStageFixtures';
 import { useGroupStandings } from '../hooks/useGroupStandings';
 import { formatApiError, useScreenFeedback } from '../hooks/useScreenFeedback';
+import { logApiError } from '../utils/errorLogger';
 import { useScoreInputs } from '../hooks/useScoreInputs';
 import {
   approveTournamentRegistrationRequest,
@@ -210,7 +211,8 @@ export function TournamentDetailScreen({ route, navigation }) {
     try {
       const response = await fetchTournamentSoloPlayers(tournamentId);
       setSoloPlayerCount((response?.items || []).length);
-    } catch {
+    } catch (error) {
+      logApiError(error, { screen: 'TournamentDetail', action: 'loadSoloPlayerCount', tournamentId });
       setSoloPlayerCount(0);
     }
   }, [canShowGroupAssignmentStep, hasGroupFixtures, isDoubles, tournamentId]);
@@ -1183,7 +1185,9 @@ export function TournamentDetailScreen({ route, navigation }) {
 
     if (groupsTabItems.length === 0 && !groupsPrefetchStartedRef.current) {
       groupsPrefetchStartedRef.current = true;
-      refreshGroupsTabData().catch(() => {});
+      refreshGroupsTabData().catch((error) => {
+        logApiError(error, { screen: 'TournamentDetail', action: 'prefetchGroupsTab' });
+      });
     }
 
     if (gamesTabLoadStartedRef.current) {
@@ -1208,8 +1212,8 @@ export function TournamentDetailScreen({ route, navigation }) {
           if (!isCancelled) {
             hydrateScoreInputState(refreshed);
           }
-        } catch {
-          // Ignore refresh errors on focus; user can tap Refresh manually.
+        } catch (error) {
+          logApiError(error, { screen: 'TournamentDetail', action: 'refreshGroupFixturesOnFocus' });
         }
       })();
 

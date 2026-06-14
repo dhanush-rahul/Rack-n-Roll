@@ -19,6 +19,7 @@ import {
 import { RoundMatchesDisplay } from '../components/RoundMatchesDisplay';
 import { useGroupStageFixtures } from '../hooks/useGroupStageFixtures';
 import { formatApiError, useScreenFeedback } from '../hooks/useScreenFeedback';
+import { logApiError } from '../utils/errorLogger';
 import { useAuth } from '../context/AuthContext';
 import { ProctorHandoffPanel } from '../components/tournament/ProctorHandoffPanel';
 import { TeamsSection } from './tournamentDetail/TeamsSection';
@@ -466,8 +467,8 @@ export function ScoresheetScreen({ route, navigation }) {
         if (standingsResponse.progressionState) {
           setProgressionState(standingsResponse.progressionState);
         }
-      } catch {
-        // Standings may be unavailable before groups exist; scoresheet metadata is the fallback.
+      } catch (error) {
+        logApiError(error, { screen: 'Scoresheet', action: 'loadTournamentMetaStandings', tournamentId });
       }
 
       try {
@@ -487,8 +488,8 @@ export function ScoresheetScreen({ route, navigation }) {
         if (scoresheetResponse.progressionState) {
           setProgressionState(scoresheetResponse.progressionState);
         }
-      } catch {
-        // Ignore metadata load errors; tab content loaders will surface failures.
+      } catch (error) {
+        logApiError(error, { screen: 'Scoresheet', action: 'loadTournamentMetaScoresheet', tournamentId });
       }
     };
 

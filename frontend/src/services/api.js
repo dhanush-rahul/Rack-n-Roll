@@ -1,6 +1,7 @@
 import axios from 'axios/dist/browser/axios.cjs';
 import { resolveApiBaseUrl } from '../config/apiBaseUrl';
 import { getToken } from '../utils/tokenStore';
+import { logApiError } from '../utils/errorLogger';
 import { wakeBackendIfNeeded } from './systemService';
 
 const API_BASE_URL = resolveApiBaseUrl();
@@ -60,7 +61,17 @@ const normalizeError = (error) => {
 
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => Promise.reject(normalizeError(error))
+  (error) => {
+    const normalized = normalizeError(error);
+    const requestConfig = error?.config || {};
+
+    logApiError(normalized, {
+      method: requestConfig.method?.toUpperCase() || null,
+      url: requestConfig.url || null,
+    });
+
+    return Promise.reject(normalized);
+  }
 );
 
 export async function apiGet(path, config) {
