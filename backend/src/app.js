@@ -1,5 +1,6 @@
 const cors = require('cors');
 const express = require('express');
+const helmet = require('helmet');
 const { requestLogger } = require('./middleware/requestLogger');
 const { authContext } = require('./middleware/authContext');
 const { validationMiddleware } = require('./middleware/validation');
@@ -18,6 +19,13 @@ const createApp = (env) => {
       })
     );
   }
+
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginEmbedderPolicy: false,
+    })
+  );
 
   app.use(express.json({ limit: '1mb' }));
   app.use(requestLogger);
