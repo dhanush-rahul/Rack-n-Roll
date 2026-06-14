@@ -2,6 +2,7 @@ const cors = require('cors');
 const express = require('express');
 const helmet = require('helmet');
 const { requestLogger } = require('./middleware/requestLogger');
+const { requestId } = require('./middleware/requestId');
 const { authContext } = require('./middleware/authContext');
 const { validationMiddleware } = require('./middleware/validation');
 const { errorHandler } = require('./middleware/errorHandler');
@@ -28,6 +29,7 @@ const createApp = (env) => {
   );
 
   app.use(express.json({ limit: '1mb' }));
+  app.use(requestId);
   app.use(requestLogger);
   app.use(authContext(env.jwtSecret));
   app.use(validationMiddleware);
