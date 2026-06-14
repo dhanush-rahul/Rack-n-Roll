@@ -62,6 +62,11 @@ export function SignInScreen({ navigation, route }) {
         );
       } else if (error?.code === 'GOOGLE_AUTH_REQUIRED') {
         setErrorText('This account uses Google sign-in. Continue with Google or set a password in Profile.');
+      } else if (error?.code === 'ACCOUNT_LOCKED') {
+        const retryMinutes = error?.details?.retryAfterSeconds
+          ? Math.max(1, Math.ceil(error.details.retryAfterSeconds / 60))
+          : 15;
+        setErrorText(`Too many failed sign-in attempts. Try again in about ${retryMinutes} minute(s).`);
       } else {
         setErrorText('Invalid email or password. Please try again.');
       }

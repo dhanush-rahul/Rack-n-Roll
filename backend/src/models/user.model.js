@@ -52,6 +52,17 @@ const userSchema = new mongoose.Schema(
       select: false,
       min: 0,
     },
+    failedLoginAttempts: {
+      type: Number,
+      default: 0,
+      select: false,
+      min: 0,
+    },
+    lockoutUntil: {
+      type: Date,
+      default: null,
+      select: false,
+    },
     handicap: {
       type: Number,
       default: 0,

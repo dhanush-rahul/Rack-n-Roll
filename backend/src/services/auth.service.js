@@ -17,6 +17,8 @@ const RESET_PIN_TTL_MINUTES = Number(process.env.PASSWORD_RESET_PIN_TTL_MINUTES 
 const RESET_PIN_COOLDOWN_SECONDS = Number(process.env.PASSWORD_RESET_PIN_COOLDOWN_SECONDS || 60);
 const RESET_PIN_MAX_ATTEMPTS = Number(process.env.PASSWORD_RESET_PIN_MAX_ATTEMPTS || 5);
 const PASSWORD_RESET_SESSION_TTL_MINUTES = Number(process.env.PASSWORD_RESET_SESSION_TTL_MINUTES || 10);
+const LOGIN_LOCKOUT_MAX_ATTEMPTS = Number(process.env.LOGIN_LOCKOUT_MAX_ATTEMPTS || 5);
+const LOGIN_LOCKOUT_DURATION_MINUTES = Number(process.env.LOGIN_LOCKOUT_DURATION_MINUTES || 15);
 const controlCharacterRegex = /[\u0000-\u001F\u007F]/;
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -60,6 +62,44 @@ const clearPasswordResetState = (user) => {
   user.passwordResetPinExpiresAt = null;
   user.passwordResetPinRequestedAt = null;
   user.passwordResetPinAttemptCount = 0;
+};
+
+const clearLoginLockoutState = (user) => {
+  user.failedLoginAttempts = 0;
+  user.lockoutUntil = null;
+};
+
+const getLoginLockoutRetryAfterSeconds = (lockoutUntil) => {
+  const remainingMs = new Date(lockoutUntil).getTime() - Date.now();
+  return Math.max(1, Math.ceil(remainingMs / 1000));
+};
+
+const assertLoginNotLocked = async (user) => {
+  if (!user?.lockoutUntil) {
+    return;
+  }
+
+  const lockoutUntil = new Date(user.lockoutUntil);
+
+  if (lockoutUntil.getTime() <= Date.now()) {
+    clearLoginLockoutState(user);
+    await user.save();
+    return;
+  }
+
+  throw new ApiError(429, 'ACCOUNT_LOCKED', 'Too many failed sign-in attempts. Try again later.', {
+    retryAfterSeconds: getLoginLockoutRetryAfterSeconds(lockoutUntil),
+  });
+};
+
+const recordFailedLoginAttempt = async (user) => {
+  user.failedLoginAttempts = Number(user.failedLoginAttempts || 0) + 1;
+
+  if (user.failedLoginAttempts >= LOGIN_LOCKOUT_MAX_ATTEMPTS) {
+    user.lockoutUntil = new Date(Date.now() + LOGIN_LOCKOUT_DURATION_MINUTES * 60 * 1000);
+  }
+
+  await user.save();
 };
 
 const isTestEnv = () => process.env.NODE_ENV === 'test';
@@ -128,7 +168,12 @@ const signup = async ({ name, email, password }) => {
 
   const existingUser = await User.findOne({ email: normalizedEmail }).lean();
   if (existingUser) {
-    throw new ApiError(409, 'EMAIL_ALREADY_IN_USE', 'Email address is already registered');
+    // Generic response avoids confirming whether the email is already registered.
+    throw new ApiError(
+      409,
+      'SIGNUP_FAILED',
+      'Unable to create an account with these details. Try signing in if you already have one.'
+    );
   }
 
   const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
@@ -160,11 +205,15 @@ const login = async ({ email, password }) => {
     throw new ApiError(401, 'INVALID_CREDENTIALS', 'Invalid email or password');
   }
 
-  const user = await User.findOne({ email: normalizedEmail }).select('+passwordHash');
+  const user = await User.findOne({ email: normalizedEmail }).select(
+    '+passwordHash +failedLoginAttempts +lockoutUntil'
+  );
 
   if (!user) {
     throw new ApiError(401, 'INVALID_CREDENTIALS', 'Invalid email or password');
   }
+
+  await assertLoginNotLocked(user);
 
   if (!user.passwordHash) {
     throw new ApiError(401, 'GOOGLE_AUTH_REQUIRED', 'Sign in with Google for this account');
@@ -173,7 +222,13 @@ const login = async ({ email, password }) => {
   const isPasswordValid = await bcrypt.compare(normalizedPassword, user.passwordHash);
 
   if (!isPasswordValid) {
+    await recordFailedLoginAttempt(user);
     throw new ApiError(401, 'INVALID_CREDENTIALS', 'Invalid email or password');
+  }
+
+  if (user.failedLoginAttempts || user.lockoutUntil) {
+    clearLoginLockoutState(user);
+    await user.save();
   }
 
   const token = createToken(user._id);
@@ -235,10 +290,10 @@ const signInWithGoogle = async ({ idToken }) => {
 
   const displayName = normalizeGoogleName(payload, normalizedEmail);
 
-  let user = await User.findOne({ googleId }).select('+passwordHash');
+  let user = await User.findOne({ googleId }).select('+passwordHash +failedLoginAttempts +lockoutUntil');
 
   if (!user) {
-    user = await User.findOne({ email: normalizedEmail }).select('+passwordHash');
+    user = await User.findOne({ email: normalizedEmail }).select('+passwordHash +failedLoginAttempts +lockoutUntil');
   }
 
   if (user) {
@@ -263,6 +318,11 @@ const signInWithGoogle = async ({ idToken }) => {
       authProvider: 'google',
       passwordHash: null,
     });
+  }
+
+  if (user.failedLoginAttempts || user.lockoutUntil) {
+    clearLoginLockoutState(user);
+    await user.save();
   }
 
   const token = createToken(user._id);
