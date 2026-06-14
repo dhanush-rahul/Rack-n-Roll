@@ -2,6 +2,7 @@ const express = require('express');
 const {
 	signupController,
 	loginController,
+	googleSignInController,
 	requestPasswordResetController,
 	validatePasswordResetPinController,
 	resetPasswordWithTokenController,
@@ -12,6 +13,7 @@ const router = express.Router();
 
 router.post('/signup', authRateLimiter, signupController);
 router.post('/login', authRateLimiter, loginController);
+router.post('/google', authRateLimiter, googleSignInController);
 router.post('/forgot-password/request', passwordResetRateLimiter, requestPasswordResetController);
 router.post('/forgot-password/validate-pin', passwordResetRateLimiter, validatePasswordResetPinController);
 router.post('/forgot-password', passwordResetRateLimiter, resetPasswordWithTokenController);

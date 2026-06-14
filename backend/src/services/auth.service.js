@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/user.model');
 const ApiError = require('../utils/ApiError');
 const { sendPasswordResetPinEmail } = require('./email.service');
+const { verifyGoogleIdToken } = require('./googleAuth.service');
 
 const SALT_ROUNDS = 10;
 const NAME_MIN_LENGTH = 2;
@@ -63,10 +64,12 @@ const clearPasswordResetState = (user) => {
 
 const isTestEnv = () => process.env.NODE_ENV === 'test';
 
-const sanitizeUser = (userDoc) => ({
+const sanitizeUser = (userDoc, { hasPassword } = {}) => ({
   id: String(userDoc._id),
   name: userDoc.name,
   email: userDoc.email,
+  authProvider: userDoc.authProvider || 'local',
+  hasPassword: hasPassword ?? (userDoc.authProvider !== 'google'),
 });
 
 const validateEmail = (email) => {
@@ -134,13 +137,14 @@ const signup = async ({ name, email, password }) => {
     name: normalizedName,
     email: normalizedEmail,
     passwordHash,
+    authProvider: 'local',
   });
 
   const token = createToken(createdUser._id);
 
   return {
     token,
-    user: sanitizeUser(createdUser),
+    user: sanitizeUser(createdUser, { hasPassword: true }),
   };
 };
 
@@ -162,6 +166,10 @@ const login = async ({ email, password }) => {
     throw new ApiError(401, 'INVALID_CREDENTIALS', 'Invalid email or password');
   }
 
+  if (!user.passwordHash) {
+    throw new ApiError(401, 'GOOGLE_AUTH_REQUIRED', 'Sign in with Google for this account');
+  }
+
   const isPasswordValid = await bcrypt.compare(normalizedPassword, user.passwordHash);
 
   if (!isPasswordValid) {
@@ -172,14 +180,103 @@ const login = async ({ email, password }) => {
 
   return {
     token,
-    user: sanitizeUser(user),
+    user: sanitizeUser(user, { hasPassword: true }),
+  };
+};
+
+const normalizeGoogleName = (payload, fallbackEmail) => {
+  const fromGoogle = normalizeName(payload?.name || payload?.given_name || '');
+
+  if (fromGoogle.length >= NAME_MIN_LENGTH) {
+    return fromGoogle.slice(0, NAME_MAX_LENGTH);
+  }
+
+  const localPart = String(fallbackEmail || '').split('@')[0] || 'Player';
+  const fallbackName = normalizeName(localPart.replace(/[._-]+/g, ' '));
+
+  if (fallbackName.length >= NAME_MIN_LENGTH) {
+    return fallbackName.slice(0, NAME_MAX_LENGTH);
+  }
+
+  return 'Player';
+};
+
+const signInWithGoogle = async ({ idToken }) => {
+  const normalizedToken = String(idToken || '').trim();
+
+  if (!normalizedToken) {
+    throw new ApiError(400, 'ID_TOKEN_REQUIRED', 'Google ID token is required');
+  }
+
+  let payload;
+
+  try {
+    payload = await verifyGoogleIdToken(normalizedToken);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+
+    throw new ApiError(401, 'INVALID_GOOGLE_TOKEN', 'Google sign-in token is invalid or expired');
+  }
+
+  const googleId = String(payload?.sub || '').trim();
+  const normalizedEmail = normalizeEmail(payload?.email);
+
+  if (!googleId) {
+    throw new ApiError(401, 'INVALID_GOOGLE_TOKEN', 'Google sign-in token is missing required profile data');
+  }
+
+  if (!payload?.email_verified) {
+    throw new ApiError(401, 'GOOGLE_EMAIL_NOT_VERIFIED', 'Google account email must be verified');
+  }
+
+  validateEmail(normalizedEmail);
+
+  const displayName = normalizeGoogleName(payload, normalizedEmail);
+
+  let user = await User.findOne({ googleId }).select('+passwordHash');
+
+  if (!user) {
+    user = await User.findOne({ email: normalizedEmail }).select('+passwordHash');
+  }
+
+  if (user) {
+    if (user.googleId && user.googleId !== googleId) {
+      throw new ApiError(409, 'GOOGLE_ACCOUNT_MISMATCH', 'This email is linked to a different Google account');
+    }
+
+    if (!user.googleId) {
+      user.googleId = googleId;
+
+      if (!user.passwordHash) {
+        user.authProvider = 'google';
+      }
+
+      await user.save();
+    }
+  } else {
+    user = await User.create({
+      name: displayName,
+      email: normalizedEmail,
+      googleId,
+      authProvider: 'google',
+      passwordHash: null,
+    });
+  }
+
+  const token = createToken(user._id);
+
+  return {
+    token,
+    user: sanitizeUser(user, { hasPassword: Boolean(user.passwordHash) }),
   };
 };
 
 const requestPasswordReset = async ({ email }) => {
   const normalizedEmail = validateEmail(email);
   const user = await User.findOne({ email: normalizedEmail }).select(
-    '+passwordResetPinHash +passwordResetPinExpiresAt +passwordResetPinRequestedAt +passwordResetPinAttemptCount'
+    '+passwordHash +passwordResetPinHash +passwordResetPinExpiresAt +passwordResetPinRequestedAt +passwordResetPinAttemptCount'
   );
 
   const genericResponse = {
@@ -189,6 +286,10 @@ const requestPasswordReset = async ({ email }) => {
   };
 
   if (!user) {
+    return genericResponse;
+  }
+
+  if (!user.passwordHash) {
     return genericResponse;
   }
 
@@ -230,7 +331,7 @@ const validatePasswordResetPin = async ({ email, pin }) => {
     '+passwordHash +passwordResetPinHash +passwordResetPinExpiresAt +passwordResetPinRequestedAt +passwordResetPinAttemptCount'
   );
 
-  if (!user || !user.passwordResetPinHash || !user.passwordResetPinExpiresAt) {
+  if (!user || !user.passwordHash || !user.passwordResetPinHash || !user.passwordResetPinExpiresAt) {
     throw new ApiError(400, 'INVALID_RESET_PIN', 'Invalid or expired reset PIN');
   }
 
@@ -302,7 +403,7 @@ const resetPasswordWithToken = async ({ email, resetToken, newPassword }) => {
 
   const user = await User.findOne({ _id: payload.sub, email: normalizedEmail }).select('+passwordHash');
 
-  if (!user) {
+  if (!user || !user.passwordHash) {
     throw new ApiError(400, 'INVALID_RESET_TOKEN', 'Reset session is invalid or expired');
   }
 
@@ -322,6 +423,7 @@ const resetPasswordWithToken = async ({ email, resetToken, newPassword }) => {
 module.exports = {
   signup,
   login,
+  signInWithGoogle,
   requestPasswordReset,
   validatePasswordResetPin,
   resetPasswordWithToken,
