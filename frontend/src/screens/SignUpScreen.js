@@ -16,7 +16,21 @@ import { useAuth } from '../context/AuthContext';
 import { tournamentColors } from '../styles/tournamentUi';
 import { hasValidationErrors, validateSignUpInput } from '../utils/authValidation';
 
-export function SignUpScreen({ navigation }) {
+const navigateAfterAuth = (navigation, returnTo) => {
+  if (returnTo?.screen) {
+    navigation.navigate(returnTo.screen, returnTo.params || {});
+    return;
+  }
+
+  if (navigation.canGoBack()) {
+    navigation.goBack();
+    return;
+  }
+
+  navigation.navigate('Home');
+};
+
+export function SignUpScreen({ navigation, route }) {
   const { signUp } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -39,6 +53,7 @@ export function SignUpScreen({ navigation }) {
       setIsSubmitting(true);
       setErrorText('');
       await signUp(sanitized);
+      navigateAfterAuth(navigation, route.params?.returnTo);
     } catch (error) {
       setErrorText(error.message || 'Unable to create account. Please try again.');
     } finally {

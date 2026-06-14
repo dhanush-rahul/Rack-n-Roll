@@ -12,6 +12,8 @@ import {
 import { ScaledText as Text } from '../components/ui/ScaledText';
 import { ScaledTextInput as TextInput } from '../components/ui/ScaledTextInput';
 import { useAuth } from '../context/AuthContext';
+import { AuthPromptModal } from '../components/AuthPromptModal';
+import { useRequireAuth } from '../hooks/useRequireAuth';
 import {
   fetchDiscoverTournaments,
   submitTournamentRegistrationRequest,
@@ -892,7 +894,8 @@ function DiscoverTournamentCard({
 }
 
 export function HomeScreen({ navigation, route }) {
-  const { currentUser } = useAuth();
+  const { currentUser, isAuthenticated } = useAuth();
+  const { requireAuth, authPromptProps } = useRequireAuth(navigation);
   const { scrollPaddingBottom } = useScreenInsets();
   const { contentMaxWidth, horizontalPadding } = useResponsiveLayout();
   const [discoveryItems, setDiscoveryItems] = useState([]);
@@ -940,6 +943,15 @@ export function HomeScreen({ navigation, route }) {
     },
     [getExpansionAnimation]
   );
+
+  useEffect(() => {
+    if (!route.params?.filterId) {
+      return;
+    }
+
+    setFilterId(route.params.filterId);
+    navigation.setParams({ filterId: undefined });
+  }, [navigation, route.params?.filterId]);
 
   useEffect(() => {
     const loop = Animated.loop(
@@ -1125,7 +1137,7 @@ export function HomeScreen({ navigation, route }) {
     [inviteCodeByTournamentId]
   );
 
-  const onRequestRegistration = useCallback(
+  const submitRegistrationRequest = useCallback(
     async (item) => {
       try {
         setRegistrationByTournamentId((previousState) => ({
@@ -1167,6 +1179,16 @@ export function HomeScreen({ navigation, route }) {
     [inviteCodeByTournamentId]
   );
 
+  const onRequestRegistration = useCallback(
+    (item) => {
+      requireAuth(() => submitRegistrationRequest(item), {
+        message: 'Sign in to request a spot in this tournament.',
+        returnTo: { screen: 'Home', params: { highlightTournamentId: item.id } },
+      });
+    },
+    [requireAuth, submitRegistrationRequest]
+  );
+
   const onToggleExpand = useCallback(
     (tournamentId) => {
       setExpandedTournamentId((previousId) => {
@@ -1188,12 +1210,20 @@ export function HomeScreen({ navigation, route }) {
 
   const onOpenTournamentDetail = useCallback(
     (item) => {
-      navigation.navigate('TournamentDetail', {
-        tournamentId: item.id,
-        tournamentName: item.name,
-      });
+      requireAuth(
+        () => {
+          navigation.navigate('TournamentDetail', {
+            tournamentId: item.id,
+            tournamentName: item.name,
+          });
+        },
+        {
+          message: 'Sign in to open the host dashboard.',
+          returnTo: { screen: 'Home', params: { highlightTournamentId: item.id } },
+        }
+      );
     },
-    [navigation]
+    [navigation, requireAuth]
   );
 
   const onOpenScoresheet = useCallback(
@@ -1204,6 +1234,28 @@ export function HomeScreen({ navigation, route }) {
       });
     },
     [navigation]
+  );
+
+  const onCreateTournament = useCallback(() => {
+    requireAuth(() => navigation.navigate('CreateTournament'), {
+      message: 'Sign in to host a tournament.',
+      returnTo: { screen: 'Home' },
+    });
+  }, [navigation, requireAuth]);
+
+  const onFilterChange = useCallback(
+    (nextFilterId) => {
+      if (nextFilterId === 'mine' && !isAuthenticated) {
+        requireAuth(undefined, {
+          message: 'Sign in to see tournaments you host.',
+          returnTo: { screen: 'Home', params: { filterId: 'mine' } },
+        });
+        return;
+      }
+
+      setFilterId(nextFilterId);
+    },
+    [isAuthenticated, requireAuth]
   );
 
   const onPageSizeChange = useCallback(
@@ -1265,6 +1317,7 @@ export function HomeScreen({ navigation, route }) {
   const totalPages = discoveryMeta?.totalPages ?? 1;
 
   return (
+    <>
     <ScrollView
       style={tournamentUi.screen}
       contentContainerStyle={[
@@ -1286,7 +1339,7 @@ export function HomeScreen({ navigation, route }) {
           total={totalCount}
           openCount={stats.openCount}
           myCount={stats.myCount}
-          onCreate={() => navigation.navigate('CreateTournament')}
+          onCreate={onCreateTournament}
         />
       </View>
 
@@ -1305,7 +1358,7 @@ export function HomeScreen({ navigation, route }) {
           onSearchQueryChange={setSearchQuery}
           onClearSearch={() => setSearchQuery('')}
           onSortChange={setSortId}
-          onFilterChange={setFilterId}
+          onFilterChange={onFilterChange}
           onPageSizeChange={onPageSizeChange}
         />
       </View>
@@ -1333,7 +1386,7 @@ export function HomeScreen({ navigation, route }) {
         <LoadingPlaceholder pulse={skeletonPulse} />
       ) : filteredItems.length === 0 ? (
         <EmptyDiscoverState
-          onCreate={() => navigation.navigate('CreateTournament')}
+          onCreate={onCreateTournament}
           filterId={filterId}
           searchQuery={searchQuery}
         />
@@ -1417,5 +1470,7 @@ export function HomeScreen({ navigation, route }) {
         </View>
       )}
     </ScrollView>
+    <AuthPromptModal {...authPromptProps} />
+    </>
   );
 }

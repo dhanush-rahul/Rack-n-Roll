@@ -14,7 +14,21 @@ import { LegalFooter } from '../components/legal/LegalLinks';
 import { useAuth } from '../context/AuthContext';
 import { hasValidationErrors, validateSignInInput } from '../utils/authValidation';
 
-export function SignInScreen({ navigation }) {
+const navigateAfterAuth = (navigation, returnTo) => {
+  if (returnTo?.screen) {
+    navigation.navigate(returnTo.screen, returnTo.params || {});
+    return;
+  }
+
+  if (navigation.canGoBack()) {
+    navigation.goBack();
+    return;
+  }
+
+  navigation.navigate('Home');
+};
+
+export function SignInScreen({ navigation, route }) {
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -35,6 +49,7 @@ export function SignInScreen({ navigation }) {
       setIsSubmitting(true);
       setErrorText('');
       await signIn(sanitized);
+      navigateAfterAuth(navigation, route.params?.returnTo);
     } catch (error) {
       if (error?.code === 'NETWORK_ERROR') {
         setErrorText(
