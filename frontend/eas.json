@@ -20,7 +20,8 @@
     "production": {
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://rack-n-roll.onrender.com"
-      }
+      },
+      "autoIncrement": true,
     }
   },
   "submit": {
