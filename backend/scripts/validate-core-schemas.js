@@ -24,6 +24,8 @@ const buildValidLocation = () => ({
   formattedAddress: 'Toronto, ON, Canada',
 });
 
+const buildValidStartsAt = () => new Date(Date.now() + 24 * 60 * 60 * 1000);
+
 const run = () => {
   const hostUserId = new mongoose.Types.ObjectId();
   const playerUserId = new mongoose.Types.ObjectId();
@@ -39,6 +41,7 @@ const run = () => {
     registrationMode: 'public',
     registrationStatus: 'open',
     location: buildValidLocation(),
+    startsAt: buildValidStartsAt(),
     status: 'invalid-status',
   });
 
@@ -53,6 +56,7 @@ const run = () => {
     registrationMode: 'public',
     registrationStatus: 'open',
     location: buildValidLocation(),
+    startsAt: buildValidStartsAt(),
     status: 'draft',
   });
   if (validTournament.validateSync()) {
@@ -66,6 +70,7 @@ const run = () => {
     registrationMode: 'inviteOnly',
     registrationStatus: 'open',
     location: buildValidLocation(),
+    startsAt: buildValidStartsAt(),
     status: 'draft',
   });
   assertValidationError('TournamentInviteCode', invalidInviteOnlyTournament.validateSync());
@@ -81,6 +86,7 @@ const run = () => {
       ...buildValidLocation(),
       coordinates: [200, 120],
     },
+    startsAt: buildValidStartsAt(),
     status: 'draft',
   });
   assertValidationError('TournamentCoordinates', invalidCoordinateTournament.validateSync());
