@@ -1,46 +1,37 @@
 import { useCallback, useState } from 'react';
-import * as WebBrowser from 'expo-web-browser';
-import * as Google from 'expo-auth-session/providers/google';
-import { resolveGoogleAuthRequestConfig } from '../config/googleAuth';
+import { Platform } from 'react-native';
+import Constants from 'expo-constants';
+import { signInWithGoogleNative } from '../services/googleSignInNative';
+import { useGoogleSignInWeb } from './useGoogleSignInWeb';
 
-WebBrowser.maybeCompleteAuthSession();
+const isExpoGo = Constants.appOwnership === 'expo';
 
 export function useGoogleSignIn() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [request, , promptAsync] = Google.useAuthRequest(resolveGoogleAuthRequestConfig());
+  const [isNativeLoading, setIsNativeLoading] = useState(false);
+  const webSignIn = useGoogleSignInWeb();
 
   const promptGoogleSignIn = useCallback(async () => {
-    if (!request) {
-      throw new Error('Google sign-in is still initializing. Please try again.');
+    if (Platform.OS === 'web') {
+      return webSignIn.promptGoogleSignIn();
     }
 
-    setIsLoading(true);
+    if (isExpoGo) {
+      throw new Error(
+        'Google sign-in is not supported in Expo Go on Android. Use the web app, or install a development build (eas build --profile development --platform android).'
+      );
+    }
+
+    setIsNativeLoading(true);
 
     try {
-      const result = await promptAsync();
-
-      if (result.type === 'cancel' || result.type === 'dismiss') {
-        return null;
-      }
-
-      if (result.type !== 'success') {
-        throw new Error('Google sign-in did not complete.');
-      }
-
-      const idToken = result.authentication?.idToken || result.params?.id_token;
-
-      if (!idToken) {
-        throw new Error('Google sign-in did not return an ID token.');
-      }
-
-      return idToken;
+      return await signInWithGoogleNative();
     } finally {
-      setIsLoading(false);
+      setIsNativeLoading(false);
     }
-  }, [promptAsync, request]);
+  }, [webSignIn]);
 
   return {
-    isGoogleLoading: isLoading || !request,
+    isGoogleLoading: Platform.OS === 'web' ? webSignIn.isGoogleLoading : isNativeLoading,
     promptGoogleSignIn,
   };
 }
