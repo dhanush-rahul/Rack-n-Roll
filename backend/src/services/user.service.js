@@ -6,7 +6,7 @@ const Game = require('../models/game.model');
 const ApiError = require('../utils/ApiError');
 
 const getUserProfile = async (userId) => {
-  const user = await User.findById(userId).lean();
+  const user = await User.findById(userId).select('+passwordHash').lean();
 
   if (!user) {
     throw new ApiError(404, 'USER_NOT_FOUND', 'User not found');
@@ -46,6 +46,8 @@ const getUserProfile = async (userId) => {
       email: user.email,
       memberSince: user.createdAt,
       handicap: Number(user.handicap ?? 0),
+      authProvider: user.authProvider || 'local',
+      hasPassword: Boolean(user.passwordHash),
     },
     stats: {
       tournamentsHosted,

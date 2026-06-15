@@ -18,19 +18,23 @@ import {
 } from '../components/tournament/TournamentChrome';
 import { RoundMatchesDisplay } from '../components/RoundMatchesDisplay';
 import { useGroupStageFixtures } from '../hooks/useGroupStageFixtures';
+import { useQueryClient } from '@tanstack/react-query';
 import { formatApiError, useScreenFeedback } from '../hooks/useScreenFeedback';
-import { useAuth } from '../context/AuthContext';
-import { ProctorHandoffPanel } from '../components/tournament/ProctorHandoffPanel';
-import { TeamsSection } from './tournamentDetail/TeamsSection';
-import { MatchScheduleModal } from '../components/tournament/MatchScheduleModal';
+import { useFetchScoresheetPages, useScoresheetMeta } from '../hooks/queries/useScoresheetPages';
+import { useTournamentGroupStandings } from '../hooks/queries/useTournamentGroupStandings';
+import { queryKeys } from '../hooks/queries/queryKeys';
+import { STANDINGS_STALE_TIME_MS } from '../config/queryClient';
 import {
   acceptTournamentProctorTransfer,
   declineTournamentProctorTransfer,
   fetchTournamentGroupStandings,
-  fetchTournamentScoresheet,
   requestTournamentProctorTransfer,
   updateTournamentGameSchedule,
 } from '../services/tournamentService';
+import { useAuth } from '../context/AuthContext';
+import { ProctorHandoffPanel } from '../components/tournament/ProctorHandoffPanel';
+import { TeamsSection } from './tournamentDetail/TeamsSection';
+import { MatchScheduleModal } from '../components/tournament/MatchScheduleModal';
 import { tournamentUi } from '../styles/tournamentUi';
 import { findActiveFixtureRoundKeyForSection } from '../utils/fixtureDisplay';
 import { buildGroupDisplayName } from '../utils/groupNaming';
@@ -63,6 +67,10 @@ export function ScoresheetScreen({ route, navigation }) {
   const tournamentId = route?.params?.tournamentId;
   const tournamentTitle = route?.params?.tournamentName || 'Tournament';
   const { currentUser } = useAuth();
+  const queryClient = useQueryClient();
+  const fetchScoresheetPages = useFetchScoresheetPages();
+  const { data: standingsMeta } = useTournamentGroupStandings(tournamentId, {}, { enabled: Boolean(tournamentId) });
+  const { data: scoresheetMeta } = useScoresheetMeta(tournamentId, { enabled: Boolean(tournamentId) });
   const [activeTab, setActiveTab] = useState('groups');
   const [canEditPatternScores, setCanEditPatternScores] = useState(false);
   const [proctorTransferRequest, setProctorTransferRequest] = useState(null);
@@ -164,63 +172,41 @@ export function ScoresheetScreen({ route, navigation }) {
   }, []);
 
   const loadAllGamesByStage = useCallback(async (stage, { playerQuery, player2Query } = {}) => {
-    const items = [];
-    let page = 1;
-    let totalPages = 1;
-    let total = 0;
     const normalizedPlayerQuery = String(playerQuery || '').trim();
     const normalizedPlayerTwoQuery = String(player2Query || '').trim();
+    const params = {
+      stage,
+      ...(normalizedPlayerQuery ? { playerQuery: normalizedPlayerQuery } : {}),
+      ...(normalizedPlayerTwoQuery ? { player2Query: normalizedPlayerTwoQuery } : {}),
+    };
 
-    while (page <= totalPages) {
-      const response = await fetchTournamentScoresheet(tournamentId, {
-        page,
-        pageSize: 100,
-        stage,
-        ...(normalizedPlayerQuery ? { playerQuery: normalizedPlayerQuery } : {}),
-        ...(normalizedPlayerTwoQuery ? { player2Query: normalizedPlayerTwoQuery } : {}),
-      });
+    const response = await fetchScoresheetPages(tournamentId, params);
+    const items = response.items || [];
 
-      if (page === 1) {
-        total = Number(response.pagination?.total || 0);
-        totalPages = Math.max(response.pagination?.totalPages || 0, 1);
-        setCanEditPatternScores(Boolean(response.canEdit));
-        setProctorTransferRequest(response.proctorTransferRequest || null);
-        setAssignedProctors(response.proctors || []);
-        if (response.format) {
-          setIsDoubles(String(response.format) === 'doubles');
-        }
-        if (response.pairFormationMode) {
-          setPairFormationMode(response.pairFormationMode);
-        }
-        if (response.progressionState) {
-          setProgressionState(response.progressionState);
-        }
-        if (stage === 'groupStage') {
-          setGroupStageProctored(Boolean(response.groupStageProctored));
-        }
-        if (stage === 'finalStage') {
-          setFinalStageProctored(Boolean(response.finalStageProctored));
-        }
-
-        if ((response.pagination?.totalPages || 0) === 0) {
-          totalPages = 0;
-        }
-      }
-
-      items.push(...(response.items || []));
-
-      if (totalPages === 0) {
-        break;
-      }
-
-      page += 1;
+    setCanEditPatternScores(Boolean(response.canEdit));
+    setProctorTransferRequest(response.proctorTransferRequest || null);
+    setAssignedProctors(response.proctors || []);
+    if (response.format) {
+      setIsDoubles(String(response.format) === 'doubles');
+    }
+    if (response.pairFormationMode) {
+      setPairFormationMode(response.pairFormationMode);
+    }
+    if (response.progressionState) {
+      setProgressionState(response.progressionState);
+    }
+    if (stage === 'groupStage') {
+      setGroupStageProctored(Boolean(response.groupStageProctored));
+    }
+    if (stage === 'finalStage') {
+      setFinalStageProctored(Boolean(response.finalStageProctored));
     }
 
     return {
       items,
-      total,
+      total: Number(response.pagination?.total || items.length || 0),
     };
-  }, [tournamentId]);
+  }, [fetchScoresheetPages, tournamentId]);
 
   const buildGroupFallbackFromScoresheetGames = useCallback(async () => {
     const { items } = await loadAllGamesByStage('groupStage');
@@ -378,7 +364,11 @@ export function ScoresheetScreen({ route, navigation }) {
       let standingsLoaded = false;
 
       try {
-        const response = await fetchTournamentGroupStandings(tournamentId);
+        const response = await queryClient.fetchQuery({
+          queryKey: queryKeys.standings(tournamentId),
+          queryFn: () => fetchTournamentGroupStandings(tournamentId),
+          staleTime: STANDINGS_STALE_TIME_MS,
+        });
         nextGroups = response.groups || [];
         setHandicapEnabled(Boolean(response.handicapEnabled));
         setIsDoubles(String(response.format || '') === 'doubles');
@@ -413,7 +403,7 @@ export function ScoresheetScreen({ route, navigation }) {
       setIsLoadingGroupsTab(false);
       setHasLoadedGroupsTab(true);
     }
-  }, [applyGroupFallback, buildGroupFallbackFromScoresheetGames, clearError, showError, tournamentId]);
+  }, [applyGroupFallback, buildGroupFallbackFromScoresheetGames, clearError, queryClient, showError, tournamentId]);
 
   const onLoadGamesTab = useCallback(async () => {
     try {
@@ -447,61 +437,32 @@ export function ScoresheetScreen({ route, navigation }) {
   }, [hydrateScoreInputState, loadAllGamesByStage]);
 
   useEffect(() => {
-    if (!tournamentId) {
-      return undefined;
+    if (standingsMeta) {
+      setIsDoubles(String(standingsMeta.format || '') === 'doubles');
+      if (standingsMeta.pairFormationMode) {
+        setPairFormationMode(standingsMeta.pairFormationMode);
+      }
+      if (standingsMeta.progressionState) {
+        setProgressionState(standingsMeta.progressionState);
+      }
     }
 
-    let cancelled = false;
-
-    const loadTournamentMeta = async () => {
-      try {
-        const standingsResponse = await fetchTournamentGroupStandings(tournamentId);
-        if (cancelled) {
-          return;
-        }
-        setIsDoubles(String(standingsResponse.format || '') === 'doubles');
-        if (standingsResponse.pairFormationMode) {
-          setPairFormationMode(standingsResponse.pairFormationMode);
-        }
-        if (standingsResponse.progressionState) {
-          setProgressionState(standingsResponse.progressionState);
-        }
-      } catch {
-        // Standings may be unavailable before groups exist; scoresheet metadata is the fallback.
+    if (scoresheetMeta) {
+      if (scoresheetMeta.format) {
+        setIsDoubles(String(scoresheetMeta.format) === 'doubles');
       }
-
-      try {
-        const scoresheetResponse = await fetchTournamentScoresheet(tournamentId, {
-          page: 1,
-          pageSize: 1,
-        });
-        if (cancelled) {
-          return;
-        }
-        if (scoresheetResponse.format) {
-          setIsDoubles(String(scoresheetResponse.format) === 'doubles');
-        }
-        if (scoresheetResponse.pairFormationMode) {
-          setPairFormationMode(scoresheetResponse.pairFormationMode);
-        }
-        if (scoresheetResponse.progressionState) {
-          setProgressionState(scoresheetResponse.progressionState);
-        }
-      } catch {
-        // Ignore metadata load errors; tab content loaders will surface failures.
+      if (scoresheetMeta.pairFormationMode) {
+        setPairFormationMode(scoresheetMeta.pairFormationMode);
       }
-    };
-
-    loadTournamentMeta().finally(() => {
-      if (!cancelled) {
-        setTournamentMetaReady(true);
+      if (scoresheetMeta.progressionState) {
+        setProgressionState(scoresheetMeta.progressionState);
       }
-    });
+    }
 
-    return () => {
-      cancelled = true;
-    };
-  }, [tournamentId]);
+    if (standingsMeta || scoresheetMeta) {
+      setTournamentMetaReady(true);
+    }
+  }, [scoresheetMeta, standingsMeta]);
 
   useEffect(() => {
     if (!tournamentMetaReady || initialTabSetRef.current) {

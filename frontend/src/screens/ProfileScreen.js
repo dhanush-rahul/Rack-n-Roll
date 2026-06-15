@@ -1,15 +1,21 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { ScaledText as Text } from '../components/ui/ScaledText';
 import { ScaledTextInput as TextInput } from '../components/ui/ScaledTextInput';
 import { useFocusEffect } from '@react-navigation/native';
+import { useQueryClient } from '@tanstack/react-query';
 import { LegalMenuSection } from '../components/legal/LegalLinks';
 import { ActionButton, SectionCard } from '../components/tournament/TournamentChrome';
 import { useAuth } from '../context/AuthContext';
-import { fetchMyProfile, updateMyHandicap } from '../services/userService';
+import { updateMyHandicap, setMyPassword } from '../services/userService';
+import { useMyProfile } from '../hooks/queries/useMyProfile';
+import { queryKeys } from '../hooks/queries/queryKeys';
 import { useScreenInsets } from '../hooks/useScreenInsets';
 import { discoverUi, tournamentColors, tournamentUi } from '../styles/tournamentUi';
 import { useResponsiveLayout, centeredContentStyle } from '../utils/responsive';
+import { formatApiError } from '../hooks/useScreenFeedback';
+import { AuthField, AuthPasswordMatchHint } from '../components/auth/AuthChrome';
+import { hasValidationErrors, validateSetPasswordInput } from '../utils/authValidation';
 
 function StatCard({ label, value, accent }) {
   return (
@@ -59,50 +65,55 @@ function formatMemberSince(value) {
 
 export function ProfileScreen({ navigation }) {
   const { signOut, currentUser } = useAuth();
+  const queryClient = useQueryClient();
   const { scrollPaddingBottom } = useScreenInsets();
   const { contentMaxWidth } = useResponsiveLayout();
-  const [profile, setProfile] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [errorText, setErrorText] = useState('');
+  const {
+    data: profile,
+    isLoading,
+    isFetching,
+    error: profileError,
+    refetch,
+  } = useMyProfile({ enabled: Boolean(currentUser?.id) });
+
   const [handicapInput, setHandicapInput] = useState('0');
   const [isSavingHandicap, setIsSavingHandicap] = useState(false);
+  const [saveErrorText, setSaveErrorText] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
+  const [passwordFieldErrors, setPasswordFieldErrors] = useState({ password: '', confirmPassword: '' });
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [passwordSuccessText, setPasswordSuccessText] = useState('');
 
-  const loadProfile = useCallback(async ({ refreshing = false } = {}) => {
-    try {
-      if (refreshing) {
-        setIsRefreshing(true);
-      } else {
-        setIsLoading(true);
-      }
-
-      setErrorText('');
-      const data = await fetchMyProfile();
-      setProfile(data);
-      setHandicapInput(String(data?.user?.handicap ?? 0));
-    } catch (error) {
-      setErrorText(error.message || 'Unable to load your profile.');
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
+  useEffect(() => {
+    if (profile?.user?.handicap !== undefined && profile?.user?.handicap !== null) {
+      setHandicapInput(String(profile.user.handicap));
     }
-  }, []);
+  }, [profile?.user?.handicap]);
 
   useFocusEffect(
     useCallback(() => {
-      loadProfile();
-    }, [loadProfile])
+      if (currentUser?.id) {
+        refetch();
+      }
+    }, [currentUser?.id, refetch])
   );
+
+  const errorText = profileError
+    ? formatApiError(profileError, 'Unable to load your profile.')
+    : saveErrorText;
 
   const displayName = profile?.user?.name || currentUser?.name || 'Player';
   const initial = displayName.charAt(0).toUpperCase();
   const stats = profile?.stats || {};
+  const isRefreshing = isFetching && !isLoading;
+  const showSetPassword = profile?.user?.hasPassword === false;
 
   return (
     <View style={tournamentUi.screen}>
       <ScrollView
         contentContainerStyle={[tournamentUi.content, centeredContentStyle(contentMaxWidth), { paddingBottom: scrollPaddingBottom }]}
-        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => loadProfile({ refreshing: true })} />}
+        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => refetch()} />}
         showsVerticalScrollIndicator={false}
       >
         <View style={[discoverUi.hero, { marginBottom: 16 }]}>
@@ -150,7 +161,7 @@ export function ProfileScreen({ navigation }) {
           >
             <Text style={{ color: '#b91c1c', fontSize: 13, lineHeight: 18 }}>{errorText}</Text>
             <View style={{ marginTop: 10 }}>
-              <ActionButton label="Try again" onPress={() => loadProfile()} variant="secondary" fullWidth />
+              <ActionButton label="Try again" onPress={() => refetch()} variant="secondary" fullWidth />
             </View>
           </View>
         )}
@@ -179,11 +190,11 @@ export function ProfileScreen({ navigation }) {
                   onPress={async () => {
                     try {
                       setIsSavingHandicap(true);
+                      setSaveErrorText('');
                       const updated = await updateMyHandicap(Number(handicapInput || 0));
-                      setProfile(updated);
-                      setHandicapInput(String(updated?.user?.handicap ?? 0));
+                      queryClient.setQueryData(queryKeys.profile(), updated);
                     } catch (error) {
-                      setErrorText(error.message || 'Unable to update handicap.');
+                      setSaveErrorText(error.message || 'Unable to update handicap.');
                     } finally {
                       setIsSavingHandicap(false);
                     }
@@ -193,6 +204,103 @@ export function ProfileScreen({ navigation }) {
                 />
               </View>
             </SectionCard>
+
+            {showSetPassword ? (
+              <View style={{ marginTop: 14 }}>
+                <SectionCard
+                  title="Sign-in password"
+                  subtitle="Set a password to sign in with email or use forgot-password recovery. Google sign-in still works."
+                >
+                  {Boolean(passwordSuccessText) && (
+                    <View
+                      style={{
+                        padding: 12,
+                        borderRadius: 12,
+                        backgroundColor: '#ecfdf5',
+                        borderWidth: 1,
+                        borderColor: '#a7f3d0',
+                        marginBottom: 14,
+                      }}
+                    >
+                      <Text style={{ color: '#166534', fontSize: 13, lineHeight: 18 }}>{passwordSuccessText}</Text>
+                    </View>
+                  )}
+
+                  <AuthField
+                    label="New password"
+                    placeholder="At least 8 characters"
+                    value={passwordInput}
+                    onChangeText={(value) => {
+                      setPasswordInput(value);
+                      setPasswordFieldErrors((current) => ({ ...current, password: '', confirmPassword: '' }));
+                      setSaveErrorText('');
+                      setPasswordSuccessText('');
+                    }}
+                    error={passwordFieldErrors.password}
+                    secureTextEntry
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    textContentType="newPassword"
+                    maxLength={72}
+                  />
+
+                  <AuthField
+                    label="Confirm password"
+                    placeholder="Re-enter your password"
+                    value={confirmPasswordInput}
+                    onChangeText={(value) => {
+                      setConfirmPasswordInput(value);
+                      setPasswordFieldErrors((current) => ({ ...current, confirmPassword: '' }));
+                      setSaveErrorText('');
+                      setPasswordSuccessText('');
+                    }}
+                    error={passwordFieldErrors.confirmPassword}
+                    secureTextEntry
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    textContentType="newPassword"
+                    maxLength={72}
+                  />
+
+                  <AuthPasswordMatchHint password={passwordInput} confirmPassword={confirmPasswordInput} />
+
+                  <View style={{ marginTop: 10 }}>
+                    <ActionButton
+                      label={isSavingPassword ? 'Saving…' : 'Set password'}
+                      onPress={async () => {
+                        const { errors, sanitized } = validateSetPasswordInput({
+                          password: passwordInput,
+                          confirmPassword: confirmPasswordInput,
+                        });
+                        setPasswordFieldErrors(errors);
+
+                        if (hasValidationErrors(errors)) {
+                          setSaveErrorText('Please fix the highlighted fields.');
+                          return;
+                        }
+
+                        try {
+                          setIsSavingPassword(true);
+                          setSaveErrorText('');
+                          setPasswordSuccessText('');
+                          const updated = await setMyPassword(sanitized.password);
+                          queryClient.setQueryData(queryKeys.profile(), updated);
+                          setPasswordInput('');
+                          setConfirmPasswordInput('');
+                          setPasswordSuccessText('Password saved. You can now sign in with email and password.');
+                        } catch (error) {
+                          setSaveErrorText(error.message || 'Unable to set password.');
+                        } finally {
+                          setIsSavingPassword(false);
+                        }
+                      }}
+                      disabled={isSavingPassword}
+                      fullWidth
+                    />
+                  </View>
+                </SectionCard>
+              </View>
+            ) : null}
 
             <View style={{ marginTop: 14 }}>
               <SectionCard title="Match record" subtitle="Completed matches across your tournaments">
@@ -208,7 +316,6 @@ export function ProfileScreen({ navigation }) {
                 </View>
               </SectionCard>
             </View>
-
           </>
         )}
 

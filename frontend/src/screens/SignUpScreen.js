@@ -12,23 +12,48 @@ import {
   AuthTextLink,
 } from '../components/auth/AuthChrome';
 import { LegalConsent, LegalFooter } from '../components/legal/LegalLinks';
+import { GoogleSignInSection } from '../components/auth/GoogleSignInSection';
+import { isGoogleSignInConfigured } from '../config/googleAuth';
 import { useAuth } from '../context/AuthContext';
 import { tournamentColors } from '../styles/tournamentUi';
 import { hasValidationErrors, validateSignUpInput } from '../utils/authValidation';
 
-export function SignUpScreen({ navigation }) {
-  const { signUp } = useAuth();
+const navigateAfterAuth = (navigation, returnTo) => {
+  if (returnTo?.screen) {
+    navigation.navigate(returnTo.screen, returnTo.params || {});
+    return;
+  }
+
+  if (navigation.canGoBack()) {
+    navigation.goBack();
+    return;
+  }
+
+  navigation.navigate('Home');
+};
+
+export function SignUpScreen({ navigation, route }) {
+  const { signUp, signInWithGoogle } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [acceptedLegal, setAcceptedLegal] = useState(false);
+  const [legalError, setLegalError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({ name: '', email: '', password: '', confirmPassword: '' });
   const [errorText, setErrorText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
 
   const onSubmit = async () => {
     const { errors, sanitized } = validateSignUpInput({ name, email, password, confirmPassword });
     setFieldErrors(errors);
+
+    if (!acceptedLegal) {
+      setLegalError('Please accept the Terms of Service and Privacy Policy.');
+      setErrorText('Please accept the Terms of Service and Privacy Policy.');
+      return;
+    }
 
     if (hasValidationErrors(errors)) {
       setErrorText('Please fix the highlighted fields.');
@@ -39,10 +64,32 @@ export function SignUpScreen({ navigation }) {
       setIsSubmitting(true);
       setErrorText('');
       await signUp(sanitized);
+      navigateAfterAuth(navigation, route.params?.returnTo);
     } catch (error) {
       setErrorText(error.message || 'Unable to create account. Please try again.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleGoogleIdToken = async (idToken) => {
+    try {
+      setIsGoogleSubmitting(true);
+      setErrorText('');
+      await signInWithGoogle(idToken);
+      navigateAfterAuth(navigation, route.params?.returnTo);
+    } catch (error) {
+      if (error?.code === 'NETWORK_ERROR') {
+        setErrorText(
+          __DEV__
+            ? 'Unable to reach the server. Start the backend and restart Expo with -c.'
+            : 'Unable to reach the server. Check your connection and try again.'
+        );
+      } else {
+        setErrorText(error.message || 'Google sign-in failed. Please try again.');
+      }
+    } finally {
+      setIsGoogleSubmitting(false);
     }
   };
 
@@ -153,9 +200,16 @@ export function SignUpScreen({ navigation }) {
         <AuthPrimaryButton
           label="Create account"
           onPress={onSubmit}
-          disabled={isSubmitting}
+          disabled={isSubmitting || isGoogleSubmitting}
           loading={isSubmitting}
         />
+
+        {isGoogleSignInConfigured() ? (
+          <GoogleSignInSection
+            onIdToken={handleGoogleIdToken}
+            disabled={isSubmitting || isGoogleSubmitting}
+          />
+        ) : null}
       </AuthFormCard>
 
       <AuthTextLink prompt="Already registered?" actionLabel="Sign in" onPress={() => navigation.navigate('SignIn')} />

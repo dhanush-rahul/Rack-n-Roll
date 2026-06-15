@@ -132,6 +132,31 @@ export function hasValidationErrors(errors) {
   return Object.values(errors).some(Boolean);
 }
 
+export function validateSetPasswordInput({ password, confirmPassword }) {
+  const normalizedPassword = normalizePassword(password);
+  const normalizedConfirmPassword = normalizePassword(confirmPassword);
+
+  const errors = {
+    password: '',
+    confirmPassword: '',
+  };
+
+  errors.password = validatePassword(normalizedPassword);
+
+  if (!normalizedConfirmPassword) {
+    errors.confirmPassword = 'Please confirm your password.';
+  } else if (normalizedPassword !== normalizedConfirmPassword) {
+    errors.confirmPassword = 'Passwords do not match.';
+  }
+
+  return {
+    errors,
+    sanitized: {
+      password: normalizedPassword,
+    },
+  };
+}
+
 export function validateForgotPasswordRequestInput({ email }) {
   const normalizedEmail = normalizeEmail(email);
 

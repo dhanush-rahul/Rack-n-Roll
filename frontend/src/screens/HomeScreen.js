@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   ActivityIndicator,
   Animated,
@@ -12,8 +13,10 @@ import {
 import { ScaledText as Text } from '../components/ui/ScaledText';
 import { ScaledTextInput as TextInput } from '../components/ui/ScaledTextInput';
 import { useAuth } from '../context/AuthContext';
+import { AuthPromptModal } from '../components/AuthPromptModal';
+import { useRequireAuth } from '../hooks/useRequireAuth';
+import { useDiscoverTournaments } from '../hooks/queries/useDiscoverTournaments';
 import {
-  fetchDiscoverTournaments,
   submitTournamentRegistrationRequest,
   validateTournamentInviteCode,
 } from '../services/tournamentService';
@@ -892,28 +895,44 @@ function DiscoverTournamentCard({
 }
 
 export function HomeScreen({ navigation, route }) {
-  const { currentUser } = useAuth();
+  const { currentUser, isAuthenticated } = useAuth();
+  const { requireAuth, authPromptProps } = useRequireAuth(navigation);
+  const queryClient = useQueryClient();
   const { scrollPaddingBottom } = useScreenInsets();
   const { contentMaxWidth, horizontalPadding } = useResponsiveLayout();
-  const [discoveryItems, setDiscoveryItems] = useState([]);
-  const [discoveryMeta, setDiscoveryMeta] = useState(null);
-  const [discoveryError, setDiscoveryError] = useState('');
-  const [isLoadingDiscovery, setIsLoadingDiscovery] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [filterId, setFilterId] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [sortId, setSortId] = useState('newest');
   const [filtersExpanded, setFiltersExpanded] = useState(false);
-  const searchSortEffectReadyRef = useRef(false);
   const filtersPanelAnimation = useRef(new Animated.Value(0)).current;
   const [inviteCodeByTournamentId, setInviteCodeByTournamentId] = useState({});
   const [validationByTournamentId, setValidationByTournamentId] = useState({});
   const [registrationByTournamentId, setRegistrationByTournamentId] = useState({});
   const [expandedTournamentId, setExpandedTournamentId] = useState(null);
-  const hasLoadedDiscoveryRef = useRef(false);
   const expansionAnimationByIdRef = useRef({});
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  const {
+    data: discoveryData,
+    error: discoveryQueryError,
+    isLoading: isLoadingDiscovery,
+    isFetching: isFetchingDiscovery,
+    refetch: refetchDiscovery,
+  } = useDiscoverTournaments({
+    page,
+    pageSize,
+    sort: sortId,
+    q: debouncedSearchQuery,
+  });
+
+  const discoveryItems = discoveryData?.items ?? [];
+  const discoveryMeta = discoveryData?.pagination ?? null;
+  const discoveryError = discoveryQueryError
+    ? `${discoveryQueryError.code || 'ERROR'} - ${discoveryQueryError.message || 'Unable to load tournaments'}`
+    : '';
+  const isRefreshing = isFetchingDiscovery && !isLoadingDiscovery;
   const highlightTournamentId = route.params?.highlightTournamentId || null;
   const highlightBlinkAnimation = useRef(new Animated.Value(0)).current;
   const highlightBlinkLoopRef = useRef(null);
@@ -942,6 +961,15 @@ export function HomeScreen({ navigation, route }) {
   );
 
   useEffect(() => {
+    if (!route.params?.filterId) {
+      return;
+    }
+
+    setFilterId(route.params.filterId);
+    navigation.setParams({ filterId: undefined });
+  }, [navigation, route.params?.filterId]);
+
+  useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(skeletonPulse, { toValue: 1, duration: 700, useNativeDriver: false }),
@@ -951,6 +979,29 @@ export function HomeScreen({ navigation, route }) {
     loop.start();
     return () => loop.stop();
   }, [skeletonPulse]);
+
+  useEffect(() => {
+    const debounceMs = searchQuery.trim() ? SEARCH_DEBOUNCE_MS : 0;
+    const timerId = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery.trim());
+      setPage(1);
+    }, debounceMs);
+
+    return () => clearTimeout(timerId);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [sortId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (route.params?.highlightTournamentId) {
+        setPage(1);
+        setFilterId('all');
+      }
+    }, [route.params?.highlightTournamentId])
+  );
 
   const getRequestEnabled = useCallback(
     (item) => {
@@ -971,69 +1022,6 @@ export function HomeScreen({ navigation, route }) {
       return validationByTournamentId[item.id]?.requestEnabled === true;
     },
     [currentUser?.id, validationByTournamentId]
-  );
-
-  const onLoadDiscoverFeed = useCallback(
-    async ({ silent = false, pageOverride, refreshing = false, qOverride, sortOverride } = {}) => {
-      try {
-        setDiscoveryError('');
-        if (refreshing) {
-          setIsRefreshing(true);
-        } else if (!silent) {
-          setIsLoadingDiscovery(true);
-        }
-
-        const trimmedSearch = String(qOverride !== undefined ? qOverride : searchQuery).trim();
-        const activeSort = sortOverride ?? sortId;
-
-        const response = await fetchDiscoverTournaments({
-          page: pageOverride ?? page,
-          pageSize,
-          sort: activeSort,
-          ...(trimmedSearch ? { q: trimmedSearch } : {}),
-        });
-        setDiscoveryItems(response.items || []);
-        setDiscoveryMeta(response.pagination || null);
-        hasLoadedDiscoveryRef.current = true;
-      } catch (error) {
-        setDiscoveryError(`${error.code || 'ERROR'} - ${error.message || 'Unable to load tournaments'}`);
-      } finally {
-        setIsLoadingDiscovery(false);
-        setIsRefreshing(false);
-      }
-    },
-    [page, pageSize, searchQuery, sortId]
-  );
-
-  useEffect(() => {
-    if (!searchSortEffectReadyRef.current) {
-      searchSortEffectReadyRef.current = true;
-      return undefined;
-    }
-
-    const debounceMs = searchQuery.trim() ? SEARCH_DEBOUNCE_MS : 0;
-    const timerId = setTimeout(() => {
-      setPage(1);
-      onLoadDiscoverFeed({ silent: false, pageOverride: 1 });
-    }, debounceMs);
-
-    return () => clearTimeout(timerId);
-  }, [searchQuery, sortId, onLoadDiscoverFeed]);
-
-  useFocusEffect(
-    useCallback(() => {
-      const pendingHighlightId = route.params?.highlightTournamentId;
-
-      if (pendingHighlightId) {
-        setPage(1);
-        setFilterId('all');
-        onLoadDiscoverFeed({ silent: hasLoadedDiscoveryRef.current, pageOverride: 1 });
-        return undefined;
-      }
-
-      onLoadDiscoverFeed({ silent: hasLoadedDiscoveryRef.current });
-      return undefined;
-    }, [onLoadDiscoverFeed, route.params?.highlightTournamentId])
   );
 
   useEffect(() => {
@@ -1125,7 +1113,7 @@ export function HomeScreen({ navigation, route }) {
     [inviteCodeByTournamentId]
   );
 
-  const onRequestRegistration = useCallback(
+  const submitRegistrationRequest = useCallback(
     async (item) => {
       try {
         setRegistrationByTournamentId((previousState) => ({
@@ -1152,6 +1140,7 @@ export function HomeScreen({ navigation, route }) {
             status: response.status,
           },
         }));
+        await queryClient.invalidateQueries({ queryKey: ['discover'] });
       } catch (error) {
         setRegistrationByTournamentId((previousState) => ({
           ...previousState,
@@ -1164,7 +1153,17 @@ export function HomeScreen({ navigation, route }) {
         }));
       }
     },
-    [inviteCodeByTournamentId]
+    [inviteCodeByTournamentId, queryClient]
+  );
+
+  const onRequestRegistration = useCallback(
+    (item) => {
+      requireAuth(() => submitRegistrationRequest(item), {
+        message: 'Sign in to request a spot in this tournament.',
+        returnTo: { screen: 'Home', params: { highlightTournamentId: item.id } },
+      });
+    },
+    [requireAuth, submitRegistrationRequest]
   );
 
   const onToggleExpand = useCallback(
@@ -1188,12 +1187,20 @@ export function HomeScreen({ navigation, route }) {
 
   const onOpenTournamentDetail = useCallback(
     (item) => {
-      navigation.navigate('TournamentDetail', {
-        tournamentId: item.id,
-        tournamentName: item.name,
-      });
+      requireAuth(
+        () => {
+          navigation.navigate('TournamentDetail', {
+            tournamentId: item.id,
+            tournamentName: item.name,
+          });
+        },
+        {
+          message: 'Sign in to open the host dashboard.',
+          returnTo: { screen: 'Home', params: { highlightTournamentId: item.id } },
+        }
+      );
     },
-    [navigation]
+    [navigation, requireAuth]
   );
 
   const onOpenScoresheet = useCallback(
@@ -1206,22 +1213,36 @@ export function HomeScreen({ navigation, route }) {
     [navigation]
   );
 
-  const onPageSizeChange = useCallback(
-    (size) => {
-      setPageSize(size);
-      setPage(1);
-      onLoadDiscoverFeed({ silent: false, pageOverride: 1 });
+  const onCreateTournament = useCallback(() => {
+    requireAuth(() => navigation.navigate('CreateTournament'), {
+      message: 'Sign in to host a tournament.',
+      returnTo: { screen: 'Home' },
+    });
+  }, [navigation, requireAuth]);
+
+  const onFilterChange = useCallback(
+    (nextFilterId) => {
+      if (nextFilterId === 'mine' && !isAuthenticated) {
+        requireAuth(undefined, {
+          message: 'Sign in to see tournaments you host.',
+          returnTo: { screen: 'Home', params: { filterId: 'mine' } },
+        });
+        return;
+      }
+
+      setFilterId(nextFilterId);
     },
-    [onLoadDiscoverFeed]
+    [isAuthenticated, requireAuth]
   );
 
-  const onPageChange = useCallback(
-    (nextPage) => {
-      setPage(nextPage);
-      onLoadDiscoverFeed({ silent: false, pageOverride: nextPage });
-    },
-    [onLoadDiscoverFeed]
-  );
+  const onPageSizeChange = useCallback((size) => {
+    setPageSize(size);
+    setPage(1);
+  }, []);
+
+  const onPageChange = useCallback((nextPage) => {
+    setPage(nextPage);
+  }, []);
 
   const onToggleFiltersPanel = useCallback(() => {
     const nextExpanded = !filtersExpanded;
@@ -1265,6 +1286,7 @@ export function HomeScreen({ navigation, route }) {
   const totalPages = discoveryMeta?.totalPages ?? 1;
 
   return (
+    <>
     <ScrollView
       style={tournamentUi.screen}
       contentContainerStyle={[
@@ -1276,7 +1298,7 @@ export function HomeScreen({ navigation, route }) {
       refreshControl={
         <RefreshControl
           refreshing={isRefreshing}
-          onRefresh={() => onLoadDiscoverFeed({ silent: true, refreshing: true })}
+          onRefresh={() => refetchDiscovery()}
           tintColor={tournamentColors.primary}
         />
       }
@@ -1286,7 +1308,7 @@ export function HomeScreen({ navigation, route }) {
           total={totalCount}
           openCount={stats.openCount}
           myCount={stats.myCount}
-          onCreate={() => navigation.navigate('CreateTournament')}
+          onCreate={onCreateTournament}
         />
       </View>
 
@@ -1301,11 +1323,11 @@ export function HomeScreen({ navigation, route }) {
           filterId={filterId}
           pageSize={pageSize}
           isRefreshing={isRefreshing || isLoadingDiscovery}
-          onRefresh={() => onLoadDiscoverFeed({ silent: true, refreshing: true })}
+          onRefresh={() => refetchDiscovery()}
           onSearchQueryChange={setSearchQuery}
           onClearSearch={() => setSearchQuery('')}
           onSortChange={setSortId}
-          onFilterChange={setFilterId}
+          onFilterChange={onFilterChange}
           onPageSizeChange={onPageSizeChange}
         />
       </View>
@@ -1333,7 +1355,7 @@ export function HomeScreen({ navigation, route }) {
         <LoadingPlaceholder pulse={skeletonPulse} />
       ) : filteredItems.length === 0 ? (
         <EmptyDiscoverState
-          onCreate={() => navigation.navigate('CreateTournament')}
+          onCreate={onCreateTournament}
           filterId={filterId}
           searchQuery={searchQuery}
         />
@@ -1417,5 +1439,7 @@ export function HomeScreen({ navigation, route }) {
         </View>
       )}
     </ScrollView>
+    <AuthPromptModal {...authPromptProps} />
+    </>
   );
 }

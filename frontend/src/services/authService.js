@@ -10,6 +10,11 @@ export async function loginUser({ email, password }) {
   return response.data;
 }
 
+export async function signInWithGoogle({ idToken }) {
+  const response = await apiPostWithWakeRetry('/api/auth/google', { idToken });
+  return response.data;
+}
+
 export async function requestPasswordResetPin({ email }) {
   const response = await apiPost('/api/auth/forgot-password/request', { email });
   return response.data;

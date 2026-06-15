@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { clearToken, getToken, setToken } from '../utils/tokenStore';
-import { loginUser, signupUser } from '../services/authService';
+import { loginUser, signInWithGoogle as signInWithGoogleApi, signupUser } from '../services/authService';
 import { apiGet } from '../services/api';
 import { wakeBackendIfNeeded } from '../services/systemService';
+import { logWarning } from '../utils/errorLogger';
 
 const AuthContext = createContext(undefined);
 
@@ -25,6 +26,10 @@ export function AuthProvider({ children }) {
             setTokenState(restoredToken);
             setCurrentUser({ id: payload?.data?.userId || null });
           } catch (error) {
+            logWarning('Session restore failed; clearing stored token', {
+              code: error?.code,
+              message: error?.message,
+            });
             await clearToken();
             setTokenState(null);
             setCurrentUser(null);
@@ -57,6 +62,13 @@ export function AuthProvider({ children }) {
       },
       async signUp({ name, email, password }) {
         const result = await signupUser({ name, email, password });
+        await setToken(result.token);
+        setTokenState(result.token);
+        setCurrentUser(result.user);
+        return result;
+      },
+      async signInWithGoogle(idToken) {
+        const result = await signInWithGoogleApi({ idToken });
         await setToken(result.token);
         setTokenState(result.token);
         setCurrentUser(result.user);

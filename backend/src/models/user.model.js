@@ -16,9 +16,19 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
     },
+    authProvider: {
+      type: String,
+      enum: ['local', 'google'],
+      default: 'local',
+    },
+    googleId: {
+      type: String,
+      sparse: true,
+      unique: true,
+    },
     passwordHash: {
       type: String,
-      required: true,
+      default: null,
       select: false,
     },
     passwordResetPinHash: {
@@ -42,6 +52,17 @@ const userSchema = new mongoose.Schema(
       select: false,
       min: 0,
     },
+    failedLoginAttempts: {
+      type: Number,
+      default: 0,
+      select: false,
+      min: 0,
+    },
+    lockoutUntil: {
+      type: Date,
+      default: null,
+      select: false,
+    },
     handicap: {
       type: Number,
       default: 0,
@@ -53,6 +74,16 @@ const userSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+userSchema.pre('validate', function validatePasswordRequirement(next) {
+  const provider = this.authProvider || 'local';
+
+  if (provider === 'local' && !this.passwordHash) {
+    this.invalidate('passwordHash', 'Password is required for local accounts');
+  }
+
+  next();
+});
 
 const User = mongoose.model('User', userSchema);
 

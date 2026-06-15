@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/user.model');
 const ApiError = require('../utils/ApiError');
 const { sendPasswordResetPinEmail } = require('./email.service');
+const { verifyGoogleIdToken } = require('./googleAuth.service');
 
 const SALT_ROUNDS = 10;
 const NAME_MIN_LENGTH = 2;
@@ -16,6 +17,8 @@ const RESET_PIN_TTL_MINUTES = Number(process.env.PASSWORD_RESET_PIN_TTL_MINUTES 
 const RESET_PIN_COOLDOWN_SECONDS = Number(process.env.PASSWORD_RESET_PIN_COOLDOWN_SECONDS || 60);
 const RESET_PIN_MAX_ATTEMPTS = Number(process.env.PASSWORD_RESET_PIN_MAX_ATTEMPTS || 5);
 const PASSWORD_RESET_SESSION_TTL_MINUTES = Number(process.env.PASSWORD_RESET_SESSION_TTL_MINUTES || 10);
+const LOGIN_LOCKOUT_MAX_ATTEMPTS = Number(process.env.LOGIN_LOCKOUT_MAX_ATTEMPTS || 5);
+const LOGIN_LOCKOUT_DURATION_MINUTES = Number(process.env.LOGIN_LOCKOUT_DURATION_MINUTES || 15);
 const controlCharacterRegex = /[\u0000-\u001F\u007F]/;
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -61,12 +64,52 @@ const clearPasswordResetState = (user) => {
   user.passwordResetPinAttemptCount = 0;
 };
 
+const clearLoginLockoutState = (user) => {
+  user.failedLoginAttempts = 0;
+  user.lockoutUntil = null;
+};
+
+const getLoginLockoutRetryAfterSeconds = (lockoutUntil) => {
+  const remainingMs = new Date(lockoutUntil).getTime() - Date.now();
+  return Math.max(1, Math.ceil(remainingMs / 1000));
+};
+
+const assertLoginNotLocked = async (user) => {
+  if (!user?.lockoutUntil) {
+    return;
+  }
+
+  const lockoutUntil = new Date(user.lockoutUntil);
+
+  if (lockoutUntil.getTime() <= Date.now()) {
+    clearLoginLockoutState(user);
+    await user.save();
+    return;
+  }
+
+  throw new ApiError(429, 'ACCOUNT_LOCKED', 'Too many failed sign-in attempts. Try again later.', {
+    retryAfterSeconds: getLoginLockoutRetryAfterSeconds(lockoutUntil),
+  });
+};
+
+const recordFailedLoginAttempt = async (user) => {
+  user.failedLoginAttempts = Number(user.failedLoginAttempts || 0) + 1;
+
+  if (user.failedLoginAttempts >= LOGIN_LOCKOUT_MAX_ATTEMPTS) {
+    user.lockoutUntil = new Date(Date.now() + LOGIN_LOCKOUT_DURATION_MINUTES * 60 * 1000);
+  }
+
+  await user.save();
+};
+
 const isTestEnv = () => process.env.NODE_ENV === 'test';
 
-const sanitizeUser = (userDoc) => ({
+const sanitizeUser = (userDoc, { hasPassword } = {}) => ({
   id: String(userDoc._id),
   name: userDoc.name,
   email: userDoc.email,
+  authProvider: userDoc.authProvider || 'local',
+  hasPassword: hasPassword ?? (userDoc.authProvider !== 'google'),
 });
 
 const validateEmail = (email) => {
@@ -125,7 +168,12 @@ const signup = async ({ name, email, password }) => {
 
   const existingUser = await User.findOne({ email: normalizedEmail }).lean();
   if (existingUser) {
-    throw new ApiError(409, 'EMAIL_ALREADY_IN_USE', 'Email address is already registered');
+    // Generic response avoids confirming whether the email is already registered.
+    throw new ApiError(
+      409,
+      'SIGNUP_FAILED',
+      'Unable to create an account with these details. Try signing in if you already have one.'
+    );
   }
 
   const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
@@ -134,13 +182,14 @@ const signup = async ({ name, email, password }) => {
     name: normalizedName,
     email: normalizedEmail,
     passwordHash,
+    authProvider: 'local',
   });
 
   const token = createToken(createdUser._id);
 
   return {
     token,
-    user: sanitizeUser(createdUser),
+    user: sanitizeUser(createdUser, { hasPassword: true }),
   };
 };
 
@@ -156,30 +205,138 @@ const login = async ({ email, password }) => {
     throw new ApiError(401, 'INVALID_CREDENTIALS', 'Invalid email or password');
   }
 
-  const user = await User.findOne({ email: normalizedEmail }).select('+passwordHash');
+  const user = await User.findOne({ email: normalizedEmail }).select(
+    '+passwordHash +failedLoginAttempts +lockoutUntil'
+  );
 
   if (!user) {
     throw new ApiError(401, 'INVALID_CREDENTIALS', 'Invalid email or password');
   }
 
+  await assertLoginNotLocked(user);
+
+  if (!user.passwordHash) {
+    throw new ApiError(401, 'GOOGLE_AUTH_REQUIRED', 'Sign in with Google for this account');
+  }
+
   const isPasswordValid = await bcrypt.compare(normalizedPassword, user.passwordHash);
 
   if (!isPasswordValid) {
+    await recordFailedLoginAttempt(user);
     throw new ApiError(401, 'INVALID_CREDENTIALS', 'Invalid email or password');
+  }
+
+  if (user.failedLoginAttempts || user.lockoutUntil) {
+    clearLoginLockoutState(user);
+    await user.save();
   }
 
   const token = createToken(user._id);
 
   return {
     token,
-    user: sanitizeUser(user),
+    user: sanitizeUser(user, { hasPassword: true }),
+  };
+};
+
+const normalizeGoogleName = (payload, fallbackEmail) => {
+  const fromGoogle = normalizeName(payload?.name || payload?.given_name || '');
+
+  if (fromGoogle.length >= NAME_MIN_LENGTH) {
+    return fromGoogle.slice(0, NAME_MAX_LENGTH);
+  }
+
+  const localPart = String(fallbackEmail || '').split('@')[0] || 'Player';
+  const fallbackName = normalizeName(localPart.replace(/[._-]+/g, ' '));
+
+  if (fallbackName.length >= NAME_MIN_LENGTH) {
+    return fallbackName.slice(0, NAME_MAX_LENGTH);
+  }
+
+  return 'Player';
+};
+
+const signInWithGoogle = async ({ idToken }) => {
+  const normalizedToken = String(idToken || '').trim();
+
+  if (!normalizedToken) {
+    throw new ApiError(400, 'ID_TOKEN_REQUIRED', 'Google ID token is required');
+  }
+
+  let payload;
+
+  try {
+    payload = await verifyGoogleIdToken(normalizedToken);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+
+    throw new ApiError(401, 'INVALID_GOOGLE_TOKEN', 'Google sign-in token is invalid or expired');
+  }
+
+  const googleId = String(payload?.sub || '').trim();
+  const normalizedEmail = normalizeEmail(payload?.email);
+
+  if (!googleId) {
+    throw new ApiError(401, 'INVALID_GOOGLE_TOKEN', 'Google sign-in token is missing required profile data');
+  }
+
+  if (!payload?.email_verified) {
+    throw new ApiError(401, 'GOOGLE_EMAIL_NOT_VERIFIED', 'Google account email must be verified');
+  }
+
+  validateEmail(normalizedEmail);
+
+  const displayName = normalizeGoogleName(payload, normalizedEmail);
+
+  let user = await User.findOne({ googleId }).select('+passwordHash +failedLoginAttempts +lockoutUntil');
+
+  if (!user) {
+    user = await User.findOne({ email: normalizedEmail }).select('+passwordHash +failedLoginAttempts +lockoutUntil');
+  }
+
+  if (user) {
+    if (user.googleId && user.googleId !== googleId) {
+      throw new ApiError(409, 'GOOGLE_ACCOUNT_MISMATCH', 'This email is linked to a different Google account');
+    }
+
+    if (!user.googleId) {
+      user.googleId = googleId;
+
+      if (!user.passwordHash) {
+        user.authProvider = 'google';
+      }
+
+      await user.save();
+    }
+  } else {
+    user = await User.create({
+      name: displayName,
+      email: normalizedEmail,
+      googleId,
+      authProvider: 'google',
+      passwordHash: null,
+    });
+  }
+
+  if (user.failedLoginAttempts || user.lockoutUntil) {
+    clearLoginLockoutState(user);
+    await user.save();
+  }
+
+  const token = createToken(user._id);
+
+  return {
+    token,
+    user: sanitizeUser(user, { hasPassword: Boolean(user.passwordHash) }),
   };
 };
 
 const requestPasswordReset = async ({ email }) => {
   const normalizedEmail = validateEmail(email);
   const user = await User.findOne({ email: normalizedEmail }).select(
-    '+passwordResetPinHash +passwordResetPinExpiresAt +passwordResetPinRequestedAt +passwordResetPinAttemptCount'
+    '+passwordHash +passwordResetPinHash +passwordResetPinExpiresAt +passwordResetPinRequestedAt +passwordResetPinAttemptCount'
   );
 
   const genericResponse = {
@@ -189,6 +346,10 @@ const requestPasswordReset = async ({ email }) => {
   };
 
   if (!user) {
+    return genericResponse;
+  }
+
+  if (!user.passwordHash) {
     return genericResponse;
   }
 
@@ -230,7 +391,7 @@ const validatePasswordResetPin = async ({ email, pin }) => {
     '+passwordHash +passwordResetPinHash +passwordResetPinExpiresAt +passwordResetPinRequestedAt +passwordResetPinAttemptCount'
   );
 
-  if (!user || !user.passwordResetPinHash || !user.passwordResetPinExpiresAt) {
+  if (!user || !user.passwordHash || !user.passwordResetPinHash || !user.passwordResetPinExpiresAt) {
     throw new ApiError(400, 'INVALID_RESET_PIN', 'Invalid or expired reset PIN');
   }
 
@@ -302,7 +463,7 @@ const resetPasswordWithToken = async ({ email, resetToken, newPassword }) => {
 
   const user = await User.findOne({ _id: payload.sub, email: normalizedEmail }).select('+passwordHash');
 
-  if (!user) {
+  if (!user || !user.passwordHash) {
     throw new ApiError(400, 'INVALID_RESET_TOKEN', 'Reset session is invalid or expired');
   }
 
@@ -319,9 +480,31 @@ const resetPasswordWithToken = async ({ email, resetToken, newPassword }) => {
   };
 };
 
+const setAccountPassword = async (userId, { password }) => {
+  const normalizedPassword = validatePassword(password, 'Password must be at least 8 characters long');
+  const user = await User.findById(userId).select('+passwordHash');
+
+  if (!user) {
+    throw new ApiError(404, 'USER_NOT_FOUND', 'User not found');
+  }
+
+  if (user.passwordHash) {
+    throw new ApiError(409, 'PASSWORD_ALREADY_SET', 'A password is already set for this account');
+  }
+
+  user.passwordHash = await bcrypt.hash(normalizedPassword, SALT_ROUNDS);
+  await user.save();
+
+  return {
+    hasPassword: true,
+  };
+};
+
 module.exports = {
   signup,
   login,
+  signInWithGoogle,
+  setAccountPassword,
   requestPasswordReset,
   validatePasswordResetPin,
   resetPasswordWithToken,

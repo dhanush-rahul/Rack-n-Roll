@@ -2,17 +2,20 @@ const express = require('express');
 const {
 	signupController,
 	loginController,
+	googleSignInController,
 	requestPasswordResetController,
 	validatePasswordResetPinController,
 	resetPasswordWithTokenController,
 } = require('../controllers/auth.controller');
+const { authRateLimiter, passwordResetRateLimiter } = require('../middleware/rateLimiters');
 
 const router = express.Router();
 
-router.post('/signup', signupController);
-router.post('/login', loginController);
-router.post('/forgot-password/request', requestPasswordResetController);
-router.post('/forgot-password/validate-pin', validatePasswordResetPinController);
-router.post('/forgot-password', resetPasswordWithTokenController);
+router.post('/signup', authRateLimiter, signupController);
+router.post('/login', authRateLimiter, loginController);
+router.post('/google', authRateLimiter, googleSignInController);
+router.post('/forgot-password/request', passwordResetRateLimiter, requestPasswordResetController);
+router.post('/forgot-password/validate-pin', passwordResetRateLimiter, validatePasswordResetPinController);
+router.post('/forgot-password', passwordResetRateLimiter, resetPasswordWithTokenController);
 
 module.exports = router;

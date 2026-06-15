@@ -1,6 +1,7 @@
 const {
   signup,
   login,
+  signInWithGoogle,
   requestPasswordReset,
   validatePasswordResetPin,
   resetPasswordWithToken,
@@ -66,9 +67,22 @@ const resetPasswordWithTokenController = async (req, res, next) => {
   }
 };
 
+const googleSignInController = async (req, res, next) => {
+  try {
+    const result = await signInWithGoogle(req.body);
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 module.exports = {
   signupController,
   loginController,
+  googleSignInController,
   requestPasswordResetController,
   validatePasswordResetPinController,
   resetPasswordWithTokenController,

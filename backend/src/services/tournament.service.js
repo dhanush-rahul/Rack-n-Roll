@@ -1736,11 +1736,7 @@ const computeSeriesOutcome = (game, scoreEntries = []) => {
 };
 
 const listTournamentScoresheet = async (tournamentId, userId, query = {}) => {
-  if (!userId) {
-    throw new ApiError(401, 'UNAUTHORIZED', 'Authentication required');
-  }
-
-  const canEdit = await canUserEditTournamentScores(tournamentId, userId);
+  const canEdit = userId ? await canUserEditTournamentScores(tournamentId, userId) : false;
   const tournamentMeta = await Tournament.findById(tournamentId)
     .select({ proctorTransferRequest: 1, scoreEditorUserIds: 1, hostUserId: 1, competitionConfig: 1, progressionState: 1 })
     .lean();
@@ -3630,10 +3626,6 @@ const buildGroupStandingsList = async (tournamentId, query = {}) => {
 };
 
 const listGroupStandings = async (tournamentId, userId, query = {}) => {
-  if (!userId) {
-    throw new ApiError(401, 'UNAUTHORIZED', 'Authentication required');
-  }
-
   const tournament = await Tournament.findById(tournamentId).lean();
 
   if (!tournament) {
