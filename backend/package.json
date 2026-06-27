@@ -14,7 +14,8 @@
     "check:smtp": "node scripts/check-smtp.js",
     "fix:leaderboard-indexes": "node scripts/fix-leaderboard-indexes.js",
     "test": "jest --runInBand",
-    "test:integration": "jest --runInBand tests/integration"
+    "test:integration": "jest --runInBand tests/integration",
+    "lint": "eslint src scripts"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

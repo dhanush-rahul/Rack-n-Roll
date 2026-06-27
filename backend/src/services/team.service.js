@@ -99,7 +99,7 @@ const assertHostOrTeamMember = async (tournamentId, userId, team) => {
 };
 
 const materializeRosterPlayers = async (tournamentId) => {
-  const { materializeApprovedPlayers } = require('./tournament.service');
+  const { materializeApprovedPlayers } = require('./tournament');
   return materializeApprovedPlayers(tournamentId);
 };
 
@@ -192,7 +192,7 @@ const createTeamFromPlayers = async (tournamentId, player1Id, player2Id, { custo
 };
 
 const pickPartner = async (tournamentId, userId, partnerPlayerId) => {
-  const { materializeApprovedPlayerForUser } = require('./tournament.service');
+  const { materializeApprovedPlayerForUser } = require('./tournament');
   await materializeApprovedPlayerForUser(tournamentId, userId);
 
   const tournament = await Tournament.findById(tournamentId).lean();

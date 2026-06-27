@@ -4,6 +4,8 @@ import * as SplashScreen from 'expo-splash-screen';
 import React, { memo, useEffect, useMemo } from 'react';
 import { Pressable, View } from 'react-native';
 import { ScaledText as Text } from '../components/ui/ScaledText';
+import { AppIcon } from '../components/ui/AppIcon';
+import { tournamentColors } from '../styles/tournamentUi';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { HomeScreen } from '../screens/HomeScreen';
@@ -120,10 +122,10 @@ const AppHeader = memo(function AppHeader({
                 justifyContent: 'center',
               })}
             >
-              <Text style={{ fontSize: 17, lineHeight: 18 }}>👤</Text>
+              <AppIcon name="person" size={20} color={tournamentColors.text} />
             </Pressable>
             <Pressable onPress={onSignOut} hitSlop={8} accessibilityRole="button" accessibilityLabel="Sign out">
-              <Text style={{ fontSize: 18, lineHeight: 20 }}>🚪</Text>
+              <AppIcon name="logout" size={20} color={tournamentColors.text} />
             </Pressable>
           </>
         )}

@@ -128,7 +128,7 @@ export function ProctorsSection({
       {pendingForMe && (
         <View style={{ marginBottom: 12, gap: 8 }}>
           <InfoBanner
-            emoji="🎯"
+            icon="target"
             tone="warning"
             title="Proctor handoff requested"
             message="Another proctor asked you to take over scoring for this tournament."

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Button, Modal, Pressable, ScrollView, View } from 'react-native';
 import { ScaledText as Text } from '../../components/ui/ScaledText';
+import { AppIcon } from '../../components/ui/AppIcon';
 import { tournamentUi } from '../../styles/tournamentUi';
 
 const FINAL_BEST_OF_OPTIONS = ['1', '3', '5'];
@@ -156,7 +157,7 @@ export function FinalePlayerModal({
                             justifyContent: 'center',
                           }}
                         >
-                          {selected ? <Text style={{ color: '#ffffff', fontSize: 14 }}>✓</Text> : null}
+                          {selected ? <AppIcon name="check" size={16} color="#ffffff" /> : null}
                         </View>
                         <View style={{ flex: 1, gap: 2 }}>
                           <Text>

@@ -5,6 +5,7 @@ import { useTypography } from '../context/TypographyContext';
 import { ScaledText as Text } from './ui/ScaledText';
 import { ScaledTextInput as TextInput } from './ui/ScaledTextInput';
 import { discoverUi, tournamentColors, tournamentUi } from '../styles/tournamentUi';
+import { AppIcon } from './ui/AppIcon';
 import { formatMatchScheduledAt } from './tournament/MatchScheduleModal';
 
 function MatchActionButton({ label, onPress, disabled, variant = 'primary' }) {
@@ -124,9 +125,12 @@ const renderRound = ({
             {matchCount} {matchCount === 1 ? 'match' : 'matches'} · {completedGamesCount}/{totalGamesCount} games scored
           </Text>
         </View>
-        <Text style={{ fontSize: 18, fontWeight: '700', color: tournamentColors.primary, marginLeft: 8 }}>
-          {isRoundOpen ? '⌃' : '⌄'}
-        </Text>
+        <AppIcon
+          name={isRoundOpen ? 'chevronUp' : 'chevronDown'}
+          size={22}
+          color={tournamentColors.primary}
+          style={{ marginLeft: 8 }}
+        />
       </Pressable>
 
       {isRoundOpen &&
@@ -556,9 +560,11 @@ export function RoundMatchesDisplay({
                       {sectionMatchCount} {sectionMatchCount === 1 ? 'match' : 'matches'}
                     </Text>
                   </View>
-                  <Text style={{ fontSize: 18, fontWeight: '700', color: isSectionOpen ? tournamentColors.white : tournamentColors.primary }}>
-                    {isSectionOpen ? '⌃' : '⌄'}
-                  </Text>
+                  <AppIcon
+                    name={isSectionOpen ? 'chevronUp' : 'chevronDown'}
+                    size={22}
+                    color={isSectionOpen ? tournamentColors.white : tournamentColors.primary}
+                  />
                 </Pressable>
               ) : (
                 <Text style={{ fontWeight: '800', fontSize: 16, color: tournamentColors.text, marginBottom: 8 }}>

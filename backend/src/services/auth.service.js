@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/user.model');
 const ApiError = require('../utils/ApiError');
 const { sendPasswordResetPinEmail } = require('./email.service');
-const { linkPendingGuestPlayersForUser } = require('./tournament.service');
+const { linkPendingGuestPlayersForUser } = require('./tournament');
 const { verifyGoogleIdToken } = require('./googleAuth.service');
 
 const SALT_ROUNDS = 10;

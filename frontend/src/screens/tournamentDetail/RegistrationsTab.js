@@ -76,7 +76,7 @@ export function RegistrationsTab({
             <Text style={{ color: tournamentColors.textMuted }}>Loading registrations…</Text>
           )}
           {!isLoadingRegistrations && pendingItems.length === 0 && (
-            <EmptyStateCard emoji="✅" title="No pending requests" message="New requests will show up here." />
+            <EmptyStateCard icon="success" title="No pending requests" message="New requests will show up here." />
           )}
           {pendingItems.map((item) => (
             <ListRowCard
@@ -137,7 +137,7 @@ export function RegistrationsTab({
         {isLoadingRegistrations && <Text style={{ color: tournamentColors.textMuted }}>Loading registrations…</Text>}
         {!isLoadingRegistrations && approvedItems.length === 0 && (
           <EmptyStateCard
-            emoji="👥"
+            icon="players"
             title="No approved players yet"
             message="Approve requests or add players manually to build the roster."
           />

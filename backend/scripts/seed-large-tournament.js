@@ -12,7 +12,7 @@ const {
   approveRegistrationRequest,
   closeTournamentRegistration,
   assignRandomGroups,
-} = require('../src/services/tournament.service');
+} = require('../src/services/tournament');
 
 const SALT_ROUNDS = 10;
 const HOST_EMAIL = 'test@gmail.com';

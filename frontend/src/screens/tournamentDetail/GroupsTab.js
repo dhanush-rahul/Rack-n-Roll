@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { ScaledText as Text } from '../../components/ui/ScaledText';
+import { AppIcon } from '../../components/ui/AppIcon';
 import {
   ActionButton,
   ChipSelector,
@@ -161,7 +162,11 @@ export function GroupsTab({
                   marginBottom: 8,
                 }}
               >
-                <Text style={{ fontSize: 18 }}>{pairTeamsRandomInput ? '☑' : '☐'}</Text>
+                <AppIcon
+                  name={pairTeamsRandomInput ? 'checkboxOn' : 'checkboxOff'}
+                  size={22}
+                  color={pairTeamsRandomInput ? tournamentColors.primary : tournamentColors.textMuted}
+                />
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontWeight: '700', color: tournamentColors.text }}>Random-pair solos first</Text>
                   <Text style={{ fontSize: 12, color: tournamentColors.textMuted, marginTop: 2 }}>
@@ -197,7 +202,7 @@ export function GroupsTab({
       {isTournamentCompleted && (
         <View style={{ marginBottom: 14 }}>
           <InfoBanner
-            emoji="🏆"
+            icon="trophy"
             tone="success"
             title="Tournament complete"
             message={
@@ -212,7 +217,7 @@ export function GroupsTab({
       {isHost && hasGroupFixtures && !isTournamentCompleted && (
         <View style={{ marginBottom: 14 }}>
           <InfoBanner
-            emoji="🔒"
+            icon="lock"
             tone="info"
             title="Group setup complete"
             message="New players from the Players tab are auto-assigned to the smallest group with extra fixtures added."
@@ -277,7 +282,7 @@ export function GroupsTab({
 
         {!isLoadingGroupsTab && groupsTabItems.length === 0 && (
           <EmptyStateCard
-            emoji="📋"
+            icon="clipboardList"
             title="No groups yet"
             message="Close registration on the Players tab, then assign groups here."
           />

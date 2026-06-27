@@ -2,6 +2,7 @@ import React from 'react';
 import { Modal, Pressable, View } from 'react-native';
 import { ScaledText as Text } from './ui/ScaledText';
 import { ActionButton } from './tournament/TournamentChrome';
+import { AppIcon } from './ui/AppIcon';
 import { discoverUi, tournamentColors, tournamentUi } from '../styles/tournamentUi';
 
 export function AuthPromptModal({
@@ -17,7 +18,19 @@ export function AuthPromptModal({
       <View style={tournamentUi.modalOverlay}>
         <Pressable style={tournamentUi.modalBackdrop} onPress={onCancel} />
         <View style={[discoverUi.surfaceCard, { marginHorizontal: 4 }]}>
-          <Text style={{ fontSize: 32, marginBottom: 8 }}>🔐</Text>
+          <View
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: 26,
+              backgroundColor: '#eff4ff',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 10,
+            }}
+          >
+            <AppIcon name="secure" size={28} color={tournamentColors.primary} />
+          </View>
           <Text style={{ fontSize: 18, fontWeight: '800', color: tournamentColors.text, marginBottom: 8 }}>
             {title}
           </Text>

@@ -4,6 +4,7 @@ import { ScaledText as Text } from '../components/ui/ScaledText';
 import { ScaledTextInput as TextInput } from '../components/ui/ScaledTextInput';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { FeedbackModal } from '../components/FeedbackModal';
+import { AppIcon } from '../components/ui/AppIcon';
 import { ChipSelector } from '../components/tournament/TournamentChrome';
 import { StickyFooterScreen } from '../components/layout/ScreenLayout';
 import { createTournament } from '../services/tournamentService';
@@ -261,7 +262,7 @@ export function CreateTournamentScreen({ navigation }) {
       visible={successModal.visible}
       title="Tournament launched!"
       message={successModal.message}
-      emoji="🎉"
+      icon="celebrate"
       onDismiss={onSuccessDismiss}
     />
     <StickyFooterScreen
@@ -421,7 +422,11 @@ export function CreateTournamentScreen({ navigation }) {
             opacity: pressed ? 0.9 : 1,
           })}
         >
-          <Text style={{ fontSize: 18 }}>{handicapEnabled ? '☑' : '☐'}</Text>
+          <AppIcon
+            name={handicapEnabled ? 'checkboxOn' : 'checkboxOff'}
+            size={22}
+            color={handicapEnabled ? tournamentColors.primary : tournamentColors.textMuted}
+          />
           <View style={{ flex: 1 }}>
             <Text style={{ fontWeight: '700', color: tournamentColors.text }}>Use handicap in standings</Text>
             <Text style={{ fontSize: 12, color: tournamentColors.textMuted, marginTop: 2 }}>

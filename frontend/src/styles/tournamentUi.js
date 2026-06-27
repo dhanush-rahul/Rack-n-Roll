@@ -4,12 +4,21 @@ export const tournamentColors = {
   primaryMuted: '#94a3b8',
   border: '#d1d5db',
   borderLight: '#e5e7eb',
+  cardBorder: '#eef1f6',
   text: '#111827',
   textMuted: '#4b5563',
   error: '#b91c1c',
   success: '#065f46',
   warning: '#b45309',
   white: '#ffffff',
+};
+
+export const cardShadow = {
+  shadowColor: '#0f172a',
+  shadowOpacity: 0.05,
+  shadowRadius: 10,
+  shadowOffset: { width: 0, height: 4 },
+  elevation: 2,
 };
 
 export const tournamentUi = {
@@ -111,20 +120,21 @@ export const discoverUi = {
     backgroundColor: 'rgba(37, 99, 235, 0.35)',
   },
   surfaceCard: {
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: tournamentColors.borderLight,
+    borderColor: tournamentColors.cardBorder,
     backgroundColor: tournamentColors.white,
-    padding: 12,
+    padding: 16,
+    ...cardShadow,
   },
   listCard: {
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: tournamentColors.borderLight,
+    borderColor: tournamentColors.cardBorder,
     backgroundColor: tournamentColors.white,
     overflow: 'hidden',
     shadowColor: '#0f172a',
-    shadowOpacity: 0.07,
+    shadowOpacity: 0.06,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 5 },
     elevation: 3,

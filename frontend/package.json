@@ -12,9 +12,11 @@
     "eas:build": "node scripts/bump-version-code.js && eas build",
     "eas:build:development": "node scripts/bump-version-code.js && eas build --profile development",
     "eas:build:preview": "node scripts/bump-version-code.js && eas build --profile preview",
-    "eas:build:production": "node scripts/bump-version-code.js && eas build --profile production"
+    "eas:build:production": "node scripts/bump-version-code.js && eas build --profile production",
+    "lint": "eslint src"
   },
   "dependencies": {
+    "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "8.4.4",
     "@react-native-google-signin/google-signin": "^16.1.2",

@@ -208,7 +208,7 @@ export function TeamsSection({
     <View style={{ gap: 14 }}>
       <ConfirmModal
         visible={Boolean(partnerConfirm)}
-        emoji="🤝"
+        icon="teams"
         title="Partner up?"
         message={
           partnerConfirm
@@ -224,7 +224,7 @@ export function TeamsSection({
 
       {groupsLocked && (
         <InfoBanner
-          emoji="🔒"
+          icon="lock"
           tone="info"
           title="Teams are locked"
           message="Groups and fixtures are set. Completed matches keep their original teams."
@@ -255,7 +255,7 @@ export function TeamsSection({
 
       {!isHost && !myTeam && !canPickPartner && pairFormationMode === 'hostAssigns' && !groupsLocked && (
         <InfoBanner
-          emoji="🤝"
+          icon="teams"
           tone="info"
           title="Waiting for team assignment"
           message="The host will form teams for this tournament. Check back here once you are on a team."
@@ -278,7 +278,7 @@ export function TeamsSection({
 
             {!isLoading && teams.length === 0 && (
               <EmptyStateCard
-                emoji="🤝"
+                icon="teams"
                 title="No teams yet"
                 message="Use the host team tools below to form teams before assigning groups."
               />
