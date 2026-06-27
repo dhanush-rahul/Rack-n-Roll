@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/user.model');
 const ApiError = require('../utils/ApiError');
 const { sendPasswordResetPinEmail } = require('./email.service');
+const { linkPendingGuestPlayersForUser } = require('./tournament.service');
 const { verifyGoogleIdToken } = require('./googleAuth.service');
 
 const SALT_ROUNDS = 10;
@@ -185,6 +186,8 @@ const signup = async ({ name, email, password }) => {
     authProvider: 'local',
   });
 
+  await linkPendingGuestPlayersForUser(createdUser._id, normalizedEmail);
+
   const token = createToken(createdUser._id);
 
   return {
@@ -230,6 +233,8 @@ const login = async ({ email, password }) => {
     clearLoginLockoutState(user);
     await user.save();
   }
+
+  await linkPendingGuestPlayersForUser(user._id, normalizedEmail);
 
   const token = createToken(user._id);
 
@@ -324,6 +329,8 @@ const signInWithGoogle = async ({ idToken }) => {
     clearLoginLockoutState(user);
     await user.save();
   }
+
+  await linkPendingGuestPlayersForUser(user._id, normalizedEmail);
 
   const token = createToken(user._id);
 

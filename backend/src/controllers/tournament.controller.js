@@ -11,7 +11,9 @@ const {
   rejectRegistrationRequest,
   searchManualAddUsers,
   manuallyAddParticipant,
+  addGuestParticipant,
   manuallyRemoveParticipant,
+  removeGuestParticipant,
   assignScoreEditor,
   removeScoreEditor,
   requestProctorTransfer,
@@ -198,12 +200,42 @@ const manuallyAddParticipantController = async (req, res, next) => {
   }
 };
 
+const addGuestParticipantController = async (req, res, next) => {
+  try {
+    const result = await addGuestParticipant(req.params.tournamentId, req.auth?.userId, req.body);
+
+    return res.status(201).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 const manuallyRemoveParticipantController = async (req, res, next) => {
   try {
     const result = await manuallyRemoveParticipant(
       req.params.tournamentId,
       req.auth?.userId,
       req.params.userId
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const removeGuestParticipantController = async (req, res, next) => {
+  try {
+    const result = await removeGuestParticipant(
+      req.params.tournamentId,
+      req.auth?.userId,
+      req.params.playerId
     );
 
     return res.status(200).json({
@@ -639,7 +671,9 @@ module.exports = {
   rejectRegistrationRequestController,
   searchManualAddUsersController,
   manuallyAddParticipantController,
+  addGuestParticipantController,
   manuallyRemoveParticipantController,
+  removeGuestParticipantController,
   assignScoreEditorController,
   removeScoreEditorController,
   requestProctorTransferController,

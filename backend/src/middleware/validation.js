@@ -228,6 +228,26 @@ const validateManualAddParticipant = (req) => {
   }
 };
 
+const validateGuestAddParticipant = (req) => {
+  ensureObjectIdParam(req, 'tournamentId');
+  const body = parseBody(req);
+  const name = String(body.name || '').trim();
+  const email = String(body.email || '').trim();
+
+  if (name.length < 2) {
+    throw new ApiError(400, 'INVALID_NAME', 'Name must be at least 2 characters long');
+  }
+
+  if (!email) {
+    throw new ApiError(400, 'INVALID_EMAIL', 'A valid email address is required');
+  }
+};
+
+const validateRemoveGuestParticipant = (req) => {
+  ensureObjectIdParam(req, 'tournamentId');
+  ensureObjectIdParam(req, 'playerId');
+};
+
 const validateUpdateHostTournamentSettings = (req) => {
   ensureObjectIdParam(req, 'tournamentId');
   const body = parseBody(req);
@@ -394,8 +414,18 @@ const routeValidators = [
   },
   {
     method: 'POST',
+    regex: /^\/api\/tournaments\/[^/]+\/participants\/guest-add$/,
+    validate: validateGuestAddParticipant,
+  },
+  {
+    method: 'POST',
     regex: /^\/api\/tournaments\/[^/]+\/participants\/[^/]+\/remove$/,
     validate: validateManualRemoveParticipant,
+  },
+  {
+    method: 'POST',
+    regex: /^\/api\/tournaments\/[^/]+\/participants\/guest\/[^/]+\/remove$/,
+    validate: validateRemoveGuestParticipant,
   },
   { method: 'POST', regex: /^\/api\/tournaments\/[^/]+\/score-editors$/, validate: validateAssignScoreEditor },
   {

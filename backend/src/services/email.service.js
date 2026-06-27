@@ -257,6 +257,65 @@ async function sendPasswordResetPinEmail({ toEmail, toName, pin, ttlMinutes }) {
   return { deliveryMode: 'smtp' };
 }
 
+const buildGuestInviteEmailText = ({ name, tournamentName, hostName }) => {
+  const greetingName = name ? ` ${name}` : '';
+  const hostLabel = hostName ? ` ${hostName}` : ' the tournament host';
+
+  return [
+    `Hello${greetingName},`,
+    '',
+    `You have been added to "${tournamentName}" on Rack-N-Roll by${hostLabel}.`,
+    'Download the Rack-N-Roll app and sign up using this same email address to follow the tournament,',
+    'view your matches, and track your progress.',
+    '',
+    'Rack-N-Roll',
+  ].join('\n');
+};
+
+const buildGuestInviteEmailHtml = ({ name, tournamentName, hostName }) => {
+  const safeName = String(name || 'there').replace(/[<>&"']/g, '');
+  const safeTournamentName = String(tournamentName || 'Tournament').replace(/[<>&"']/g, '');
+  const safeHostName = String(hostName || 'the tournament host').replace(/[<>&"']/g, '');
+
+  return `
+    <div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.5;">
+      <p>Hello ${safeName},</p>
+      <p>You have been added to <strong>${safeTournamentName}</strong> on Rack-N-Roll by ${safeHostName}.</p>
+      <p>Download the Rack-N-Roll app and sign up using <strong>this same email address</strong> to follow the tournament, view your matches, and track your progress.</p>
+      <p>Rack-N-Roll</p>
+    </div>
+  `;
+};
+
+async function sendGuestTournamentInviteEmail({ toEmail, toName, tournamentName, hostName }) {
+  const deliveryMode = getDeliveryMode();
+  const safeTournamentName = String(tournamentName || 'Tournament').trim() || 'Tournament';
+
+  if (deliveryMode === 'log') {
+    console.log(
+      `[mail:log] Guest tournament invite for ${toEmail}: added to "${safeTournamentName}" by ${hostName || 'host'}`
+    );
+    return { deliveryMode: 'log' };
+  }
+
+  const smtp = getSmtpConfig();
+  const transporter = await getTransporter();
+
+  try {
+    await transporter.sendMail({
+      from: `"${smtp.fromName}" <${smtp.fromEmail}>`,
+      to: toEmail,
+      subject: `You've been added to ${safeTournamentName} on Rack-N-Roll`,
+      text: buildGuestInviteEmailText({ name: toName, tournamentName: safeTournamentName, hostName }),
+      html: buildGuestInviteEmailHtml({ name: toName, tournamentName: safeTournamentName, hostName }),
+    });
+  } catch (error) {
+    throw mapSmtpError(error, 'Unable to send guest tournament invite email', smtp);
+  }
+
+  return { deliveryMode: 'smtp' };
+}
+
 async function sendTournamentExportEmail({ toEmail, toName, tournamentName, filename, buffer }) {
   const deliveryMode = getDeliveryMode();
 
@@ -299,6 +358,7 @@ async function sendTournamentExportEmail({ toEmail, toName, tournamentName, file
 
 module.exports = {
   sendPasswordResetPinEmail,
+  sendGuestTournamentInviteEmail,
   sendTournamentExportEmail,
   getSmtpConfig,
   buildTransportOptions,

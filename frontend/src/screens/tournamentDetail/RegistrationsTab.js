@@ -21,6 +21,7 @@ export function RegistrationsTab({
   userSearchResults,
   busyManualAddUserId,
   onManualAddParticipant,
+  onOpenAddGuestPlayer,
   pendingItems,
   approvedItems,
   isLoadingRegistrations,
@@ -144,9 +145,28 @@ export function RegistrationsTab({
         {approvedItems.map((item) => (
           <ListRowCard
             key={item.id}
-            title={item.user?.name || item.user?.email || item.userId}
-            subtitle={item.user?.email || item.userId}
-          />
+            title={item.user?.name || item.user?.email || item.userId || item.displayName}
+            subtitle={
+              item.isGuest
+                ? `${item.guestEmail || item.user?.email || 'No email'} · No account yet`
+                : item.user?.email || item.userId
+            }
+          >
+            {item.isGuest && (
+              <View
+                style={{
+                  alignSelf: 'flex-start',
+                  marginTop: 4,
+                  paddingHorizontal: 8,
+                  paddingVertical: 3,
+                  borderRadius: 999,
+                  backgroundColor: '#fef3c7',
+                }}
+              >
+                <Text style={{ fontSize: 11, fontWeight: '700', color: '#92400e' }}>No account yet</Text>
+              </View>
+            )}
+          </ListRowCard>
         ))}
 
         <View style={{ marginTop: approvedItems.length > 0 ? 12 : 0, gap: 8 }}>
@@ -163,12 +183,19 @@ export function RegistrationsTab({
             onChangeText={onSearchQueryChange}
             autoCapitalize="none"
           />
-          <ActionButton
-            label={isSearchingUsers ? 'Searching…' : 'Search users'}
-            onPress={onSearchUsers}
-            disabled={isSearchingUsers}
-            fullWidth
-          />
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <View style={{ flex: 1 }}>
+              <ActionButton
+                label={isSearchingUsers ? 'Searching…' : 'Search users'}
+                onPress={onSearchUsers}
+                disabled={isSearchingUsers}
+                fullWidth
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <ActionButton label="Add player" onPress={onOpenAddGuestPlayer} variant="secondary" fullWidth />
+            </View>
+          </View>
 
           {userSearchResults.map((user) => {
             const isAlreadyApproved = user.registrationStatus === 'approved';

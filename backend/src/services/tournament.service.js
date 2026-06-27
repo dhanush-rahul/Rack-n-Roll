@@ -7,6 +7,7 @@ const Leaderboard = require('../models/leaderboard.model');
 const Team = require('../models/team.model');
 const User = require('../models/user.model');
 const ApiError = require('../utils/ApiError');
+const { sendGuestTournamentInviteEmail } = require('./email.service');
 const { computePoolStats, getHandicapBonusPoints } = require('../utils/handicapScoring');
 const {
   isDoublesTournament,
@@ -177,6 +178,52 @@ const getMajorSequenceLabel = (index) => {
 const buildGroupName = (index) => `Group ${getMajorSequenceLabel(index)}`;
 
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const guestEmailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const GUEST_NAME_MIN_LENGTH = 2;
+const GUEST_NAME_MAX_LENGTH = 120;
+const GUEST_EMAIL_MAX_LENGTH = 254;
+
+const normalizeGuestEmail = (email) => String(email || '').trim().toLowerCase();
+const normalizeGuestName = (name) => String(name || '').trim().replace(/\s+/g, ' ');
+
+const validateGuestParticipantInput = ({ name, email }) => {
+  const normalizedName = normalizeGuestName(name);
+
+  if (!normalizedName || normalizedName.length < GUEST_NAME_MIN_LENGTH) {
+    throw new ApiError(400, 'INVALID_NAME', 'Name must be at least 2 characters long');
+  }
+
+  if (normalizedName.length > GUEST_NAME_MAX_LENGTH) {
+    throw new ApiError(400, 'INVALID_NAME', 'Name must be at most 120 characters long');
+  }
+
+  const normalizedEmail = normalizeGuestEmail(email);
+
+  if (!guestEmailRegex.test(normalizedEmail) || normalizedEmail.length > GUEST_EMAIL_MAX_LENGTH) {
+    throw new ApiError(400, 'INVALID_EMAIL', 'A valid email address is required');
+  }
+
+  return { normalizedName, normalizedEmail };
+};
+
+const mapGuestPlayerRosterItem = (player) => ({
+  id: String(player._id),
+  playerId: String(player._id),
+  tournamentId: String(player.tournamentId),
+  userId: null,
+  status: 'approved',
+  isGuest: true,
+  guestEmail: player.pendingLinkEmail,
+  inviteCodeUsed: null,
+  reviewedByUserId: player.addedByHostUserId ? String(player.addedByHostUserId) : null,
+  reviewedAt: player.createdAt || null,
+  createdAt: player.createdAt,
+  updatedAt: player.updatedAt,
+  user: {
+    name: player.displayName,
+    email: player.pendingLinkEmail,
+  },
+});
 
 const mapTournamentForDiscovery = (tournament, currentUserRegistrationStatus = null) => ({
   id: String(tournament._id),
@@ -564,10 +611,20 @@ const mapRegistrationSummaryWithUser = (registration, userSummaryById) => {
 };
 
 const ensureApprovedParticipantsCountInitialized = async (tournamentId) => {
-  const approvedCount = await TournamentRegistration.countDocuments({
-    tournamentId,
-    status: 'approved',
-  });
+  const [approvedRegistrationCount, guestPlayerCount] = await Promise.all([
+    TournamentRegistration.countDocuments({
+      tournamentId,
+      status: 'approved',
+    }),
+    Player.countDocuments({
+      tournamentId,
+      status: 'active',
+      userId: null,
+      pendingLinkEmail: { $type: 'string', $ne: null },
+    }),
+  ]);
+
+  const approvedCount = approvedRegistrationCount + guestPlayerCount;
 
   await Tournament.updateOne(
     {
@@ -701,14 +758,24 @@ const listHostRegistrations = async (tournamentId, hostUserId, query = {}) => {
   ]);
 
   const userSummaryById = await buildUserSummaryById(items.map((item) => item.userId));
-  const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
+  const guestPlayers = await Player.find({
+    tournamentId: tournament._id,
+    status: 'active',
+    userId: null,
+    pendingLinkEmail: { $type: 'string', $ne: null },
+  })
+    .sort({ createdAt: -1, _id: -1 })
+    .lean();
+  const guestItems = guestPlayers.map(mapGuestPlayerRosterItem);
+  const combinedTotal = total + guestItems.length;
+  const totalPages = combinedTotal === 0 ? 0 : Math.ceil(combinedTotal / pageSize);
 
   return {
-    items: items.map((item) => mapRegistrationSummaryWithUser(item, userSummaryById)),
+    items: [...items.map((item) => mapRegistrationSummaryWithUser(item, userSummaryById)), ...guestItems],
     pagination: {
       page,
       pageSize,
-      total,
+      total: combinedTotal,
       totalPages,
     },
   };
@@ -1128,6 +1195,238 @@ const manuallyRemoveParticipant = async (tournamentId, hostUserId, targetUserId)
   }
 
   return mapRegistrationSummary(removedRegistration);
+};
+
+const addGuestParticipant = async (tournamentId, hostUserId, payload = {}) => {
+  const tournament = await assertHostAccess(tournamentId, hostUserId);
+  const { normalizedName, normalizedEmail } = validateGuestParticipantInput(payload);
+  const hostUser = await User.findById(tournament.hostUserId).select({ name: 1, email: 1 }).lean();
+
+  if (hostUser && normalizeGuestEmail(hostUser.email) === normalizedEmail) {
+    throw new ApiError(400, 'HOST_CANNOT_REGISTER', 'Host cannot be added as a participant');
+  }
+
+  const existingUser = await User.findOne({ email: normalizedEmail }).select({ _id: 1 }).lean();
+
+  if (existingUser) {
+    const manualAddResult = await manuallyAddParticipant(tournamentId, hostUserId, String(existingUser._id));
+
+    return {
+      ...manualAddResult,
+      isGuest: false,
+      linkedImmediately: true,
+      inviteEmailSent: false,
+    };
+  }
+
+  const existingGuest = await Player.findOne({
+    tournamentId,
+    status: 'active',
+    pendingLinkEmail: normalizedEmail,
+  }).lean();
+
+  if (existingGuest) {
+    throw new ApiError(
+      409,
+      'GUEST_ALREADY_ON_ROSTER',
+      'A guest player with this email is already on the roster for this tournament'
+    );
+  }
+
+  await reserveApprovalCapacitySlot(tournamentId);
+
+  const tournamentMeta = await Tournament.findById(tournamentId).select({ name: 1, competitionConfig: 1 }).lean();
+  const useHandicap = Boolean(tournamentMeta?.competitionConfig?.handicapEnabled);
+
+  let createdPlayer;
+
+  try {
+    createdPlayer = await Player.create({
+      tournamentId,
+      userId: null,
+      displayName: normalizedName,
+      pendingLinkEmail: normalizedEmail,
+      addedByHostUserId: hostUserId,
+      handicapEnabled: useHandicap,
+      handicapValue: 0,
+      status: 'active',
+    });
+  } catch (error) {
+    await releaseApprovalCapacitySlot(tournamentId);
+
+    if (error?.code === 11000) {
+      throw new ApiError(
+        409,
+        'GUEST_ALREADY_ON_ROSTER',
+        'A guest player with this email is already on the roster for this tournament'
+      );
+    }
+
+    throw error;
+  }
+
+  const groupSync = await syncApprovedPlayerToGroupsByPlayerId(tournamentId, String(createdPlayer._id));
+
+  let inviteEmailSent = false;
+
+  try {
+    await sendGuestTournamentInviteEmail({
+      toEmail: normalizedEmail,
+      toName: normalizedName,
+      tournamentName: tournamentMeta?.name || 'Tournament',
+      hostName: hostUser?.name || 'the tournament host',
+    });
+    inviteEmailSent = true;
+  } catch (error) {
+    console.error('[guest-add] invite email failed:', error?.message || error);
+  }
+
+  return {
+    ...mapGuestPlayerRosterItem(createdPlayer.toObject()),
+    groupSync,
+    isGuest: true,
+    linkedImmediately: false,
+    inviteEmailSent,
+  };
+};
+
+const linkPendingGuestPlayersForUser = async (userId, email) => {
+  const normalizedEmail = normalizeGuestEmail(email);
+  const normalizedUserId = String(userId || '').trim();
+
+  if (!normalizedEmail || !normalizedUserId) {
+    return { linkedTournamentIds: [] };
+  }
+
+  const user = await User.findById(normalizedUserId).select({ name: 1, email: 1 }).lean();
+
+  if (!user) {
+    return { linkedTournamentIds: [] };
+  }
+
+  const pendingPlayers = await Player.find({
+    pendingLinkEmail: normalizedEmail,
+    userId: null,
+    status: 'active',
+  }).lean();
+
+  if (pendingPlayers.length === 0) {
+    return { linkedTournamentIds: [] };
+  }
+
+  const linkedTournamentIds = [];
+  const reviewedAt = new Date();
+
+  for (const player of pendingPlayers) {
+    await Player.updateOne(
+      { _id: player._id },
+      {
+        $set: {
+          userId: normalizedUserId,
+          displayName: user.name || player.displayName,
+          pendingLinkEmail: null,
+        },
+      }
+    );
+
+    const existingRegistration = await TournamentRegistration.findOne({
+      tournamentId: player.tournamentId,
+      userId: normalizedUserId,
+    }).lean();
+
+    if (!existingRegistration) {
+      await TournamentRegistration.create({
+        tournamentId: player.tournamentId,
+        userId: normalizedUserId,
+        status: 'approved',
+        reviewedAt,
+      });
+    } else if (existingRegistration.status !== 'approved') {
+      await TournamentRegistration.findOneAndUpdate(
+        {
+          _id: existingRegistration._id,
+          status: { $ne: 'approved' },
+        },
+        {
+          $set: {
+            status: 'approved',
+            reviewedAt,
+          },
+        }
+      );
+    }
+
+    linkedTournamentIds.push(String(player.tournamentId));
+  }
+
+  return { linkedTournamentIds };
+};
+
+const removeGuestParticipant = async (tournamentId, hostUserId, playerId) => {
+  await assertHostAccess(tournamentId, hostUserId);
+
+  const normalizedPlayerId = String(playerId || '').trim();
+
+  if (!normalizedPlayerId) {
+    throw new ApiError(400, 'PLAYER_ID_REQUIRED', 'playerId is required for guest remove');
+  }
+
+  await ensureApprovedParticipantsCountInitialized(tournamentId);
+
+  const reservedRemovalCapacity = await Tournament.findOneAndUpdate(
+    {
+      _id: tournamentId,
+      approvedParticipantsCount: { $gt: 0 },
+    },
+    {
+      $inc: {
+        approvedParticipantsCount: -1,
+      },
+    },
+    {
+      new: false,
+    }
+  ).lean();
+
+  if (!reservedRemovalCapacity) {
+    throw new ApiError(404, 'APPROVED_PARTICIPANT_NOT_FOUND', 'Approved participant not found for removal');
+  }
+
+  const removedPlayer = await Player.findOneAndUpdate(
+    {
+      _id: normalizedPlayerId,
+      tournamentId,
+      status: 'active',
+      userId: null,
+      pendingLinkEmail: { $type: 'string', $ne: null },
+    },
+    {
+      $set: {
+        status: 'removed',
+        pendingLinkEmail: null,
+      },
+    },
+    {
+      new: true,
+    }
+  ).lean();
+
+  if (!removedPlayer) {
+    await Tournament.updateOne(
+      {
+        _id: tournamentId,
+      },
+      {
+        $inc: {
+          approvedParticipantsCount: 1,
+        },
+      }
+    );
+
+    throw new ApiError(404, 'GUEST_PARTICIPANT_NOT_FOUND', 'Guest participant not found for removal');
+  }
+
+  return mapGuestPlayerRosterItem(removedPlayer);
 };
 
 const approveRegistrationRequest = async (tournamentId, registrationId, hostUserId) =>
@@ -2813,18 +3112,15 @@ const createIncrementalGroupStageGamesForTeam = async ({
   return Game.insertMany(gameDocuments);
 };
 
-const syncDoublesApprovedPlayerToGroups = async (tournamentId, userId, divisions, tournament) => {
-  const players = await ensurePlayersFromApprovedRegistrations(tournamentId);
-  const normalizedUserId = String(userId || '').trim();
-  const player = players.find((entry) => String(entry.userId) === normalizedUserId);
+const syncDoublesApprovedPlayerToGroupsByPlayerId = async (tournamentId, playerId, divisions, tournament) => {
+  const normalizedPlayerId = String(playerId || '').trim();
 
-  if (!player) {
+  if (!normalizedPlayerId) {
     return null;
   }
 
-  const playerId = String(player.id);
   const existingAssignment = divisions.find((division) =>
-    (division.playerIds || []).map((value) => String(value)).includes(playerId)
+    (division.playerIds || []).map((value) => String(value)).includes(normalizedPlayerId)
   );
 
   if (existingAssignment) {
@@ -2847,8 +3143,8 @@ const syncDoublesApprovedPlayerToGroups = async (tournamentId, userId, divisions
     awaitingPartner: true,
   }).lean();
 
-  if (byePlayer && String(byePlayer._id) !== playerId) {
-    team = await pairByeWithPlayer(tournamentId, hostUserId, playerId);
+  if (byePlayer && String(byePlayer._id) !== normalizedPlayerId) {
+    team = await pairByeWithPlayer(tournamentId, hostUserId, normalizedPlayerId);
     targetDivision =
       divisions.find((division) =>
         (division.playerIds || []).map((value) => String(value)).includes(String(byePlayer._id))
@@ -2866,12 +3162,12 @@ const syncDoublesApprovedPlayerToGroups = async (tournamentId, userId, divisions
       { _id: targetDivision._id },
       {
         $addToSet: {
-          playerIds: playerId,
+          playerIds: normalizedPlayerId,
         },
       }
     );
 
-    await Player.updateOne({ _id: playerId }, { $set: { awaitingPartner: true, teamId: null } });
+    await Player.updateOne({ _id: normalizedPlayerId }, { $set: { awaitingPartner: true, teamId: null } });
 
     return {
       divisionId: String(targetDivision._id),
@@ -2928,6 +3224,18 @@ const syncDoublesApprovedPlayerToGroups = async (tournamentId, userId, divisions
   };
 };
 
+const syncDoublesApprovedPlayerToGroups = async (tournamentId, userId, divisions, tournament) => {
+  const players = await ensurePlayersFromApprovedRegistrations(tournamentId);
+  const normalizedUserId = String(userId || '').trim();
+  const player = players.find((entry) => String(entry.userId) === normalizedUserId);
+
+  if (!player) {
+    return null;
+  }
+
+  return syncDoublesApprovedPlayerToGroupsByPlayerId(tournamentId, String(player.id), divisions, tournament);
+};
+
 const createIncrementalGroupStageGamesForPlayer = async ({
   tournamentId,
   divisionId,
@@ -2976,37 +3284,15 @@ const createIncrementalGroupStageGamesForPlayer = async ({
   return Game.insertMany(gameDocuments);
 };
 
-const syncApprovedPlayerToGroups = async (tournamentId, userId) => {
-  const divisions = await Division.find({
-    tournamentId,
-    name: { $ne: 'Final Stage' },
-  })
-    .sort({ name: 1, _id: 1 })
-    .lean();
+const syncSinglesApprovedPlayerToGroupsByPlayerId = async (tournamentId, playerId, divisions, tournament) => {
+  const normalizedPlayerId = String(playerId || '').trim();
 
-  if (divisions.length === 0) {
+  if (!normalizedPlayerId) {
     return null;
   }
 
-  const tournament = await Tournament.findById(tournamentId)
-    .select({ competitionConfig: 1, hostUserId: 1 })
-    .lean();
-
-  if (isDoublesTournament(tournament)) {
-    return syncDoublesApprovedPlayerToGroups(tournamentId, userId, divisions, tournament);
-  }
-
-  const players = await ensurePlayersFromApprovedRegistrations(tournamentId);
-  const normalizedUserId = String(userId || '').trim();
-  const player = players.find((entry) => String(entry.userId) === normalizedUserId);
-
-  if (!player) {
-    return null;
-  }
-
-  const playerId = String(player.id);
   const existingAssignment = divisions.find((division) =>
-    (division.playerIds || []).map((value) => String(value)).includes(playerId)
+    (division.playerIds || []).map((value) => String(value)).includes(normalizedPlayerId)
   );
 
   if (existingAssignment) {
@@ -3024,7 +3310,9 @@ const syncApprovedPlayerToGroups = async (tournamentId, userId) => {
     return null;
   }
 
-  const opponentIds = (targetDivision.playerIds || []).map((value) => String(value)).filter((value) => value !== playerId);
+  const opponentIds = (targetDivision.playerIds || [])
+    .map((value) => String(value))
+    .filter((value) => value !== normalizedPlayerId);
 
   await Division.updateOne(
     {
@@ -3032,7 +3320,7 @@ const syncApprovedPlayerToGroups = async (tournamentId, userId) => {
     },
     {
       $addToSet: {
-        playerIds: playerId,
+        playerIds: normalizedPlayerId,
       },
     }
   );
@@ -3047,7 +3335,7 @@ const syncApprovedPlayerToGroups = async (tournamentId, userId) => {
   const createdGames = await createIncrementalGroupStageGamesForPlayer({
     tournamentId,
     divisionId: String(targetDivision._id),
-    newPlayerId: playerId,
+    newPlayerId: normalizedPlayerId,
     opponentIds,
     bestOf,
     existingGames,
@@ -3063,6 +3351,69 @@ const syncApprovedPlayerToGroups = async (tournamentId, userId) => {
     gamesCreated: createdGames.length,
     alreadyAssigned: false,
   };
+};
+
+const syncApprovedPlayerToGroupsByPlayerId = async (tournamentId, playerId) => {
+  const divisions = await Division.find({
+    tournamentId,
+    name: { $ne: 'Final Stage' },
+  })
+    .sort({ name: 1, _id: 1 })
+    .lean();
+
+  if (divisions.length === 0) {
+    return null;
+  }
+
+  const tournament = await Tournament.findById(tournamentId)
+    .select({ competitionConfig: 1, hostUserId: 1 })
+    .lean();
+
+  if (isDoublesTournament(tournament)) {
+    return syncDoublesApprovedPlayerToGroupsByPlayerId(tournamentId, playerId, divisions, tournament);
+  }
+
+  return syncSinglesApprovedPlayerToGroupsByPlayerId(tournamentId, playerId, divisions, tournament);
+};
+
+const syncApprovedPlayerToGroups = async (tournamentId, userId) => {
+  const divisions = await Division.find({
+    tournamentId,
+    name: { $ne: 'Final Stage' },
+  })
+    .sort({ name: 1, _id: 1 })
+    .lean();
+
+  if (divisions.length === 0) {
+    return null;
+  }
+
+  const normalizedUserId = String(userId || '').trim();
+
+  if (!normalizedUserId) {
+    return null;
+  }
+
+  let playerDoc = await Player.findOne({
+    tournamentId,
+    userId: normalizedUserId,
+    status: 'active',
+  }).lean();
+
+  if (!playerDoc) {
+    await materializeApprovedPlayerForUser(tournamentId, normalizedUserId);
+    playerDoc = await Player.findOne({
+      tournamentId,
+      userId: normalizedUserId,
+      status: 'active',
+    }).lean();
+  }
+
+  if (!playerDoc) {
+    return null;
+  }
+
+  return syncApprovedPlayerToGroupsByPlayerId(tournamentId, String(playerDoc._id));
 };
 
 const updateHostTournamentSettings = async (tournamentId, hostUserId, payload = {}) => {
@@ -4279,7 +4630,10 @@ module.exports = {
   rejectRegistrationRequest,
   searchManualAddUsers,
   manuallyAddParticipant,
+  addGuestParticipant,
+  linkPendingGuestPlayersForUser,
   manuallyRemoveParticipant,
+  removeGuestParticipant,
   assignScoreEditor,
   removeScoreEditor,
   requestProctorTransfer,

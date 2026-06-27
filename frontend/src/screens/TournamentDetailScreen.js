@@ -3,6 +3,7 @@ import { ScrollView, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { AddGuestPlayerModal } from '../components/AddGuestPlayerModal';
 import { FeedbackModal } from '../components/FeedbackModal';
 import { MatchScheduleModal } from '../components/tournament/MatchScheduleModal';
 import { useAuth } from '../context/AuthContext';
@@ -26,6 +27,7 @@ import {
   fetchTournamentGroupStandings,
   assignTournamentProctor,
   manuallyAddTournamentParticipant,
+  addGuestTournamentParticipant,
   acceptTournamentProctorTransfer,
   declineTournamentProctorTransfer,
   rejectTournamentRegistrationRequest,
@@ -147,6 +149,9 @@ export function TournamentDetailScreen({ route, navigation }) {
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
   const [userSearchResults, setUserSearchResults] = useState([]);
   const [busyManualAddUserId, setBusyManualAddUserId] = useState(null);
+  const [isGuestAddConfirmVisible, setIsGuestAddConfirmVisible] = useState(false);
+  const [isGuestAddFormVisible, setIsGuestAddFormVisible] = useState(false);
+  const [isAddingGuestPlayer, setIsAddingGuestPlayer] = useState(false);
   const [proctorSearchQuery, setProctorSearchQuery] = useState('');
   const [proctorSearchResults, setProctorSearchResults] = useState([]);
   const [isSearchingProctors, setIsSearchingProctors] = useState(false);
@@ -658,6 +663,68 @@ export function TournamentDetailScreen({ route, navigation }) {
       onLoadGroupFixtures,
       onLoadGroupsTab,
       onSearchUsers,
+      showError,
+      showSuccess,
+      tournamentId,
+    ]
+  );
+
+  const onOpenAddGuestPlayer = useCallback(() => {
+    clearAll();
+    setIsGuestAddConfirmVisible(true);
+  }, [clearAll]);
+
+  const onConfirmGuestAddIntro = useCallback(() => {
+    setIsGuestAddConfirmVisible(false);
+    setIsGuestAddFormVisible(true);
+  }, []);
+
+  const onSubmitGuestPlayer = useCallback(
+    async ({ name, email }) => {
+      try {
+        clearAll();
+        setIsAddingGuestPlayer(true);
+        const result = await addGuestTournamentParticipant(tournamentId, { name, email });
+        const groupSync = result?.groupSync;
+
+        if (result?.linkedImmediately) {
+          if (groupSync?.gamesCreated > 0) {
+            showSuccess(
+              `Existing user added to ${groupSync.divisionName || 'a group'} with ${groupSync.gamesCreated} new fixtures.`
+            );
+            gamesTabLoadStartedRef.current = false;
+            groupsTabLoadStartedRef.current = false;
+            await Promise.all([onLoadGroupFixtures(), onLoadGroupsTab()]);
+          } else {
+            showSuccess('Existing user added to the roster.');
+          }
+        } else if (groupSync?.gamesCreated > 0) {
+          showSuccess(
+            `Added ${name}. Invite email sent. Placed in ${groupSync.divisionName || 'a group'} with ${groupSync.gamesCreated} new fixtures.`
+          );
+          gamesTabLoadStartedRef.current = false;
+          groupsTabLoadStartedRef.current = false;
+          await Promise.all([onLoadGroupFixtures(), onLoadGroupsTab()]);
+        } else if (result?.inviteEmailSent) {
+          showSuccess(`Added ${name}. Invite email sent.`);
+        } else {
+          showSuccess(`Added ${name} to the roster. Invite email could not be sent right now.`);
+        }
+
+        setIsGuestAddFormVisible(false);
+        await Promise.all([loadDetail(), loadRegistrations()]);
+      } catch (error) {
+        showError(formatApiError(error, 'Unable to add guest player'));
+      } finally {
+        setIsAddingGuestPlayer(false);
+      }
+    },
+    [
+      clearAll,
+      loadDetail,
+      loadRegistrations,
+      onLoadGroupFixtures,
+      onLoadGroupsTab,
       showError,
       showSuccess,
       tournamentId,
@@ -1358,6 +1425,7 @@ export function TournamentDetailScreen({ route, navigation }) {
           userSearchResults={userSearchResults}
           busyManualAddUserId={busyManualAddUserId}
           onManualAddParticipant={onManualAddParticipant}
+          onOpenAddGuestPlayer={onOpenAddGuestPlayer}
           pendingItems={pendingItems}
           approvedItems={approvedItems}
           isLoadingRegistrations={loading.registrations}
@@ -1508,6 +1576,28 @@ export function TournamentDetailScreen({ route, navigation }) {
         message={tournamentCompleteMessage}
         emoji="🏆"
         onDismiss={() => setTournamentCompleteMessage('')}
+      />
+
+      <ConfirmModal
+        visible={isGuestAddConfirmVisible}
+        emoji="👤"
+        title="Add player without an account?"
+        message="Use this when someone is playing in person but does not have the Rack-N-Roll app yet. They can sign up later with the email you provide to follow this tournament."
+        confirmLabel="Continue"
+        cancelLabel="Cancel"
+        onConfirm={onConfirmGuestAddIntro}
+        onCancel={() => setIsGuestAddConfirmVisible(false)}
+      />
+
+      <AddGuestPlayerModal
+        visible={isGuestAddFormVisible}
+        onCancel={() => {
+          if (!isAddingGuestPlayer) {
+            setIsGuestAddFormVisible(false);
+          }
+        }}
+        onSubmit={onSubmitGuestPlayer}
+        isLoading={isAddingGuestPlayer}
       />
 
       <ConfirmModal

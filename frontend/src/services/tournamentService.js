@@ -74,6 +74,11 @@ export async function manuallyAddTournamentParticipant(tournamentId, userId) {
   return response.data;
 }
 
+export async function addGuestTournamentParticipant(tournamentId, payload) {
+  const response = await apiPost(`/api/tournaments/${tournamentId}/participants/guest-add`, payload);
+  return response.data;
+}
+
 export async function fetchRoundRobinPlayingPattern(tournamentId) {
   const response = await apiGet(`/api/tournaments/${tournamentId}/playing-pattern/round-robin`);
   return response.data;

@@ -48,6 +48,18 @@ const playerSchema = new mongoose.Schema(
       default: 'active',
       index: true,
     },
+    pendingLinkEmail: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: null,
+      maxlength: 254,
+    },
+    addedByHostUserId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -62,6 +74,16 @@ playerSchema.index(
     partialFilterExpression: {
       status: 'active',
       userId: { $type: 'objectId' },
+    },
+  }
+);
+playerSchema.index(
+  { tournamentId: 1, pendingLinkEmail: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      status: 'active',
+      pendingLinkEmail: { $type: 'string' },
     },
   }
 );
