@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { FeedbackModal } from '../components/FeedbackModal';
 import { clearToken, getToken, setToken } from '../utils/tokenStore';
 import { loginUser, signInWithGoogle as signInWithGoogleApi, signupUser } from '../services/authService';
 import { apiGet } from '../services/api';
@@ -11,6 +12,7 @@ export function AuthProvider({ children }) {
   const [isLoading, setIsLoading] = useState(true);
   const [token, setTokenState] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
+  const [signedOutModalVisible, setSignedOutModalVisible] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -78,12 +80,25 @@ export function AuthProvider({ children }) {
         await clearToken();
         setTokenState(null);
         setCurrentUser(null);
+        setSignedOutModalVisible(true);
       },
     }),
     [currentUser, isLoading, token]
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      <FeedbackModal
+        visible={signedOutModalVisible}
+        title="Signed out"
+        message="You've been signed out successfully. See you next time!"
+        icon="success"
+        dismissLabel="OK"
+        onDismiss={() => setSignedOutModalVisible(false)}
+      />
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {

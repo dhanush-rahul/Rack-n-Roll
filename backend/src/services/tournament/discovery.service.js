@@ -1,7 +1,12 @@
 const Tournament = require('../../models/tournament.model');
 const TournamentRegistration = require('../../models/tournamentRegistration.model');
 const ApiError = require('../../utils/ApiError');
+const cache = require('../../utils/cache');
 const { materializeApprovedPlayers } = require('./roster.service');
+
+const invalidateDiscoverCache = () => {
+  cache.delByPrefix('discover:');
+};
 const {
   assertHostAccess,
   parsePositiveInteger,
@@ -24,6 +29,8 @@ const createTournament = async (payload, hostUserId) => {
   }
 
   const createdTournament = await Tournament.create(normalizedPayload);
+
+  invalidateDiscoverCache();
 
   return {
     id: String(createdTournament._id),
@@ -56,14 +63,24 @@ const listDiscoverTournaments = async (query = {}, userId) => {
   const discoverFilter = buildDiscoverFilter(query);
   const discoverSort = buildDiscoverSort(query.sort);
 
-  const [items, total] = await Promise.all([
-    Tournament.find(discoverFilter)
-      .sort(discoverSort)
-      .skip((page - 1) * pageSize)
-      .limit(pageSize)
-      .lean(),
-    Tournament.countDocuments(discoverFilter),
-  ]);
+  // Cache only the viewer-independent base list. Per-user registration status is
+  // merged in below and intentionally stays uncached.
+  const { items, total } = await cache.getOrSet(
+    `discover:${cache.stableStringify({ filter: discoverFilter, sort: discoverSort, page, pageSize })}`,
+    cache.ttls().discover,
+    async () => {
+      const [foundItems, foundTotal] = await Promise.all([
+        Tournament.find(discoverFilter)
+          .sort(discoverSort)
+          .skip((page - 1) * pageSize)
+          .limit(pageSize)
+          .lean(),
+        Tournament.countDocuments(discoverFilter),
+      ]);
+
+      return { items: foundItems, total: foundTotal };
+    }
+  );
 
   const tournamentIds = items.map((item) => item._id);
 
@@ -173,6 +190,8 @@ const updateHostTournamentSettings = async (tournamentId, hostUserId, payload = 
     throw new ApiError(404, 'TOURNAMENT_NOT_FOUND', 'Tournament not found');
   }
 
+  invalidateDiscoverCache();
+
   const pendingParticipantsCount = await TournamentRegistration.countDocuments({
     tournamentId,
     status: 'underReview',
@@ -213,6 +232,8 @@ const closeTournamentRegistration = async (tournamentId, hostUserId) => {
   if (!updatedTournament) {
     throw new ApiError(409, 'REGISTRATION_ALREADY_CLOSED', 'Registration is already closed');
   }
+
+  invalidateDiscoverCache();
 
   await materializeApprovedPlayers(tournamentId);
 

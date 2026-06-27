@@ -5,7 +5,14 @@ const Leaderboard = require('../../models/leaderboard.model');
 const Team = require('../../models/team.model');
 const Player = require('../../models/player.model');
 const ApiError = require('../../utils/ApiError');
+const cache = require('../../utils/cache');
 const { computePoolStats, getHandicapBonusPoints } = require('../../utils/handicapScoring');
+
+const tournamentCachePrefix = (tournamentId) => `tournament:${String(tournamentId)}:`;
+
+const invalidateTournamentCache = (tournamentId) => {
+  cache.delByPrefix(tournamentCachePrefix(tournamentId));
+};
 const { isDoublesTournament, buildTeamSummaryById } = require('../team.service');
 const {
   buildScopeFilter,
@@ -188,6 +195,8 @@ const recomputeDoublesLeaderboardForScope = async (tournamentId, divisionId, sco
     }
   }
 
+  invalidateTournamentCache(tournamentId);
+
   return {
     tournamentId: String(tournamentId),
     divisionId: normalizeDivisionScopeValue(divisionId),
@@ -367,6 +376,8 @@ const recomputeLeaderboardForScope = async (tournamentId, divisionId) => {
     .sort({ rank: 1, playerId: 1 })
     .lean();
 
+  invalidateTournamentCache(tournamentId);
+
   return {
     tournamentId: String(tournamentId),
     divisionId: normalizeDivisionScopeValue(divisionId),
@@ -387,7 +398,7 @@ const recomputeLeaderboardForScope = async (tournamentId, divisionId) => {
 
 // ── Leaderboard read ───────────────────────────────────────────────────────
 
-const listTournamentLeaderboard = async (tournamentId, divisionId, standingsType = 'player') => {
+const loadTournamentLeaderboard = async (tournamentId, divisionId, standingsType = 'player') => {
   const scopeFilter = {
     ...buildScopeFilter(tournamentId, divisionId),
     standingsType,
@@ -438,9 +449,16 @@ const listTournamentLeaderboard = async (tournamentId, divisionId, standingsType
   };
 };
 
+const listTournamentLeaderboard = (tournamentId, divisionId, standingsType = 'player') =>
+  cache.getOrSet(
+    `${tournamentCachePrefix(tournamentId)}leaderboard:${divisionId == null ? 'all' : String(divisionId)}:${standingsType}`,
+    cache.ttls().leaderboard,
+    () => loadTournamentLeaderboard(tournamentId, divisionId, standingsType)
+  );
+
 // ── Group standings ────────────────────────────────────────────────────────
 
-const buildGroupStandingsList = async (tournamentId, query = {}) => {
+const loadGroupStandingsList = async (tournamentId, query = {}) => {
   const defaultTopPerGroup = Math.min(parsePositiveInteger(query.topPerGroup, 2), 8);
   const tournament = await Tournament.findById(tournamentId)
     .select({ competitionConfig: 1, progressionState: 1 })
@@ -614,6 +632,15 @@ const buildGroupStandingsList = async (tournamentId, query = {}) => {
     tournamentWinners,
     groups,
   };
+};
+
+const buildGroupStandingsList = (tournamentId, query = {}) => {
+  const topPerGroup = Math.min(parsePositiveInteger(query.topPerGroup, 2), 8);
+  return cache.getOrSet(
+    `${tournamentCachePrefix(tournamentId)}standings:${cache.stableStringify({ topPerGroup })}`,
+    cache.ttls().standings,
+    () => loadGroupStandingsList(tournamentId, query)
+  );
 };
 
 const listGroupStandings = async (tournamentId, userId, query = {}) => {

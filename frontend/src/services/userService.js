@@ -10,7 +10,13 @@ export async function updateMyHandicap(handicap) {
   return response.data;
 }
 
-export async function setMyPassword(password) {
-  const response = await apiPost('/api/users/me/password', { password });
+export async function setMyPassword(password, currentPassword) {
+  const payload = { password };
+
+  if (currentPassword) {
+    payload.currentPassword = currentPassword;
+  }
+
+  const response = await apiPost('/api/users/me/password', payload);
   return response.data;
 }

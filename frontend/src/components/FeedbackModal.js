@@ -1,12 +1,33 @@
 import React from 'react';
 import { Modal, Pressable, View } from 'react-native';
 import { ScaledText as Text } from './ui/ScaledText';
+import { ActionButton } from './tournament/TournamentChrome';
 import { AppIcon } from './ui/AppIcon';
 import { tournamentColors, tournamentUi } from '../styles/tournamentUi';
 
-export function FeedbackModal({ visible, title, message, onDismiss, icon = 'help' }) {
+const iconToneFor = (icon) => {
+  if (icon === 'celebrate' || icon === 'success') {
+    return 'success';
+  }
+
+  if (icon === 'error' || icon === 'warning') {
+    return 'danger';
+  }
+
+  return 'primary';
+};
+
+export function FeedbackModal({
+  visible,
+  title,
+  message,
+  onDismiss,
+  icon = 'help',
+  dismissLabel = 'Got it',
+}) {
   const displayMessage = String(message || '').trim();
   const displayTitle = String(title || '').trim();
+  const iconTone = iconToneFor(icon);
 
   return (
     <Modal
@@ -19,37 +40,27 @@ export function FeedbackModal({ visible, title, message, onDismiss, icon = 'help
         <Pressable style={tournamentUi.modalBackdrop} onPress={onDismiss} />
         <View style={tournamentUi.modalCard}>
           {Boolean(icon) && (
-            <View
-              style={{
-                alignSelf: 'center',
-                width: 52,
-                height: 52,
-                borderRadius: 26,
-                backgroundColor: '#eff4ff',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <AppIcon name={icon} size={28} color={tournamentColors.primary} />
+            <View style={tournamentUi.modalIconWrap(iconTone)}>
+              <AppIcon
+                name={icon}
+                size={28}
+                color={
+                  iconTone === 'success'
+                    ? tournamentColors.success
+                    : iconTone === 'danger'
+                      ? tournamentColors.error
+                      : tournamentColors.primary
+                }
+              />
             </View>
           )}
           {Boolean(displayTitle) && <Text style={tournamentUi.modalTitle}>{displayTitle}</Text>}
           {Boolean(displayMessage) && (
-            <Text style={[tournamentUi.modalMessage, { color: '#000000' }]}>{displayMessage}</Text>
+            <Text style={tournamentUi.modalMessage}>{displayMessage}</Text>
           )}
-          <Pressable
-            onPress={onDismiss}
-            style={({ pressed }) => [
-              tournamentUi.primaryButton,
-              {
-                width: '50%',
-                alignSelf: 'center',
-                opacity: pressed ? 0.85 : 1,
-              },
-            ]}
-          >
-            <Text style={tournamentUi.primaryButtonText}>Sure!</Text>
-          </Pressable>
+          <View style={{ marginTop: 4 }}>
+            <ActionButton label={dismissLabel} onPress={onDismiss} fullWidth />
+          </View>
         </View>
       </View>
     </Modal>

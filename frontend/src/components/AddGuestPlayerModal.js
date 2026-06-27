@@ -3,7 +3,7 @@ import { Modal, Pressable, View } from 'react-native';
 import { ScaledText as Text } from './ui/ScaledText';
 import { ScaledTextInput as TextInput } from './ui/ScaledTextInput';
 import { ActionButton } from './tournament/TournamentChrome';
-import { discoverUi, tournamentColors, tournamentUi } from '../styles/tournamentUi';
+import { tournamentColors, tournamentUi } from '../styles/tournamentUi';
 
 export function AddGuestPlayerModal({ visible, onCancel, onSubmit, isLoading = false }) {
   const [name, setName] = useState('');
@@ -24,9 +24,9 @@ export function AddGuestPlayerModal({ visible, onCancel, onSubmit, isLoading = f
     <Modal animationType="fade" transparent visible={Boolean(visible)} onRequestClose={onCancel}>
       <View style={tournamentUi.modalOverlay}>
         <Pressable style={tournamentUi.modalBackdrop} onPress={isLoading ? undefined : onCancel} />
-        <View style={[discoverUi.surfaceCard, { marginHorizontal: 4, gap: 12 }]}>
-          <Text style={{ fontSize: 18, fontWeight: '800', color: tournamentColors.text }}>Add player</Text>
-          <Text style={{ fontSize: 14, lineHeight: 20, color: tournamentColors.textMuted }}>
+        <View style={[tournamentUi.modalCard, { gap: 12 }]}>
+          <Text style={tournamentUi.modalTitle}>Add player</Text>
+          <Text style={[tournamentUi.modalMessage, { textAlign: 'left' }]}>
             Enter the player&apos;s name and email. They can sign up later with this email to follow the tournament in
             the app.
           </Text>

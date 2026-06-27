@@ -4,8 +4,13 @@ const Game = require('../../models/game.model');
 const Player = require('../../models/player.model');
 const User = require('../../models/user.model');
 const ApiError = require('../../utils/ApiError');
+const cache = require('../../utils/cache');
 const { buildTeamSummaryById } = require('../team.service');
 const { recomputeLeaderboardForScope } = require('./leaderboard.service');
+
+const invalidateScoresheetCache = (tournamentId) => {
+  cache.delByPrefix(`tournament:${String(tournamentId)}:scoresheet:`);
+};
 const {
   canUserEditGameScores,
   canUserEditTournamentScores,
@@ -25,7 +30,7 @@ const {
   isStageProctored,
 } = require('./shared');
 
-const listTournamentScoresheet = async (tournamentId, userId, query = {}) => {
+const loadTournamentScoresheet = async (tournamentId, userId, query = {}) => {
   const canEdit = userId ? await canUserEditTournamentScores(tournamentId, userId) : false;
   const tournamentMeta = await Tournament.findById(tournamentId)
     .select({ proctorTransferRequest: 1, scoreEditorUserIds: 1, hostUserId: 1, competitionConfig: 1, progressionState: 1 })
@@ -159,6 +164,26 @@ const listTournamentScoresheet = async (tournamentId, userId, query = {}) => {
   };
 };
 
+// Scoresheet output is viewer-dependent (canEdit / canEditMatch), so the cache
+// key is scoped per user as well as per tournament + query.
+const listTournamentScoresheet = (tournamentId, userId, query = {}) => {
+  const keyQuery = {
+    page: query.page,
+    pageSize: query.pageSize,
+    stage: query.stage,
+    status: query.status,
+    divisionId: query.divisionId,
+    playerQuery: query.playerQuery,
+    player2Query: query.player2Query,
+  };
+
+  return cache.getOrSet(
+    `tournament:${String(tournamentId)}:scoresheet:${userId ? String(userId) : 'anon'}:${cache.stableStringify(keyQuery)}`,
+    cache.ttls().scoresheet,
+    () => loadTournamentScoresheet(tournamentId, userId, query)
+  );
+};
+
 const updateGameScores = async (tournamentId, gameId, userId, payload = {}) => {
   const existingGame = await Game.findOne({ _id: gameId, tournamentId }).lean();
 
@@ -276,6 +301,8 @@ const updateGameSchedule = async (tournamentId, gameId, userId, payload = {}) =>
     { new: true }
   ).lean();
 
+  invalidateScoresheetCache(tournamentId);
+
   const tournament = await Tournament.findById(tournamentId)
     .select({ hostUserId: 1, scoreEditorUserIds: 1, competitionConfig: 1 })
     .lean();
@@ -304,7 +331,7 @@ const upsertAndScoreGroupStageGame = async (tournamentId, userId, payload = {}) 
     throw new ApiError(404, 'TOURNAMENT_NOT_FOUND', 'Tournament not found');
   }
 
-  if (Boolean(tournament.competitionConfig?.groupStageProctored)) {
+  if (tournament.competitionConfig?.groupStageProctored) {
     throw new ApiError(
       403,
       'MANUAL_SCORING_DISABLED',

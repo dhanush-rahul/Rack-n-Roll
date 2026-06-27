@@ -1,5 +1,5 @@
 const { getUserProfile, updateUserHandicap } = require('../services/user.service');
-const { setAccountPassword } = require('../services/auth.service');
+const { setAccountPassword, changeAccountPassword } = require('../services/auth.service');
 
 const getMyProfileController = async (req, res, next) => {
   try {
@@ -29,7 +29,14 @@ const updateMyHandicapController = async (req, res, next) => {
 
 const setMyPasswordController = async (req, res, next) => {
   try {
-    await setAccountPassword(req.auth?.userId, req.body);
+    const { password, currentPassword } = req.body || {};
+
+    if (currentPassword) {
+      await changeAccountPassword(req.auth?.userId, { currentPassword, newPassword: password });
+    } else {
+      await setAccountPassword(req.auth?.userId, { password });
+    }
+
     const result = await getUserProfile(req.auth?.userId);
 
     res.status(200).json({

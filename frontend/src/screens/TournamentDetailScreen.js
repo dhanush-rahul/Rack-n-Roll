@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { useGroupStageFixtures } from '../hooks/useGroupStageFixtures';
 import { useGroupStandings } from '../hooks/useGroupStandings';
 import { formatApiError, useScreenFeedback } from '../hooks/useScreenFeedback';
+import { useScreenInsets } from '../hooks/useScreenInsets';
 import { logApiError } from '../utils/errorLogger';
 import { useHostTournamentDetail } from '../hooks/queries/useHostTournamentDetail';
 import { useHostTournamentRegistrations } from '../hooks/queries/useHostTournamentRegistrations';
@@ -110,6 +111,7 @@ export function TournamentDetailScreen({ route, navigation }) {
     clearSuccess,
     clearAll,
   } = useScreenFeedback();
+  const { scrollPaddingBottom } = useScreenInsets();
 
   const [isHostInfoModalVisible, setIsHostInfoModalVisible] = useState(false);
   const [finalStageGames, setFinalStageGames] = useState([]);
@@ -312,14 +314,27 @@ export function TournamentDetailScreen({ route, navigation }) {
     return names;
   }, [finalStageGames]);
 
+  const resolvedFinalStageBestOf = useMemo(() => {
+    if (configuredFinalStageBestOfFromDetail != null && Number(configuredFinalStageBestOfFromDetail) > 0) {
+      return Math.max(Number(configuredFinalStageBestOfFromDetail), 1);
+    }
+
+    const fromGame = (finalStageGames || []).find((game) => Number(game.bestOf) > 0);
+    if (fromGame) {
+      return Math.max(Number(fromGame.bestOf), 1);
+    }
+
+    return 3;
+  }, [configuredFinalStageBestOfFromDetail, finalStageGames]);
+
   const finalDisplaySections = useMemo(
     () =>
       buildFixtureSectionsFromGames(finalStageGames, {
         divisionNameById: finalDivisionNameById,
-        groupStageBestOf: configuredFinalStageBestOf,
+        groupStageBestOf: resolvedFinalStageBestOf,
         isPlayedScoreEntry,
       }),
-    [configuredFinalStageBestOf, finalDivisionNameById, finalStageGames]
+    [resolvedFinalStageBestOf, finalDivisionNameById, finalStageGames]
   );
 
   const finalFixtureSummaryText = useMemo(() => {
@@ -329,8 +344,8 @@ export function TournamentDetailScreen({ route, navigation }) {
       return '';
     }
 
-    return `${loadedCount} finale ${loadedCount === 1 ? 'match' : 'matches'} • Best of ${configuredFinalStageBestOf} series`;
-  }, [configuredFinalStageBestOf, finalDisplaySections]);
+    return `${loadedCount} finale ${loadedCount === 1 ? 'match' : 'matches'} • Best of ${resolvedFinalStageBestOf} series`;
+  }, [resolvedFinalStageBestOf, finalDisplaySections]);
 
   const activeFinalRoundKey = useMemo(
     () => findActiveFixtureRoundKey(finalDisplaySections),
@@ -506,6 +521,7 @@ export function TournamentDetailScreen({ route, navigation }) {
     isSavingMaxParticipants,
     onReviewRegistration,
     onSearchUsers,
+    onClearUserSearch,
     onManualAddParticipant,
     onOpenAddGuestPlayer,
     onConfirmGuestAddIntro,
@@ -800,7 +816,11 @@ export function TournamentDetailScreen({ route, navigation }) {
   );
 
   return (
-    <ScrollView style={tournamentUi.screen} contentContainerStyle={tournamentUi.content} removeClippedSubviews={false}>
+    <ScrollView
+      style={tournamentUi.screen}
+      contentContainerStyle={[tournamentUi.content, { paddingBottom: scrollPaddingBottom }]}
+      removeClippedSubviews={false}
+    >
       <View style={{ marginBottom: 16 }}>
         <TournamentScreenHero
           eyebrow="HOST DASHBOARD"
@@ -851,6 +871,7 @@ export function TournamentDetailScreen({ route, navigation }) {
           searchQuery={searchQuery}
           onSearchQueryChange={setSearchQuery}
           onSearchUsers={onSearchUsers}
+          onClearUserSearch={onClearUserSearch}
           isSearchingUsers={isSearchingUsers}
           userSearchResults={userSearchResults}
           busyManualAddUserId={busyManualAddUserId}

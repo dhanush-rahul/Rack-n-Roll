@@ -35,7 +35,6 @@ const {
   finalizeTournamentWithoutFinalStage,
   finalizeTournamentWithFinalStage,
   listGroupStandings,
-  listGroupStandingsForHost,
 } = require('../services/tournament');
 const {
   startGameSession,

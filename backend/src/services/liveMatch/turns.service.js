@@ -1,6 +1,11 @@
 const Game = require('../../models/game.model');
 const ApiError = require('../../utils/ApiError');
+const cache = require('../../utils/cache');
 const { assertCanEditTournamentScores, recomputeLeaderboardForScope } = require('../tournament');
+
+const invalidateScoresheetCache = (tournamentId) => {
+  cache.delByPrefix(`tournament:${String(tournamentId)}:scoresheet:`);
+};
 const {
   END_GAME_REASONS,
   parseBestOf,
@@ -119,6 +124,8 @@ const advanceGameTurn = async (tournamentId, gameId, userId, payload = {}) => {
   game.markModified('seriesState');
   await game.save();
 
+  invalidateScoresheetCache(tournamentId);
+
   return mapLiveMatchState(game.toObject(), true, userId);
 };
 
@@ -223,6 +230,8 @@ const endSeriesGame = async (tournamentId, gameId, userId, payload = {}) => {
 
   if (seriesComplete) {
     await recomputeLeaderboardForScope(tournamentId, game.divisionId);
+  } else {
+    invalidateScoresheetCache(tournamentId);
   }
 
   const state = await mapLiveMatchState(game.toObject(), true, userId);

@@ -157,6 +157,42 @@ export function validateSetPasswordInput({ password, confirmPassword }) {
   };
 }
 
+export function validateChangePasswordInput({ currentPassword, password, confirmPassword }) {
+  const normalizedCurrentPassword = normalizePassword(currentPassword);
+  const normalizedPassword = normalizePassword(password);
+  const normalizedConfirmPassword = normalizePassword(confirmPassword);
+
+  const errors = {
+    currentPassword: '',
+    password: '',
+    confirmPassword: '',
+  };
+
+  if (!normalizedCurrentPassword) {
+    errors.currentPassword = 'Current password is required.';
+  } else if (normalizedCurrentPassword.length > PASSWORD_MAX_LENGTH) {
+    errors.currentPassword = 'Current password must be 72 characters or fewer.';
+  }
+
+  errors.password = validatePassword(normalizedPassword);
+
+  if (!normalizedConfirmPassword) {
+    errors.confirmPassword = 'Please confirm your new password.';
+  } else if (normalizedPassword !== normalizedConfirmPassword) {
+    errors.confirmPassword = 'Passwords do not match.';
+  } else if (normalizedCurrentPassword && normalizedCurrentPassword === normalizedPassword) {
+    errors.password = 'New password must be different from your current password.';
+  }
+
+  return {
+    errors,
+    sanitized: {
+      currentPassword: normalizedCurrentPassword,
+      password: normalizedPassword,
+    },
+  };
+}
+
 export function validateForgotPasswordRequestInput({ email }) {
   const normalizedEmail = normalizeEmail(email);
 

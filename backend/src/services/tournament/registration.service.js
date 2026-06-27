@@ -1,6 +1,7 @@
 const Tournament = require('../../models/tournament.model');
 const TournamentRegistration = require('../../models/tournamentRegistration.model');
 const ApiError = require('../../utils/ApiError');
+const cache = require('../../utils/cache');
 const { materializeApprovedPlayerForUser } = require('./roster.service');
 const { syncApprovedPlayerToGroups } = require('./fixtures.service');
 const {
@@ -152,6 +153,9 @@ const reviewRegistrationRequest = async (tournamentId, registrationId, hostUserI
         'Only underReview requests can be reviewed. The request may have already been processed.'
       );
     }
+
+    // Approving consumes a capacity slot, which changes discover spots remaining.
+    cache.delByPrefix('discover:');
 
     await materializeApprovedPlayerForUser(tournamentId, approvedRegistration.userId);
     const groupSync = await syncApprovedPlayerToGroups(tournamentId, approvedRegistration.userId);

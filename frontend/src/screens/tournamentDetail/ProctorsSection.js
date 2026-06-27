@@ -4,9 +4,9 @@ import { ScaledText as Text } from '../../components/ui/ScaledText';
 import { ScaledTextInput as TextInput } from '../../components/ui/ScaledTextInput';
 import {
   ActionButton,
+  CollapsibleSectionCard,
   InfoBanner,
   ListRowCard,
-  SectionCard,
 } from '../../components/tournament/TournamentChrome';
 import { tournamentColors, tournamentUi } from '../../styles/tournamentUi';
 
@@ -121,9 +121,10 @@ export function ProctorsSection({
   };
 
   return (
-    <SectionCard
-      title="Proctors"
+    <CollapsibleSectionCard
+      title={`Proctors (${proctorUserIds.length})`}
       subtitle="Assign any number of approved players. Only one person scores a live match at a time; the host can take over immediately."
+      defaultExpanded={Boolean(pendingForMe)}
     >
       {pendingForMe && (
         <View style={{ marginBottom: 12, gap: 8 }}>
@@ -315,6 +316,6 @@ export function ProctorsSection({
             />
           </View>
         ))}
-    </SectionCard>
+    </CollapsibleSectionCard>
   );
 }

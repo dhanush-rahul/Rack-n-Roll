@@ -17,6 +17,7 @@ export function RegistrationsTab({
   searchQuery,
   onSearchQueryChange,
   onSearchUsers,
+  onClearUserSearch,
   isSearchingUsers,
   userSearchResults,
   busyManualAddUserId,
@@ -131,7 +132,7 @@ export function RegistrationsTab({
 
       <CollapsibleSectionCard
         title={`Approved roster (${approvedItems.length})`}
-        subtitle="Everyone in the tournament. Search below to add players manually."
+        subtitle="Everyone currently in the tournament."
         defaultExpanded
       >
         {isLoadingRegistrations && <Text style={{ color: tournamentColors.textMuted }}>Loading registrations…</Text>}
@@ -168,37 +169,52 @@ export function RegistrationsTab({
             )}
           </ListRowCard>
         ))}
+      </CollapsibleSectionCard>
 
-        <View style={{ marginTop: approvedItems.length > 0 ? 12 : 0, gap: 8 }}>
-          <Text style={{ fontSize: 13, fontWeight: '700', color: tournamentColors.text }}>Add players manually</Text>
-          <Text style={{ fontSize: 12, lineHeight: 17, color: tournamentColors.textMuted }}>
-            {isRegistrationClosed
-              ? 'Host override: search and add players even after registration is closed.'
-              : 'Search by name or email and approve them directly.'}
-          </Text>
-          <TextInput
-            style={tournamentUi.input}
-            placeholder="Search name or email"
-            value={searchQuery}
-            onChangeText={onSearchQueryChange}
-            autoCapitalize="none"
-          />
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <View style={{ flex: 1 }}>
-              <ActionButton
-                label={isSearchingUsers ? 'Searching…' : 'Search users'}
-                onPress={onSearchUsers}
-                disabled={isSearchingUsers}
-                fullWidth
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <ActionButton label="Add player" onPress={onOpenAddGuestPlayer} variant="secondary" fullWidth />
-            </View>
+      <CollapsibleSectionCard
+        title="Search & add players"
+        subtitle="Find registered users by name or email, or add a guest without an account."
+        defaultExpanded={false}
+      >
+        <Text style={{ fontSize: 12, lineHeight: 17, color: tournamentColors.textMuted }}>
+          {isRegistrationClosed
+            ? 'Host override: search and add players even after registration is closed.'
+            : 'Search by name or email and approve them directly.'}
+        </Text>
+        <TextInput
+          style={tournamentUi.input}
+          placeholder="Search name or email"
+          value={searchQuery}
+          onChangeText={onSearchQueryChange}
+          autoCapitalize="none"
+        />
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <View style={{ flex: 1 }}>
+            <ActionButton
+              label={isSearchingUsers ? 'Searching…' : 'Search users'}
+              onPress={onSearchUsers}
+              disabled={isSearchingUsers}
+              fullWidth
+            />
           </View>
+          <View style={{ flex: 1 }}>
+            <ActionButton label="Add guest" onPress={onOpenAddGuestPlayer} variant="secondary" fullWidth />
+          </View>
+        </View>
+      </CollapsibleSectionCard>
 
+      {userSearchResults.length > 0 && (
+        <CollapsibleSectionCard
+          title={`Search results (${userSearchResults.length})`}
+          subtitle="Tap close when you want to review roster details above."
+          defaultExpanded
+        >
+          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 4 }}>
+            <ActionButton label="Close search" onPress={onClearUserSearch} variant="ghost" />
+          </View>
           {userSearchResults.map((user) => {
             const isAlreadyApproved = user.registrationStatus === 'approved';
+            const isAdding = busyManualAddUserId === user.id;
 
             return (
               <ListRowCard
@@ -206,21 +222,33 @@ export function RegistrationsTab({
                 title={user.name || user.email || user.id}
                 subtitle={user.email || 'No email on file'}
               >
-                <Text style={{ fontSize: 13, color: tournamentColors.textMuted }}>
-                  Status: {user.registrationStatus || 'none'}
-                </Text>
-                <ActionButton
-                  label={busyManualAddUserId === user.id ? 'Adding…' : 'Add to roster'}
-                  onPress={() => onManualAddParticipant(user.id)}
-                  disabled={isAlreadyApproved || busyManualAddUserId === user.id}
-                  variant={isAlreadyApproved ? 'muted' : 'secondary'}
-                  fullWidth
-                />
+                {isAlreadyApproved ? (
+                  <View
+                    style={{
+                      alignSelf: 'flex-start',
+                      marginTop: 4,
+                      paddingHorizontal: 10,
+                      paddingVertical: 4,
+                      borderRadius: 999,
+                      backgroundColor: '#ecfdf5',
+                    }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#166534' }}>On roster</Text>
+                  </View>
+                ) : (
+                  <ActionButton
+                    label={isAdding ? 'Adding…' : 'Add to roster'}
+                    onPress={() => onManualAddParticipant(user.id)}
+                    disabled={isAdding}
+                    variant="secondary"
+                    fullWidth
+                  />
+                )}
               </ListRowCard>
             );
           })}
-        </View>
-      </CollapsibleSectionCard>
+        </CollapsibleSectionCard>
+      )}
 
       {isDoubles && tournamentId && (
         <TeamsSection

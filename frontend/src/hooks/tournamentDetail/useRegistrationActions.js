@@ -73,6 +73,11 @@ export function useRegistrationActions({
     [clearAll, loadDetail, loadRegistrations, showError, showSuccess, tournamentId]
   );
 
+  const onClearUserSearch = useCallback(() => {
+    setUserSearchResults([]);
+    setSearchQuery('');
+  }, []);
+
   const onSearchUsers = useCallback(async () => {
     try {
       clearAll();
@@ -116,7 +121,7 @@ export function useRegistrationActions({
         }
 
         await Promise.all([loadDetail(), loadRegistrations()]);
-        await onSearchUsers();
+        setUserSearchResults((current) => current.filter((user) => String(user.id) !== String(userId)));
       } catch (error) {
         showError(formatApiError(error, 'Unable to add participant'));
       } finally {
@@ -131,7 +136,6 @@ export function useRegistrationActions({
       loadRegistrations,
       onLoadGroupFixtures,
       onLoadGroupsTab,
-      onSearchUsers,
       showError,
       showSuccess,
       tournamentId,
@@ -306,6 +310,7 @@ export function useRegistrationActions({
     isSavingMaxParticipants,
     onReviewRegistration,
     onSearchUsers,
+    onClearUserSearch,
     onManualAddParticipant,
     onOpenAddGuestPlayer,
     onConfirmGuestAddIntro,

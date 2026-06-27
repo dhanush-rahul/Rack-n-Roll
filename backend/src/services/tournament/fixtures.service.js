@@ -6,7 +6,7 @@ const Team = require('../../models/team.model');
 const Player = require('../../models/player.model');
 const { isDoublesTournament, buildTeamSummaryById, resolveDoublesPairingForGroupAssign, randomPairSolos, pairByeWithPlayer } = require('../team.service');
 const { recomputeLeaderboardForScope } = require('./leaderboard.service');
-const { materializeApprovedPlayers, ensurePlayersFromApprovedRegistrations, materializeApprovedPlayerForUser } = require('./roster.service');
+const { ensurePlayersFromApprovedRegistrations, materializeApprovedPlayerForUser } = require('./roster.service');
 const { mapGameForScoresheet } = require('./permissions');
 const {
   parseBestOf,
@@ -442,7 +442,7 @@ const createRoundRobinGamesForStage = async ({ tournamentId, divisionId, stage, 
 
 // ── Group assignment ───────────────────────────────────────────────────────
 
-const assignRandomGroupsDoubles = async (tournamentId, hostUserId, payload = {}, tournament) => {
+const assignRandomGroupsDoubles = async (tournamentId, hostUserId, payload = {}, _tournament) => {
   if (payload.pairTeamsRandom) {
     await randomPairSolos(tournamentId, hostUserId);
   } else {

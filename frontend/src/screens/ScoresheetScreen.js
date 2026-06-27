@@ -9,6 +9,7 @@ import {
 import { useGroupStageFixtures } from '../hooks/useGroupStageFixtures';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatApiError, useScreenFeedback } from '../hooks/useScreenFeedback';
+import { useScreenInsets } from '../hooks/useScreenInsets';
 import { useFetchScoresheetPages, useScoresheetMeta } from '../hooks/queries/useScoresheetPages';
 import { useTournamentGroupStandings } from '../hooks/queries/useTournamentGroupStandings';
 import { queryKeys } from '../hooks/queries/queryKeys';
@@ -65,6 +66,7 @@ export function ScoresheetScreen({ route, navigation }) {
 
   const [scoresByGameId, setScoresByGameId] = useState({});
   const { errorMessage, showError, clearError } = useScreenFeedback({ successAutoClearMs: 0 });
+  const { scrollPaddingBottom } = useScreenInsets();
   const [expandedRoundKey, setExpandedRoundKey] = useState(null);
   const [expandedSectionId, setExpandedSectionId] = useState(null);
   const [expandedFinalRoundNumber, setExpandedFinalRoundNumber] = useState(null);
@@ -443,7 +445,7 @@ export function ScoresheetScreen({ route, navigation }) {
   return (
     <ScrollView
       style={tournamentUi.screen}
-      contentContainerStyle={tournamentUi.content}
+      contentContainerStyle={[tournamentUi.content, { paddingBottom: scrollPaddingBottom }]}
       removeClippedSubviews={false}
     >
       <View style={{ marginBottom: 16 }}>
