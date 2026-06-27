@@ -37,6 +37,10 @@
     "android": {
       "versionCode": 10,
       "package": "com.dhanushcharipally.racknroll"
+    },
+    "ios": {
+      "buildNumber": "10",
+      "bundleIdentifier": "com.dhanushcharipally.racknroll"
     }
   }
 }
