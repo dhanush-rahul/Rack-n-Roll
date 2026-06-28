@@ -31,7 +31,7 @@ function mapNativeGoogleError(error) {
 
   if (error?.code === '10') {
     return new Error(
-      'Google Sign-In is not configured for this Android build. Confirm SHA-1 and package name in Google Cloud, then rebuild the app.'
+      'Google Sign-In failed for this Android build (developer error). If this is a Play Store install, add the Play Console App signing key SHA-1 to your Android OAuth client — not just the Expo upload key. Also confirm EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID is set in EAS production env and matches backend GOOGLE_CLIENT_ID (Web application client, not the Android client ID).'
     );
   }
 
