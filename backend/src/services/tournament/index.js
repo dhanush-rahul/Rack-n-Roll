@@ -1,4 +1,4 @@
-const { createTournament, listDiscoverTournaments, getHostTournamentDetail, validateInviteCodeForTournament, updateHostTournamentSettings, closeTournamentRegistration } = require('./discovery.service');
+const { createTournament, listDiscoverTournaments, listMyRegisteredDiscoverTournaments, getHostTournamentDetail, validateInviteCodeForTournament, updateHostTournamentSettings, closeTournamentRegistration } = require('./discovery.service');
 const { submitRegistrationRequest, listPendingRegistrationRequests, listHostRegistrations, approveRegistrationRequest, rejectRegistrationRequest, searchManualAddUsers, getRoundRobinPlayingPattern } = require('./registration.service');
 const { manuallyAddParticipant, manuallyRemoveParticipant, addGuestParticipant, linkPendingGuestPlayersForUser, removeGuestParticipant, assignScoreEditor, removeScoreEditor, requestProctorTransfer, acceptProctorTransfer, declineProctorTransfer } = require('./participants.service');
 const { isStageProctored, canUserEditGameScores } = require('./shared');
@@ -12,6 +12,7 @@ const { materializeApprovedPlayers, materializeApprovedPlayerForUser } = require
 module.exports = {
   createTournament,
   listDiscoverTournaments,
+  listMyRegisteredDiscoverTournaments,
   getHostTournamentDetail,
   validateInviteCodeForTournament,
   submitRegistrationRequest,

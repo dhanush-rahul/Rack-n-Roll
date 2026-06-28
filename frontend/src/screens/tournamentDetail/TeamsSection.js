@@ -13,13 +13,15 @@ import {
 import { ConfirmModal } from '../../components/ConfirmModal';
 import {
   breakTournamentTeam,
-  fetchTournamentSoloPlayers,
-  fetchTournamentTeams,
   hostFormTournamentTeam,
   pickTournamentPartner,
   randomPairTournamentTeams,
   updateTournamentTeamDisplayName,
 } from '../../services/tournamentService';
+import {
+  useInvalidateTournamentTeamsData,
+  useTournamentTeamsData,
+} from '../../hooks/queries/useTournamentTeamsData';
 import { tournamentColors, tournamentUi } from '../../styles/tournamentUi';
 
 export function TeamsSection({
@@ -31,9 +33,18 @@ export function TeamsSection({
   onTeamsChanged,
   onError,
 }) {
-  const [teams, setTeams] = useState([]);
-  const [soloPlayers, setSoloPlayers] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const invalidateTeamsData = useInvalidateTournamentTeamsData();
+  const {
+    data: teamsData,
+    isLoading,
+    isFetching,
+    error: teamsError,
+  } = useTournamentTeamsData(tournamentId, { enabled: Boolean(tournamentId) });
+
+  const teams = teamsData?.teams || [];
+  const soloPlayers = teamsData?.soloPlayers || [];
+  const isLoadingTeams = isLoading || isFetching;
+
   const [busyTeamId, setBusyTeamId] = useState(null);
   const [busyAction, setBusyAction] = useState(null);
   const [hostForm, setHostForm] = useState({ player1Id: '', player2Id: '', customDisplayName: '' });
@@ -42,34 +53,16 @@ export function TeamsSection({
 
   const normalizedCurrentUserId = String(currentUserId || '').trim();
 
-  const loadTeams = useCallback(async () => {
-    if (!tournamentId) {
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const teamsResponse = await fetchTournamentTeams(tournamentId);
-      setTeams(teamsResponse?.items || []);
-
-      const solosResponse = await fetchTournamentSoloPlayers(tournamentId);
-      setSoloPlayers(solosResponse?.items || []);
-    } catch (error) {
-      onError?.(error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [onError, tournamentId]);
+  const refresh = useCallback(async () => {
+    await invalidateTeamsData(tournamentId);
+    onTeamsChanged?.();
+  }, [invalidateTeamsData, onTeamsChanged, tournamentId]);
 
   useEffect(() => {
-    loadTeams();
-  }, [loadTeams]);
-
-  const refresh = useCallback(async () => {
-    await loadTeams();
-    onTeamsChanged?.();
-  }, [loadTeams, onTeamsChanged]);
+    if (teamsError) {
+      onError?.(teamsError);
+    }
+  }, [onError, teamsError]);
 
   const myTeam = useMemo(
     () =>
@@ -236,13 +229,13 @@ export function TeamsSection({
           title="Available partners"
           subtitle="Pick a solo player to form your team."
           headerAction={
-            <ActionButton label={isLoading ? '…' : 'Refresh'} onPress={refresh} disabled={isLoading} variant="ghost" />
+            <ActionButton label={isLoadingTeams ? '…' : 'Refresh'} onPress={refresh} disabled={isLoadingTeams} variant="ghost" />
           }
         >
-          {isLoading && partnerCandidates.length === 0 && (
+          {isLoadingTeams && partnerCandidates.length === 0 && (
             <Text style={{ color: tournamentColors.textMuted, fontSize: 13 }}>Loading players…</Text>
           )}
-          {!isLoading && partnerCandidates.length === 0 && (
+          {!isLoadingTeams && partnerCandidates.length === 0 && (
             <Text style={{ color: tournamentColors.textMuted, fontSize: 13 }}>
               No solo players are available to pair with right now.
             </Text>
@@ -267,16 +260,13 @@ export function TeamsSection({
           title={`Teams (${teams.length})`}
           subtitle="Form teams before assigning groups. Either teammate can set a custom team name."
           defaultExpanded
-          headerAction={
-            <ActionButton label={isLoading ? '…' : 'Refresh'} onPress={refresh} disabled={isLoading} variant="ghost" />
-          }
         >
           <View style={{ gap: 14 }}>
-            {isLoading && teams.length === 0 && (
+            {isLoadingTeams && teams.length === 0 && (
               <Text style={{ color: tournamentColors.textMuted, fontSize: 13 }}>Loading teams…</Text>
             )}
 
-            {!isLoading && teams.length === 0 && (
+            {!isLoadingTeams && teams.length === 0 && (
               <EmptyStateCard
                 icon="teams"
                 title="No teams yet"
@@ -355,14 +345,14 @@ export function TeamsSection({
           title="Your team"
           subtitle="Either teammate can set a custom team name."
           headerAction={
-            <ActionButton label={isLoading ? '…' : 'Refresh'} onPress={refresh} disabled={isLoading} variant="ghost" />
+            <ActionButton label={isLoadingTeams ? '…' : 'Refresh'} onPress={refresh} disabled={isLoadingTeams} variant="ghost" />
           }
         >
-          {isLoading && (
+          {isLoadingTeams && (
             <Text style={{ color: tournamentColors.textMuted, fontSize: 13 }}>Loading teams…</Text>
           )}
 
-          {!isLoading && (
+          {!isLoadingTeams && (
             <ListRowCard
               key={myTeam.id}
               title={myTeam.displayName}

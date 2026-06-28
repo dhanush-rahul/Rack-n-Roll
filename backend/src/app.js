@@ -17,6 +17,8 @@ const createApp = (env) => {
     cache.configure(env.cache);
   }
 
+  app.set('trust proxy', 1);
+
   if (env.corsOrigins?.length) {
     app.use(
       cors({

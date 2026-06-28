@@ -7,6 +7,7 @@ export const tournamentColors = {
   cardBorder: '#eef1f6',
   text: '#111827',
   textMuted: '#4b5563',
+  placeholder: '#9ca3af',
   error: '#b91c1c',
   success: '#065f46',
   warning: '#b45309',

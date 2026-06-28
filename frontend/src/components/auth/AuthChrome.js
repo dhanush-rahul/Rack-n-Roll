@@ -32,7 +32,7 @@ export function AuthField({
       {Boolean(label) && <Text style={authUi.fieldLabel}>{label}</Text>}
       <TextInput
         style={[authUi.input, Boolean(error) && authUi.inputError, style]}
-        placeholderTextColor="#9ca3af"
+        placeholderTextColor={tournamentColors.placeholder}
         {...textInputProps}
       />
       {Boolean(error) && <Text style={authUi.fieldError}>{error}</Text>}

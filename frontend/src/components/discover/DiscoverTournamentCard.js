@@ -282,13 +282,6 @@ export function DiscoverTournamentCard({
               {locationLabel}
             </Text>
           )}
-
-          {!isExpanded && (
-            <View style={{ paddingLeft: 56, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <Text style={{ fontSize: 12, fontWeight: '600', color: tournamentColors.primary }}>Tap to expand</Text>
-              <AppIcon name="chevronRight" size={14} color={tournamentColors.primary} />
-            </View>
-          )}
         </Pressable>
 
         <Animated.View style={expandedSectionStyle} pointerEvents={isExpanded ? 'auto' : 'none'}>

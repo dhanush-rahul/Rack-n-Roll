@@ -5,11 +5,13 @@ import { loginUser, signInWithGoogle as signInWithGoogleApi, signupUser } from '
 import { apiGet } from '../services/api';
 import { wakeBackendIfNeeded } from '../services/systemService';
 import { logWarning } from '../utils/errorLogger';
+import { queryClient } from '../config/queryClient';
 
 const AuthContext = createContext(undefined);
 
 export function AuthProvider({ children }) {
   const [isLoading, setIsLoading] = useState(true);
+  const [bootstrapMessage, setBootstrapMessage] = useState('Starting up…');
   const [token, setTokenState] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [signedOutModalVisible, setSignedOutModalVisible] = useState(false);
@@ -18,7 +20,10 @@ export function AuthProvider({ children }) {
     let isMounted = true;
 
     const bootstrap = async () => {
-      await wakeBackendIfNeeded();
+      setBootstrapMessage('Connecting to server…');
+      await wakeBackendIfNeeded({ force: true });
+
+      setBootstrapMessage('Restoring your session…');
       const restoredToken = await getToken();
 
       if (isMounted) {
@@ -52,6 +57,7 @@ export function AuthProvider({ children }) {
   const value = useMemo(
     () => ({
       isLoading,
+      bootstrapMessage,
       isAuthenticated: Boolean(token),
       token,
       currentUser,
@@ -80,10 +86,11 @@ export function AuthProvider({ children }) {
         await clearToken();
         setTokenState(null);
         setCurrentUser(null);
+        queryClient.clear();
         setSignedOutModalVisible(true);
       },
     }),
-    [currentUser, isLoading, token]
+    [bootstrapMessage, currentUser, isLoading, token]
   );
 
   return (

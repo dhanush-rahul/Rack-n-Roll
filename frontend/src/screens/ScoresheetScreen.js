@@ -41,7 +41,7 @@ const BASE_SCORESHEET_TABS = [
 export function ScoresheetScreen({ route, navigation }) {
   const tournamentId = route?.params?.tournamentId;
   const tournamentTitle = route?.params?.tournamentName || 'Tournament';
-  const { currentUser } = useAuth();
+  const { currentUser, isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
   const fetchScoresheetPages = useFetchScoresheetPages();
   const { data: standingsMeta } = useTournamentGroupStandings(tournamentId, {}, { enabled: Boolean(tournamentId) });
@@ -83,17 +83,17 @@ export function ScoresheetScreen({ route, navigation }) {
   const groupsLocked = ['groupStage', 'finalStage', 'completed'].includes(progressionState);
 
   const scoresheetTabs = useMemo(() => {
-    if (!isDoubles) return BASE_SCORESHEET_TABS;
+    if (!isDoubles || !isAuthenticated) return BASE_SCORESHEET_TABS;
     return [
       BASE_SCORESHEET_TABS[0],
       { id: 'teams', label: 'Teams' },
       BASE_SCORESHEET_TABS[1],
       BASE_SCORESHEET_TABS[2],
     ];
-  }, [isDoubles]);
+  }, [isAuthenticated, isDoubles]);
 
   const groupFixtures = useGroupStageFixtures(tournamentId, groupsTabItems, {}, {
-    defaultGamesView: 'mine',
+    defaultGamesView: isAuthenticated ? 'mine' : 'all',
     myGamesUserId: currentUser?.id,
   });
 
@@ -344,9 +344,18 @@ export function ScoresheetScreen({ route, navigation }) {
   useEffect(() => {
     if (!tournamentMetaReady || initialTabSetRef.current) return;
     initialTabSetRef.current = true;
-    if (isDoubles && !groupsLocked) { setActiveTab('teams'); return; }
+    if (isDoubles && !groupsLocked && isAuthenticated) {
+      setActiveTab('teams');
+      return;
+    }
     if (isDoubles && groupsLocked) setActiveTab('games');
-  }, [groupsLocked, isDoubles, tournamentMetaReady]);
+  }, [groupsLocked, isDoubles, isAuthenticated, tournamentMetaReady]);
+
+  useEffect(() => {
+    if (activeTab === 'teams' && !isAuthenticated) {
+      setActiveTab('groups');
+    }
+  }, [activeTab, isAuthenticated]);
 
   useEffect(() => {
     if (activeTab === 'groups' && !hasLoadedGroupsTab) onLoadGroupsTab();

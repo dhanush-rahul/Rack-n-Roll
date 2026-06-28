@@ -15,6 +15,7 @@ import { useAuth } from '../context/AuthContext';
 import { AuthPromptModal } from '../components/AuthPromptModal';
 import { useRequireAuth } from '../hooks/useRequireAuth';
 import { useDiscoverTournaments } from '../hooks/queries/useDiscoverTournaments';
+import { useMyRegisteredTournaments } from '../hooks/queries/useMyRegisteredTournaments';
 import {
   submitTournamentRegistrationRequest,
   validateTournamentInviteCode,
@@ -25,6 +26,7 @@ import { tournamentColors, tournamentUi } from '../styles/tournamentUi';
 import { useResponsiveLayout, centeredContentStyle } from '../utils/responsive';
 import { useDiscoverFilters } from '../hooks/useDiscoverFilters';
 import { DiscoverHero } from '../components/discover/DiscoverHero';
+import { DiscoverRegisteredSection } from '../components/discover/DiscoverRegisteredSection';
 import { DiscoverFiltersPanel } from '../components/discover/DiscoverFiltersPanel';
 import { DiscoverTournamentCard } from '../components/discover/DiscoverTournamentCard';
 import { PaginationBar } from '../components/discover/PaginationBar';
@@ -159,12 +161,24 @@ export function HomeScreen({ navigation, route }) {
     q: debouncedSearchQuery,
   });
 
+  const {
+    data: registeredItems = [],
+    error: registeredQueryError,
+    isLoading: isLoadingRegistered,
+    isFetching: isFetchingRegistered,
+    refetch: refetchRegistered,
+  } = useMyRegisteredTournaments({ enabled: isAuthenticated });
+
   const discoveryItems = discoveryData?.items ?? [];
   const discoveryMeta = discoveryData?.pagination ?? null;
   const discoveryError = discoveryQueryError
     ? `${discoveryQueryError.code || 'ERROR'} - ${discoveryQueryError.message || 'Unable to load tournaments'}`
     : '';
-  const isRefreshing = isFetchingDiscovery && !isLoadingDiscovery;
+  const registeredError = registeredQueryError
+    ? `${registeredQueryError.code || 'ERROR'} - ${registeredQueryError.message || 'Unable to load your registrations'}`
+    : '';
+  const isRefreshing =
+    (isFetchingDiscovery && !isLoadingDiscovery) || (isAuthenticated && isFetchingRegistered && !isLoadingRegistered);
   const highlightTournamentId = route.params?.highlightTournamentId || null;
   const highlightBlinkAnimation = useRef(new Animated.Value(0)).current;
   const highlightBlinkLoopRef = useRef(null);
@@ -317,6 +331,7 @@ export function HomeScreen({ navigation, route }) {
           },
         }));
         await queryClient.invalidateQueries({ queryKey: ['discover'] });
+        await queryClient.invalidateQueries({ queryKey: ['discover', 'registered'] });
       } catch (error) {
         setRegistrationByTournamentId((prev) => ({
           ...prev,
@@ -422,7 +437,12 @@ export function HomeScreen({ navigation, route }) {
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
-            onRefresh={() => refetchDiscovery()}
+            onRefresh={() => {
+              refetchDiscovery();
+              if (isAuthenticated) {
+                refetchRegistered();
+              }
+            }}
             tintColor={tournamentColors.primary}
           />
         }
@@ -435,6 +455,17 @@ export function HomeScreen({ navigation, route }) {
             onCreate={onCreateTournament}
           />
         </View>
+
+        {isAuthenticated ? (
+          <View style={{ marginBottom: 16 }}>
+            <DiscoverRegisteredSection
+              items={registeredItems}
+              isLoading={isLoadingRegistered}
+              errorMessage={registeredError}
+              onOpenScoresheet={onOpenScoresheet}
+            />
+          </View>
+        ) : null}
 
         <View style={{ marginBottom: 16 }}>
           <DiscoverFiltersPanel

@@ -10,6 +10,7 @@ import {
   updateHostTournamentSettings,
 } from '../../services/tournamentService';
 import { formatApiError } from '../useScreenFeedback';
+import { useInvalidateTournamentTeamsData } from '../queries/useTournamentTeamsData';
 
 export function useRegistrationActions({
   tournamentId,
@@ -28,6 +29,7 @@ export function useRegistrationActions({
   dispatchLoading,
   setActiveTab,
 }) {
+  const invalidateTeamsData = useInvalidateTournamentTeamsData();
   const initializedForTournamentRef = useRef(null);
 
   const [busyRegistrationId, setBusyRegistrationId] = useState(null);
@@ -52,6 +54,13 @@ export function useRegistrationActions({
     setMaxParticipantsInput(String(detail?.maxParticipants || ''));
   }, [detail, tournamentId]);
 
+  const refreshRoster = useCallback(async () => {
+    await Promise.all([loadDetail(), loadRegistrations()]);
+    if (isDoubles) {
+      await invalidateTeamsData(tournamentId);
+    }
+  }, [invalidateTeamsData, isDoubles, loadDetail, loadRegistrations, tournamentId]);
+
   const onReviewRegistration = useCallback(
     async (registrationId, nextStatus) => {
       try {
@@ -63,14 +72,14 @@ export function useRegistrationActions({
           await rejectTournamentRegistrationRequest(tournamentId, registrationId);
         }
         showSuccess(`Registration ${nextStatus}.`);
-        await Promise.all([loadDetail(), loadRegistrations()]);
+        await refreshRoster();
       } catch (error) {
         showError(formatApiError(error, 'Unable to review registration'));
       } finally {
         setBusyRegistrationId(null);
       }
     },
-    [clearAll, loadDetail, loadRegistrations, showError, showSuccess, tournamentId]
+    [clearAll, loadDetail, loadRegistrations, refreshRoster, showError, showSuccess, tournamentId]
   );
 
   const onClearUserSearch = useCallback(() => {
@@ -120,7 +129,7 @@ export function useRegistrationActions({
           showSuccess('Participant added to the roster.');
         }
 
-        await Promise.all([loadDetail(), loadRegistrations()]);
+        await refreshRoster();
         setUserSearchResults((current) => current.filter((user) => String(user.id) !== String(userId)));
       } catch (error) {
         showError(formatApiError(error, 'Unable to add participant'));
@@ -132,10 +141,9 @@ export function useRegistrationActions({
       clearAll,
       gamesTabLoadStartedRef,
       groupsTabLoadStartedRef,
-      loadDetail,
-      loadRegistrations,
       onLoadGroupFixtures,
       onLoadGroupsTab,
+      refreshRoster,
       showError,
       showSuccess,
       tournamentId,
@@ -178,14 +186,14 @@ export function useRegistrationActions({
           gamesTabLoadStartedRef.current = false;
           groupsTabLoadStartedRef.current = false;
           await Promise.all([onLoadGroupFixtures(), onLoadGroupsTab()]);
-        } else if (result?.inviteEmailSent) {
-          showSuccess(`Added ${name}. Invite email sent.`);
+        } else if (result?.inviteEmailSent || result?.inviteEmailQueued) {
+          showSuccess(`Added ${name}. Invite email is on its way.`);
         } else {
           showSuccess(`Added ${name} to the roster. Invite email could not be sent right now.`);
         }
 
         setIsGuestAddFormVisible(false);
-        await Promise.all([loadDetail(), loadRegistrations()]);
+        await refreshRoster();
       } catch (error) {
         showError(formatApiError(error, 'Unable to add guest player'));
       } finally {
@@ -198,6 +206,7 @@ export function useRegistrationActions({
       groupsTabLoadStartedRef,
       loadDetail,
       loadRegistrations,
+      refreshRoster,
       onLoadGroupFixtures,
       onLoadGroupsTab,
       showError,

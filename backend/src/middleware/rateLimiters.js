@@ -18,6 +18,7 @@ const authRateLimiter = rateLimit({
   legacyHeaders: false,
   skip: isTestEnv,
   handler: rateLimitHandler,
+  validate: { trustProxy: true },
 });
 
 const passwordResetRateLimiter = rateLimit({
@@ -27,6 +28,7 @@ const passwordResetRateLimiter = rateLimit({
   legacyHeaders: false,
   skip: isTestEnv,
   handler: rateLimitHandler,
+  validate: { trustProxy: true },
 });
 
 module.exports = {

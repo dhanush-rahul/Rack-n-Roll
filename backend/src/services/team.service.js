@@ -124,24 +124,28 @@ const listSoloPlayers = async (tournamentId) => {
     .sort({ displayName: 1, _id: 1 })
     .lean();
 
-  const soloByUserId = new Map();
+  const seenUserIds = new Set();
+  const results = [];
 
   solos.forEach((player) => {
-    const userKey = String(player.userId || '').trim();
+    const userId = String(player.userId || '').trim();
 
-    if (!userKey || soloByUserId.has(userKey)) {
-      return;
+    if (userId) {
+      if (seenUserIds.has(userId)) {
+        return;
+      }
+      seenUserIds.add(userId);
     }
 
-    soloByUserId.set(userKey, player);
+    results.push({
+      id: String(player._id),
+      userId: userId || null,
+      displayName: player.displayName,
+      awaitingPartner: Boolean(player.awaitingPartner),
+    });
   });
 
-  return [...soloByUserId.values()].map((player) => ({
-    id: String(player._id),
-    userId: player.userId ? String(player.userId) : null,
-    displayName: player.displayName,
-    awaitingPartner: Boolean(player.awaitingPartner),
-  }));
+  return results;
 };
 
 const createTeamFromPlayers = async (tournamentId, player1Id, player2Id, { customDisplayName = null } = {}) => {

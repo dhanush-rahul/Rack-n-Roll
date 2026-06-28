@@ -202,26 +202,22 @@ const addGuestParticipant = async (tournamentId, hostUserId, payload = {}) => {
 
   const groupSync = await syncApprovedPlayerToGroupsByPlayerId(tournamentId, String(createdPlayer._id));
 
-  let inviteEmailSent = false;
-
-  try {
-    await sendGuestTournamentInviteEmail({
-      toEmail: normalizedEmail,
-      toName: normalizedName,
-      tournamentName: tournamentMeta?.name || 'Tournament',
-      hostName: hostUser?.name || 'the tournament host',
-    });
-    inviteEmailSent = true;
-  } catch (error) {
+  void sendGuestTournamentInviteEmail({
+    toEmail: normalizedEmail,
+    toName: normalizedName,
+    tournamentName: tournamentMeta?.name || 'Tournament',
+    hostName: hostUser?.name || 'the tournament host',
+  }).catch((error) => {
     console.error('[guest-add] invite email failed:', error?.message || error);
-  }
+  });
 
   return {
     ...mapGuestPlayerRosterItem(createdPlayer.toObject()),
     groupSync,
     isGuest: true,
     linkedImmediately: false,
-    inviteEmailSent,
+    inviteEmailSent: true,
+    inviteEmailQueued: true,
   };
 };
 

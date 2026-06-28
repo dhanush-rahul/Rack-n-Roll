@@ -56,6 +56,53 @@ const createTournament = async (payload, hostUserId) => {
   };
 };
 
+const listMyRegisteredDiscoverTournaments = async (userId) => {
+  const normalizedUserId = String(userId || '').trim();
+
+  if (!normalizedUserId) {
+    return { items: [] };
+  }
+
+  const registrations = await TournamentRegistration.find({
+    userId: normalizedUserId,
+    status: { $in: ['underReview', 'approved'] },
+  })
+    .select({ tournamentId: 1, status: 1 })
+    .lean();
+
+  if (registrations.length === 0) {
+    return { items: [] };
+  }
+
+  const registrationStatusByTournamentId = registrations.reduce((accumulator, registration) => {
+    accumulator.set(String(registration.tournamentId), registration.status);
+    return accumulator;
+  }, new Map());
+
+  const tournamentIds = [...registrationStatusByTournamentId.keys()];
+  const tournaments = await Tournament.find({ _id: { $in: tournamentIds } }).lean();
+
+  const items = tournaments
+    .sort((left, right) => {
+      const leftTime = left.startsAt ? new Date(left.startsAt).getTime() : Number.NEGATIVE_INFINITY;
+      const rightTime = right.startsAt ? new Date(right.startsAt).getTime() : Number.NEGATIVE_INFINITY;
+
+      if (leftTime !== rightTime) {
+        return rightTime - leftTime;
+      }
+
+      return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+    })
+    .map((tournament) =>
+      mapTournamentForDiscovery(
+        tournament,
+        registrationStatusByTournamentId.get(String(tournament._id)) || null
+      )
+    );
+
+  return { items };
+};
+
 const listDiscoverTournaments = async (query = {}, userId) => {
   const page = parsePositiveInteger(query.page, 1);
   const requestedPageSize = parsePositiveInteger(query.pageSize, 20);
@@ -248,6 +295,7 @@ const closeTournamentRegistration = async (tournamentId, hostUserId) => {
 module.exports = {
   createTournament,
   listDiscoverTournaments,
+  listMyRegisteredDiscoverTournaments,
   getHostTournamentDetail,
   validateInviteCodeForTournament,
   updateHostTournamentSettings,

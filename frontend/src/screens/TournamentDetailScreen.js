@@ -16,8 +16,9 @@ import { useHostTournamentDetail } from '../hooks/queries/useHostTournamentDetai
 import { useHostTournamentRegistrations } from '../hooks/queries/useHostTournamentRegistrations';
 import { invalidateTournamentCache } from '../hooks/queries/invalidateTournamentCache';
 import { useFetchScoresheetPages } from '../hooks/queries/useScoresheetPages';
+import { useTournamentTeamsData } from '../hooks/queries/useTournamentTeamsData';
 import { useScoreInputs } from '../hooks/useScoreInputs';
-import { fetchTournamentSoloPlayers, updateTournamentGameSchedule } from '../services/tournamentService';
+import { updateTournamentGameSchedule } from '../services/tournamentService';
 import {
   useExportActions,
   useFinaleActions,
@@ -124,9 +125,13 @@ export function TournamentDetailScreen({ route, navigation }) {
   const finaleTabLoadStartedRef = useRef(false);
   const finaleExpandInitializedRef = useRef(false);
   const toggleHostInfoRef = useRef(() => {});
-  const [soloPlayerCount, setSoloPlayerCount] = useState(null);
   const [scheduleTarget, setScheduleTarget] = useState(null);
   const [isSavingSchedule, setIsSavingSchedule] = useState(false);
+
+  const isDoublesEarly = detail?.competitionConfig?.format === 'doubles';
+  const { data: teamsData } = useTournamentTeamsData(tournamentId, {
+    enabled: Boolean(tournamentId) && isDoublesEarly,
+  });
 
   const {
     groupsTabItems,
@@ -179,24 +184,17 @@ export function TournamentDetailScreen({ route, navigation }) {
   const groupsLocked =
     hasGroupFixtures || ['groupStage', 'finalStage', 'completed'].includes(progressionState);
 
-  const loadSoloPlayerCount = useCallback(async () => {
-    if (!tournamentId || !isDoubles || !canShowGroupAssignmentStep || hasGroupFixtures) {
-      setSoloPlayerCount(null);
-      return;
+  const soloPlayerCount = useMemo(() => {
+    if (!isDoubles || !canShowGroupAssignmentStep || hasGroupFixtures) {
+      return null;
     }
 
-    try {
-      const response = await fetchTournamentSoloPlayers(tournamentId);
-      setSoloPlayerCount((response?.items || []).length);
-    } catch (error) {
-      logApiError(error, { screen: 'TournamentDetail', action: 'loadSoloPlayerCount', tournamentId });
-      setSoloPlayerCount(0);
+    if (!teamsData) {
+      return null;
     }
-  }, [canShowGroupAssignmentStep, hasGroupFixtures, isDoubles, tournamentId]);
 
-  useEffect(() => {
-    loadSoloPlayerCount();
-  }, [loadSoloPlayerCount, activeTab]);
+    return (teamsData.soloPlayers || []).length;
+  }, [canShowGroupAssignmentStep, hasGroupFixtures, isDoubles, teamsData]);
 
   const pendingItems = useMemo(
     () => registrations.filter((item) => item.status === 'underReview'),
@@ -900,7 +898,6 @@ export function TournamentDetailScreen({ route, navigation }) {
           currentUserId={currentUser?.id}
           onTeamsChanged={async () => {
             await loadRegistrations();
-            await loadSoloPlayerCount();
           }}
           onTeamsError={(error) => showError(formatApiError(error, 'Unable to update teams'))}
         />

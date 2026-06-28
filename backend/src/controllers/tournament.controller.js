@@ -2,6 +2,7 @@ const { exportTournamentWorkbook, emailTournamentExport } = require('../services
 const {
   createTournament,
   listDiscoverTournaments,
+  listMyRegisteredDiscoverTournaments,
   getHostTournamentDetail,
   validateInviteCodeForTournament,
   submitRegistrationRequest,
@@ -56,6 +57,11 @@ const createTournamentController = asyncHandler(async (req, res) => {
 
 const discoverTournamentsController = asyncHandler(async (req, res) => {
   const result = await listDiscoverTournaments(req.query, req.auth?.userId);
+  return res.status(200).json({ success: true, data: result });
+});
+
+const discoverMyRegisteredTournamentsController = asyncHandler(async (req, res) => {
+  const result = await listMyRegisteredDiscoverTournaments(req.auth.userId);
   return res.status(200).json({ success: true, data: result });
 });
 
@@ -345,6 +351,7 @@ const emailTournamentExportController = asyncHandler(async (req, res) => {
 module.exports = {
   createTournamentController,
   discoverTournamentsController,
+  discoverMyRegisteredTournamentsController,
   getHostTournamentDetailController,
   validateInviteCodeController,
   submitRegistrationRequestController,

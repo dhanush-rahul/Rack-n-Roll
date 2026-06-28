@@ -52,12 +52,18 @@ export function useScaledInputStyle(style) {
   return useMemo(() => buildScaledInputStyle(style, typography), [style, typography]);
 }
 
-export function ScaledTextInput({ style, ...rest }) {
+export function ScaledTextInput({ style, placeholderTextColor, ...rest }) {
   const typography = useTypography();
   const scaledStyle = useMemo(
     () => buildScaledInputStyle(style, typography),
     [style, typography]
   );
 
-  return <RNTextInput style={scaledStyle} {...rest} />;
+  return (
+    <RNTextInput
+      style={scaledStyle}
+      placeholderTextColor={placeholderTextColor ?? tournamentColors.placeholder}
+      {...rest}
+    />
+  );
 }
