@@ -4,6 +4,7 @@ import { ScaledText as Text } from '../ui/ScaledText';
 import { ScaledTextInput as TextInput } from '../ui/ScaledTextInput';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActionButton } from '../tournament/TournamentChrome';
+import { AppIcon } from '../ui/AppIcon';
 import { authUi } from '../../styles/authUi';
 import { tournamentColors } from '../../styles/tournamentUi';
 import { useResponsiveLayout, centeredContentStyle } from '../../utils/responsive';
@@ -31,7 +32,7 @@ export function AuthField({
       {Boolean(label) && <Text style={authUi.fieldLabel}>{label}</Text>}
       <TextInput
         style={[authUi.input, Boolean(error) && authUi.inputError, style]}
-        placeholderTextColor="#9ca3af"
+        placeholderTextColor={tournamentColors.placeholder}
         {...textInputProps}
       />
       {Boolean(error) && <Text style={authUi.fieldError}>{error}</Text>}
@@ -210,7 +211,7 @@ export function AuthTextLink({ prompt, actionLabel, onPress }) {
   );
 }
 
-export function AuthFeature({ emoji, title, description, variant = 'dark' }) {
+export function AuthFeature({ icon, title, description, variant = 'dark' }) {
   const isLight = variant === 'light';
 
   return (
@@ -221,7 +222,7 @@ export function AuthFeature({ emoji, title, description, variant = 'dark' }) {
           isLight && { backgroundColor: '#eff6ff', borderWidth: 1, borderColor: '#dbeafe' },
         ]}
       >
-        <Text style={{ fontSize: 18 }}>{emoji}</Text>
+        <AppIcon name={icon} size={18} color={isLight ? tournamentColors.primary : '#f8fafc'} />
       </View>
       <View style={{ flex: 1 }}>
         <Text

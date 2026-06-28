@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/user.model');
 const ApiError = require('../utils/ApiError');
 const { sendPasswordResetPinEmail } = require('./email.service');
-const { linkPendingGuestPlayersForUser } = require('./tournament.service');
+const { linkPendingGuestPlayersForUser } = require('./tournament');
 const { verifyGoogleIdToken } = require('./googleAuth.service');
 
 const SALT_ROUNDS = 10;
@@ -20,6 +20,7 @@ const RESET_PIN_MAX_ATTEMPTS = Number(process.env.PASSWORD_RESET_PIN_MAX_ATTEMPT
 const PASSWORD_RESET_SESSION_TTL_MINUTES = Number(process.env.PASSWORD_RESET_SESSION_TTL_MINUTES || 10);
 const LOGIN_LOCKOUT_MAX_ATTEMPTS = Number(process.env.LOGIN_LOCKOUT_MAX_ATTEMPTS || 5);
 const LOGIN_LOCKOUT_DURATION_MINUTES = Number(process.env.LOGIN_LOCKOUT_DURATION_MINUTES || 15);
+// eslint-disable-next-line no-control-regex -- intentionally matches control chars to reject them in input
 const controlCharacterRegex = /[\u0000-\u001F\u007F]/;
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -507,11 +508,50 @@ const setAccountPassword = async (userId, { password }) => {
   };
 };
 
+const changeAccountPassword = async (userId, { currentPassword, newPassword }) => {
+  const normalizedCurrentPassword = normalizePassword(currentPassword);
+  const normalizedNewPassword = validatePassword(newPassword, 'New password must be at least 8 characters long');
+
+  if (!normalizedCurrentPassword) {
+    throw new ApiError(400, 'CURRENT_PASSWORD_REQUIRED', 'Current password is required');
+  }
+
+  const user = await User.findById(userId).select('+passwordHash');
+
+  if (!user) {
+    throw new ApiError(404, 'USER_NOT_FOUND', 'User not found');
+  }
+
+  if (!user.passwordHash) {
+    throw new ApiError(409, 'PASSWORD_NOT_SET', 'Set a password first before changing it');
+  }
+
+  const isCurrentPasswordValid = await bcrypt.compare(normalizedCurrentPassword, user.passwordHash);
+
+  if (!isCurrentPasswordValid) {
+    throw new ApiError(401, 'INVALID_CURRENT_PASSWORD', 'Current password is incorrect');
+  }
+
+  const isSamePassword = await bcrypt.compare(normalizedNewPassword, user.passwordHash);
+
+  if (isSamePassword) {
+    throw new ApiError(400, 'PASSWORD_REUSE_NOT_ALLOWED', 'Choose a new password that has not been used recently');
+  }
+
+  user.passwordHash = await bcrypt.hash(normalizedNewPassword, SALT_ROUNDS);
+  await user.save();
+
+  return {
+    hasPassword: true,
+  };
+};
+
 module.exports = {
   signup,
   login,
   signInWithGoogle,
   setAccountPassword,
+  changeAccountPassword,
   requestPasswordReset,
   validatePasswordResetPin,
   resetPasswordWithToken,

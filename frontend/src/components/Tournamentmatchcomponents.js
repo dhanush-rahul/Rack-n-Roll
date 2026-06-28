@@ -2,6 +2,7 @@ import React, { useCallback } from 'react';
 import { Button, Pressable, View } from 'react-native';
 import { ScaledText as Text } from './ui/ScaledText';
 import { ScaledTextInput as TextInput } from './ui/ScaledTextInput';
+import { AppIcon } from './ui/AppIcon';
 
 export const isPlayedScoreEntry = (entry) => {
   const playerAScore = Number(entry?.playerAScore);
@@ -317,7 +318,7 @@ export function RoundSection({
         <Text style={{ color: '#4b5563', marginLeft: 8 }}>
           {displayLeft}/{displayRight}
         </Text>
-        <Text style={{ fontSize: 16, fontWeight: '600' }}>{isOpen ? '⌃' : '⌄'}</Text>
+        <AppIcon name={isOpen ? 'chevronUp' : 'chevronDown'} size={20} color="#4b5563" />
       </Pressable>
 
       {isOpen &&

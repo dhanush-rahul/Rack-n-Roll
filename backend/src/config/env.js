@@ -9,6 +9,30 @@ const DEFAULT_DEV_CORS_ORIGINS = [
   'http://127.0.0.1:19006',
 ];
 
+const toPositiveInt = (value, fallback) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+};
+
+const parseCacheConfig = () => {
+  const isTest = process.env.NODE_ENV === 'test';
+  const enabled = isTest
+    ? false
+    : process.env.CACHE_ENABLED === undefined
+      ? true
+      : toBoolean(process.env.CACHE_ENABLED);
+
+  return {
+    enabled,
+    ttls: {
+      leaderboard: toPositiveInt(process.env.CACHE_TTL_LEADERBOARD_MS, 30 * 1000),
+      standings: toPositiveInt(process.env.CACHE_TTL_STANDINGS_MS, 30 * 1000),
+      scoresheet: toPositiveInt(process.env.CACHE_TTL_SCORESHEET_MS, 15 * 1000),
+      discover: toPositiveInt(process.env.CACHE_TTL_DISCOVER_MS, 120 * 1000),
+    },
+  };
+};
+
 const parseCorsOrigins = () => {
   const raw = String(process.env.CORS_ORIGINS || '').trim();
 
@@ -47,6 +71,7 @@ const loadAndValidateEnv = () => {
     mongoUri: process.env.MONGODB_URI,
     skipDb,
     corsOrigins: parseCorsOrigins(),
+    cache: parseCacheConfig(),
   };
 };
 

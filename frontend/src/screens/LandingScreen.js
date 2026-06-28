@@ -43,19 +43,19 @@ export function LandingScreen({ navigation }) {
         <Text style={authUi.formTitle}>Why Rack n Roll?</Text>
         <AuthFeature
           variant="light"
-          emoji="🎱"
+          icon="pool"
           title="Discover & join"
           description="Find open tournaments and register in seconds."
         />
         <AuthFeature
           variant="light"
-          emoji="📋"
+          icon="clipboardList"
           title="Host end to end"
           description="Groups, fixtures, scores, and finales in one flow."
         />
         <AuthFeature
           variant="light"
-          emoji="🏆"
+          icon="trophy"
           title="Live standings"
           description="Follow group tables and results as matches are played."
         />

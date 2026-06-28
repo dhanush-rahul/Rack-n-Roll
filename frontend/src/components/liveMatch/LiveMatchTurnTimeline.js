@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { ScaledText as Text } from '../ui/ScaledText';
+import { AppIcon } from '../ui/AppIcon';
 import { tournamentColors } from '../../styles/tournamentUi';
 import { groupTurnsByInning } from '../../utils/liveMatchInnings';
 
@@ -55,7 +56,7 @@ function VisitRow({ turn, playerA, playerB, isCurrent }) {
       <Text style={{ marginTop: 6, fontSize: 16, fontWeight: '800', color: tournamentColors.text }}>{playerName}</Text>
       {turn.legWinnerPlayerId && (
         <Text style={{ marginTop: 4, fontSize: 13, color: '#0369a1', fontWeight: '600' }}>
-          Leg won → {resolvePlayerName(turn.legWinnerPlayerId, playerA, playerB)}
+          Leg won <AppIcon name="arrowRight" size={13} color="#0369a1" /> {resolvePlayerName(turn.legWinnerPlayerId, playerA, playerB)}
         </Text>
       )}
     </View>

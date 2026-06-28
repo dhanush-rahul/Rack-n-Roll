@@ -23,6 +23,7 @@ dist/
 build/
 .turbo/
 .cache/
+docs/ANGULAR-INTERVIEW-TEXTBOOK-PDF.md
 
 # Runtime / OS
 .DS_Store

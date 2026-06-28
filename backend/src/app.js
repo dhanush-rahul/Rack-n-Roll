@@ -7,10 +7,17 @@ const { authContext } = require('./middleware/authContext');
 const { validationMiddleware } = require('./middleware/validation');
 const { errorHandler } = require('./middleware/errorHandler');
 const { registerRoutes } = require('./routes');
+const cache = require('./utils/cache');
 const ApiError = require('./utils/ApiError');
 
 const createApp = (env) => {
   const app = express();
+
+  if (env.cache) {
+    cache.configure(env.cache);
+  }
+
+  app.set('trust proxy', 1);
 
   if (env.corsOrigins?.length) {
     app.use(

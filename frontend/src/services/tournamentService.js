@@ -34,6 +34,11 @@ export async function fetchDiscoverTournaments(params = {}) {
   return response.data;
 }
 
+export async function fetchMyRegisteredDiscoverTournaments() {
+  const response = await apiGet('/api/tournaments/discover/registered');
+  return response.data;
+}
+
 export async function validateTournamentInviteCode(tournamentId, inviteCode) {
   const response = await apiPost(`/api/tournaments/${tournamentId}/validate-invite-code`, { inviteCode });
   return response.data;

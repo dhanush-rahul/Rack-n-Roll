@@ -2,7 +2,8 @@ import React from 'react';
 import { Modal, Pressable, View } from 'react-native';
 import { ScaledText as Text } from './ui/ScaledText';
 import { ActionButton } from './tournament/TournamentChrome';
-import { discoverUi, tournamentColors, tournamentUi } from '../styles/tournamentUi';
+import { AppIcon } from './ui/AppIcon';
+import { tournamentColors, tournamentUi } from '../styles/tournamentUi';
 
 export function ConfirmModal({
   visible,
@@ -14,25 +15,24 @@ export function ConfirmModal({
   onCancel,
   isLoading = false,
   confirmVariant = 'primary',
-  emoji,
+  icon,
 }) {
+  const iconColor = confirmVariant === 'danger' ? tournamentColors.error : tournamentColors.primary;
+  const iconTone = confirmVariant === 'danger' ? 'danger' : 'primary';
+
   return (
     <Modal animationType="fade" transparent visible={Boolean(visible)} onRequestClose={onCancel}>
       <View style={tournamentUi.modalOverlay}>
         <Pressable style={tournamentUi.modalBackdrop} onPress={isLoading ? undefined : onCancel} />
-        <View style={[discoverUi.surfaceCard, { marginHorizontal: 4 }]}>
-          {Boolean(emoji) && <Text style={{ fontSize: 32, marginBottom: 8 }}>{emoji}</Text>}
-          {Boolean(title) && (
-            <Text style={{ fontSize: 18, fontWeight: '800', color: tournamentColors.text, marginBottom: 8 }}>
-              {title}
-            </Text>
+        <View style={tournamentUi.modalCard}>
+          {Boolean(icon) && (
+            <View style={tournamentUi.modalIconWrap(iconTone)}>
+              <AppIcon name={icon} size={26} color={iconColor} />
+            </View>
           )}
-          {Boolean(message) && (
-            <Text style={{ fontSize: 14, lineHeight: 20, color: tournamentColors.textMuted, marginBottom: 16 }}>
-              {message}
-            </Text>
-          )}
-          <View style={{ flexDirection: 'row', gap: 10 }}>
+          {Boolean(title) && <Text style={tournamentUi.modalTitle}>{title}</Text>}
+          {Boolean(message) && <Text style={tournamentUi.modalMessage}>{message}</Text>}
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
             <View style={{ flex: 1 }}>
               <ActionButton label={cancelLabel} onPress={onCancel} disabled={isLoading} variant="ghost" fullWidth />
             </View>

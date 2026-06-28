@@ -429,7 +429,7 @@ export function LiveMatchSessionScreen({ route, navigation }) {
                     isBusy
                       ? 'Working…'
                       : isActiveScorer
-                        ? `Pass the table → ${nextPlayer?.displayName || 'other player'}`
+                        ? `Pass the table to ${nextPlayer?.displayName || 'other player'}`
                         : 'Start scoring to pass the table'
                   }
                   onPress={onPassTable}
@@ -566,7 +566,7 @@ export function LiveMatchSessionScreen({ route, navigation }) {
         }}
         onCancel={() => setLegWonConfirmVisible(false)}
         isLoading={isBusy}
-        emoji="🎱"
+        icon="pool"
       />
 
       <ConfirmModal
@@ -580,7 +580,7 @@ export function LiveMatchSessionScreen({ route, navigation }) {
         }}
         onCancel={() => setConfirmRequestTakeoverVisible(false)}
         isLoading={isBusy}
-        emoji="🎯"
+        icon="target"
       />
 
       <ConfirmModal
@@ -594,7 +594,7 @@ export function LiveMatchSessionScreen({ route, navigation }) {
         }}
         onCancel={() => setConfirmHandOffVisible(false)}
         isLoading={isBusy}
-        emoji="🤝"
+        icon="teams"
       />
 
       <ConfirmModal
@@ -608,7 +608,7 @@ export function LiveMatchSessionScreen({ route, navigation }) {
         }}
         onCancel={() => setConfirmDeclineTakeoverVisible(false)}
         isLoading={isBusy}
-        emoji="✋"
+        icon="hand"
       />
 
       <ConfirmModal
@@ -622,7 +622,7 @@ export function LiveMatchSessionScreen({ route, navigation }) {
         }}
         onCancel={() => setConfirmForceTakeoverVisible(false)}
         isLoading={isBusy}
-        emoji="👑"
+        icon="crown"
       />
     </View>
   );

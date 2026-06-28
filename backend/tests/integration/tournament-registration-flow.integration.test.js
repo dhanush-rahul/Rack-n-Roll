@@ -281,6 +281,21 @@ describe('M6-S2 integration pack: discover -> register -> host approve', () => {
 
     expect(approvedRegistration).toBeTruthy();
     expect(approvedRegistration.status).toBe('approved');
+
+    const registeredDiscoverResponse = await request(app)
+      .get('/api/tournaments/discover/registered')
+      .set(authHeader(player.token));
+
+    expect(registeredDiscoverResponse.status).toBe(200);
+    expect(registeredDiscoverResponse.body.success).toBe(true);
+    expect(registeredDiscoverResponse.body.data.items).toHaveLength(1);
+    expect(registeredDiscoverResponse.body.data.items[0].id).toBe(tournamentId);
+    expect(registeredDiscoverResponse.body.data.items[0].currentUserRegistrationStatus).toBe('approved');
+  });
+
+  test('discover registered requires authentication', async () => {
+    const response = await request(app).get('/api/tournaments/discover/registered');
+    expect(response.status).toBe(401);
   });
 
   test('failure path: invite-only registration rejects invalid invite code', async () => {

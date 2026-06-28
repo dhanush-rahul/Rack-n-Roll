@@ -3,6 +3,7 @@ const { requireAuth } = require('../middleware/requireAuth');
 const {
 	createTournamentController,
 	discoverTournamentsController,
+	discoverMyRegisteredTournamentsController,
 	getHostTournamentDetailController,
 	validateInviteCodeController,
 	submitRegistrationRequestController,
@@ -59,6 +60,7 @@ const {
   randomPairTeamsController,
 } = require('../controllers/team.controller');
 
+router.get('/discover/registered', requireAuth, discoverMyRegisteredTournamentsController);
 router.get('/discover', discoverTournamentsController);
 router.get('/:tournamentId/host-detail', requireAuth, getHostTournamentDetailController);
 router.get('/:tournamentId/export/xlsx', requireAuth, exportTournamentXlsxController);

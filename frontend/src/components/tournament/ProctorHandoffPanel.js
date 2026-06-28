@@ -54,7 +54,7 @@ export function ProctorHandoffPanel({
       {pendingForMe && (
         <View style={{ gap: 8 }}>
           <InfoBanner
-            emoji="🎯"
+            icon="target"
             tone="warning"
             title="Proctor role offered to you"
             message="Accept to mark scores for this entire tournament."

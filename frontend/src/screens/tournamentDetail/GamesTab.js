@@ -54,7 +54,7 @@ export function GamesTab({
   if (!isRegistrationClosed) {
     return (
       <EmptyStateCard
-        emoji="📝"
+        icon="registration"
         title="Registration still open"
         message="Close registration on the Players tab, then assign groups to generate fixtures."
       />
@@ -64,7 +64,7 @@ export function GamesTab({
   if (!hasGroupFixtures && !isLoadingGames) {
     return (
       <EmptyStateCard
-        emoji="📅"
+        icon="calendar"
         title="No fixtures yet"
         message="Head to the Groups tab to assign players and create the group-stage schedule."
       />
@@ -145,12 +145,12 @@ export function GamesTab({
         )}
 
         {hasActiveGamesFilter && displaySections.length === 0 && !isLoadingGames && (
-          <EmptyStateCard emoji="🔍" title="No matches found" message="Try different player names in the filter." />
+          <EmptyStateCard icon="search" title="No matches found" message="Try different player names in the filter." />
         )}
 
         {!hasActiveGamesFilter && displaySections.length === 0 && !isLoadingGames && (
           <EmptyStateCard
-            emoji="🎱"
+            icon="pool"
             title="No group-stage games"
             message="Fixtures appear here after groups are assigned."
           />

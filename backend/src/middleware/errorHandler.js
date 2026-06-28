@@ -1,6 +1,6 @@
 const { logger } = require('../utils/logger');
 
-const errorHandler = (err, req, res, next) => {
+const errorHandler = (err, req, res, _next) => {
   const isApiError = Number.isInteger(err?.statusCode) && Boolean(err?.code);
   const status = isApiError ? err.statusCode : 500;
   const code = isApiError ? err.code : 'INTERNAL_SERVER_ERROR';

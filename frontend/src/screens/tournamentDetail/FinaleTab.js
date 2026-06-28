@@ -55,7 +55,7 @@ export function FinaleTab({
       {hasFinalStageStarted && (
         <View style={{ marginBottom: 14 }}>
           <InfoBanner
-            emoji="🏆"
+            icon="trophy"
             tone="success"
             title="Finale in progress"
             message={
@@ -112,7 +112,7 @@ export function FinaleTab({
 
         {!isLoadingFinaleTab && finalDisplaySections.length === 0 && (
           <EmptyStateCard
-            emoji="🏆"
+            icon="trophy"
             title="No finale matches yet"
             message="Start the final stage from the Games tab when group play is wrapping up."
           />

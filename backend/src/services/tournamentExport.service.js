@@ -9,7 +9,7 @@ const { sendTournamentExportEmail } = require('./email.service');
 const {
   getHostTournamentDetail,
   listGroupStandingsForHost,
-} = require('./tournament.service');
+} = require('./tournament');
 const { listTournamentTeams, buildTeamSummaryById } = require('./team.service');
 
 const HEADER_FILL = {

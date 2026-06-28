@@ -2,7 +2,8 @@ import React from 'react';
 import { Modal, Pressable, View } from 'react-native';
 import { ScaledText as Text } from './ui/ScaledText';
 import { ActionButton } from './tournament/TournamentChrome';
-import { discoverUi, tournamentColors, tournamentUi } from '../styles/tournamentUi';
+import { AppIcon } from './ui/AppIcon';
+import { tournamentColors, tournamentUi } from '../styles/tournamentUi';
 
 export function AuthPromptModal({
   visible,
@@ -16,14 +17,12 @@ export function AuthPromptModal({
     <Modal animationType="fade" transparent visible={Boolean(visible)} onRequestClose={onCancel}>
       <View style={tournamentUi.modalOverlay}>
         <Pressable style={tournamentUi.modalBackdrop} onPress={onCancel} />
-        <View style={[discoverUi.surfaceCard, { marginHorizontal: 4 }]}>
-          <Text style={{ fontSize: 32, marginBottom: 8 }}>🔐</Text>
-          <Text style={{ fontSize: 18, fontWeight: '800', color: tournamentColors.text, marginBottom: 8 }}>
-            {title}
-          </Text>
-          <Text style={{ fontSize: 14, lineHeight: 20, color: tournamentColors.textMuted, marginBottom: 16 }}>
-            {message}
-          </Text>
+        <View style={tournamentUi.modalCard}>
+          <View style={tournamentUi.modalIconWrap('primary')}>
+            <AppIcon name="secure" size={28} color={tournamentColors.primary} />
+          </View>
+          <Text style={tournamentUi.modalTitle}>{title}</Text>
+          <Text style={tournamentUi.modalMessage}>{message}</Text>
           <View style={{ gap: 10 }}>
             <ActionButton label="Sign in" onPress={onSignIn} variant="primary" fullWidth />
             <ActionButton label="Create account" onPress={onSignUp} variant="ghost" fullWidth />

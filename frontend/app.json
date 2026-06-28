@@ -2,14 +2,14 @@
   "expo": {
     "name": "Rack-n-Roll",
     "slug": "rack-n-roll",
-    "version": "1.2.1",
+    "version": "1.3.1",
     "orientation": "default",
     "userInterfaceStyle": "light",
     "icon": "./assets/icon.png",
     "splash": {
       "image": "./assets/icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#4a1520"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -23,7 +23,7 @@
           "image": "./assets/icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#4a1520"
         }
       ],
       "expo-web-browser",
@@ -35,8 +35,16 @@
       }
     },
     "android": {
-      "versionCode": 8,
-      "package": "com.dhanushcharipally.racknroll"
+      "versionCode": 11,
+      "package": "com.dhanushcharipally.racknroll",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#4a1520"
+      }
+    },
+    "ios": {
+      "buildNumber": "11",
+      "bundleIdentifier": "com.dhanushcharipally.racknroll"
     }
   }
 }

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, View } from 'react-native';
 import { ScaledText as Text } from '../ui/ScaledText';
+import { AppIcon } from '../ui/AppIcon';
 import { legalUrls } from '../../config/legalUrls';
 import { authUi } from '../../styles/authUi';
 import { tournamentColors } from '../../styles/tournamentUi';
@@ -61,7 +62,11 @@ export function LegalConsent({ checked, onToggle, error }) {
           accessibilityState={{ checked }}
           hitSlop={8}
         >
-          <Text style={{ fontSize: 18, lineHeight: 22 }}>{checked ? '☑' : '☐'}</Text>
+          <AppIcon
+            name={checked ? 'checkboxOn' : 'checkboxOff'}
+            size={22}
+            color={checked ? tournamentColors.primary : tournamentColors.textMuted}
+          />
         </Pressable>
         <Text style={{ flex: 1, fontSize: 13, lineHeight: 19, color: tournamentColors.text }}>
           I agree to the{' '}

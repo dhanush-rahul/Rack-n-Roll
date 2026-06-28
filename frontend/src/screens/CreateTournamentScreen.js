@@ -3,9 +3,12 @@ import { Platform, Pressable, ScrollView, View } from 'react-native';
 import { ScaledText as Text } from '../components/ui/ScaledText';
 import { ScaledTextInput as TextInput } from '../components/ui/ScaledTextInput';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useQueryClient } from '@tanstack/react-query';
 import { FeedbackModal } from '../components/FeedbackModal';
+import { AppIcon } from '../components/ui/AppIcon';
 import { ChipSelector } from '../components/tournament/TournamentChrome';
 import { StickyFooterScreen } from '../components/layout/ScreenLayout';
+import { invalidateTournamentCache } from '../hooks/queries/invalidateTournamentCache';
 import { createTournament } from '../services/tournamentService';
 import { tournamentColors, tournamentUi } from '../styles/tournamentUi';
 import { useResponsiveLayout, centeredContentStyle } from '../utils/responsive';
@@ -112,6 +115,7 @@ function ModeOption({ label, description, selected, onPress }) {
 }
 
 export function CreateTournamentScreen({ navigation }) {
+  const queryClient = useQueryClient();
   const { contentMaxWidth } = useResponsiveLayout();
   const defaultStartsAt = useMemo(() => buildDefaultStartsAt(), []);
   const [name, setName] = useState('');
@@ -226,6 +230,7 @@ export function CreateTournamentScreen({ navigation }) {
       };
 
       const createdTournament = await createTournament(payload);
+      await invalidateTournamentCache(queryClient);
       setSuccessModal({
         visible: true,
         message: `"${createdTournament.name}" is live on Discover.`,
@@ -261,7 +266,8 @@ export function CreateTournamentScreen({ navigation }) {
       visible={successModal.visible}
       title="Tournament launched!"
       message={successModal.message}
-      emoji="🎉"
+      icon="celebrate"
+      dismissLabel="View on Discover"
       onDismiss={onSuccessDismiss}
     />
     <StickyFooterScreen
@@ -421,7 +427,11 @@ export function CreateTournamentScreen({ navigation }) {
             opacity: pressed ? 0.9 : 1,
           })}
         >
-          <Text style={{ fontSize: 18 }}>{handicapEnabled ? '☑' : '☐'}</Text>
+          <AppIcon
+            name={handicapEnabled ? 'checkboxOn' : 'checkboxOff'}
+            size={22}
+            color={handicapEnabled ? tournamentColors.primary : tournamentColors.textMuted}
+          />
           <View style={{ flex: 1 }}>
             <Text style={{ fontWeight: '700', color: tournamentColors.text }}>Use handicap in standings</Text>
             <Text style={{ fontSize: 12, color: tournamentColors.textMuted, marginTop: 2 }}>

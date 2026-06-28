@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { ScaledText as Text } from '../ui/ScaledText';
 import { ActionButton } from '../tournament/TournamentChrome';
+import { AppIcon } from '../ui/AppIcon';
 import { tournamentColors } from '../../styles/tournamentUi';
 
 const END_REASON_LABELS = {
@@ -55,9 +56,7 @@ export function EndGameDropdown({
             {summaryLabel}
           </Text>
         </View>
-        <Text style={{ fontSize: 18, fontWeight: '700', color: tournamentColors.primary }}>
-          {isOpen ? '▴' : '▾'}
-        </Text>
+        <AppIcon name={isOpen ? 'chevronUp' : 'chevronDown'} size={20} color={tournamentColors.primary} />
       </Pressable>
 
       {isOpen && !disabled && (

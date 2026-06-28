@@ -1,9 +1,11 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as SplashScreen from 'expo-splash-screen';
-import React, { memo, useEffect, useMemo } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Pressable, View } from 'react-native';
 import { ScaledText as Text } from '../components/ui/ScaledText';
+import { AppIcon } from '../components/ui/AppIcon';
+import { tournamentColors } from '../styles/tournamentUi';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { HomeScreen } from '../screens/HomeScreen';
@@ -14,6 +16,7 @@ import { CreateTournamentScreen } from '../screens/CreateTournamentScreen';
 import { ScoresheetScreen } from '../screens/ScoresheetScreen';
 import { LiveMatchSessionScreen } from '../screens/LiveMatchSessionScreen';
 import { TournamentDetailScreen } from '../screens/TournamentDetailScreen';
+import { AppBootstrapScreen } from '../screens/AppBootstrapScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 
 const Stack = createNativeStackNavigator();
@@ -120,10 +123,10 @@ const AppHeader = memo(function AppHeader({
                 justifyContent: 'center',
               })}
             >
-              <Text style={{ fontSize: 17, lineHeight: 18 }}>👤</Text>
+              <AppIcon name="person" size={20} color={tournamentColors.text} />
             </Pressable>
             <Pressable onPress={onSignOut} hitSlop={8} accessibilityRole="button" accessibilityLabel="Sign out">
-              <Text style={{ fontSize: 18, lineHeight: 20 }}>🚪</Text>
+              <AppIcon name="logout" size={20} color={tournamentColors.text} />
             </Pressable>
           </>
         )}
@@ -185,16 +188,25 @@ function RootStack({ isAuthenticated, onSignOut }) {
 }
 
 export function AppNavigator() {
-  const { isAuthenticated, isLoading, signOut } = useAuth();
+  const { isAuthenticated, isLoading, bootstrapMessage, signOut } = useAuth();
+  const nativeSplashHiddenRef = useRef(false);
+
+  const hideNativeSplash = useCallback(() => {
+    if (nativeSplashHiddenRef.current) {
+      return;
+    }
+    nativeSplashHiddenRef.current = true;
+    SplashScreen.hideAsync().catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!isLoading) {
-      SplashScreen.hideAsync().catch(() => {});
+      hideNativeSplash();
     }
-  }, [isLoading]);
+  }, [hideNativeSplash, isLoading]);
 
   if (isLoading) {
-    return null;
+    return <AppBootstrapScreen statusMessage={bootstrapMessage} onReady={hideNativeSplash} />;
   }
 
   return (
