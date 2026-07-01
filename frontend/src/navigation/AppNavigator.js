@@ -1,7 +1,9 @@
-import { NavigationContainer } from '@react-navigation/native';
+import { CommonActions, createNavigationContainerRef, NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as SplashScreen from 'expo-splash-screen';
-import React, { memo, useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ConfirmModal } from '../components/ConfirmModal';
+import { SignOutProvider } from '../context/SignOutContext';
 import { Pressable, View } from 'react-native';
 import { ScaledText as Text } from '../components/ui/ScaledText';
 import { AppIcon } from '../components/ui/AppIcon';
@@ -20,6 +22,7 @@ import { AppBootstrapScreen } from '../screens/AppBootstrapScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 
 const Stack = createNativeStackNavigator();
+const navigationRef = createNavigationContainerRef();
 
 const AppHeader = memo(function AppHeader({
   navigation,
@@ -190,6 +193,8 @@ function RootStack({ isAuthenticated, onSignOut }) {
 export function AppNavigator() {
   const { isAuthenticated, isLoading, bootstrapMessage, signOut } = useAuth();
   const nativeSplashHiddenRef = useRef(false);
+  const [signOutConfirmVisible, setSignOutConfirmVisible] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const hideNativeSplash = useCallback(() => {
     if (nativeSplashHiddenRef.current) {
@@ -198,6 +203,39 @@ export function AppNavigator() {
     nativeSplashHiddenRef.current = true;
     SplashScreen.hideAsync().catch(() => {});
   }, []);
+
+  const requestSignOut = useCallback(() => {
+    setSignOutConfirmVisible(true);
+  }, []);
+
+  const handleCancelSignOut = useCallback(() => {
+    if (isSigningOut) {
+      return;
+    }
+    setSignOutConfirmVisible(false);
+  }, [isSigningOut]);
+
+  const handleConfirmSignOut = useCallback(async () => {
+    if (isSigningOut) {
+      return;
+    }
+
+    setIsSigningOut(true);
+    try {
+      await signOut();
+      setSignOutConfirmVisible(false);
+      if (navigationRef.isReady()) {
+        navigationRef.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name: 'Home' }],
+          })
+        );
+      }
+    } finally {
+      setIsSigningOut(false);
+    }
+  }, [isSigningOut, signOut]);
 
   useEffect(() => {
     if (!isLoading) {
@@ -210,8 +248,22 @@ export function AppNavigator() {
   }
 
   return (
-    <NavigationContainer>
-      <RootStack isAuthenticated={isAuthenticated} onSignOut={signOut} />
-    </NavigationContainer>
+    <SignOutProvider requestSignOut={requestSignOut}>
+      <NavigationContainer ref={navigationRef}>
+        <RootStack isAuthenticated={isAuthenticated} onSignOut={requestSignOut} />
+      </NavigationContainer>
+      <ConfirmModal
+        visible={signOutConfirmVisible}
+        title="Sign out?"
+        message="You'll need to sign in again to host tournaments or manage your registrations."
+        confirmLabel="Sign out"
+        cancelLabel="Stay signed in"
+        onConfirm={handleConfirmSignOut}
+        onCancel={handleCancelSignOut}
+        isLoading={isSigningOut}
+        confirmVariant="danger"
+        icon="logout"
+      />
+    </SignOutProvider>
   );
 }

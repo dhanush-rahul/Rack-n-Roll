@@ -13,6 +13,7 @@ import {
 import { ScaledText as Text } from '../components/ui/ScaledText';
 import { useAuth } from '../context/AuthContext';
 import { AuthPromptModal } from '../components/AuthPromptModal';
+import { ConfirmModal } from '../components/ConfirmModal';
 import { useRequireAuth } from '../hooks/useRequireAuth';
 import { useDiscoverTournaments } from '../hooks/queries/useDiscoverTournaments';
 import { useMyRegisteredTournaments } from '../hooks/queries/useMyRegisteredTournaments';
@@ -25,6 +26,7 @@ import { AppIcon } from '../components/ui/AppIcon';
 import { tournamentColors, tournamentUi } from '../styles/tournamentUi';
 import { useResponsiveLayout, centeredContentStyle } from '../utils/responsive';
 import { useDiscoverFilters } from '../hooks/useDiscoverFilters';
+import { useHomeBackHandler } from '../hooks/useHomeBackHandler';
 import { DiscoverHero } from '../components/discover/DiscoverHero';
 import { DiscoverRegisteredSection } from '../components/discover/DiscoverRegisteredSection';
 import { DiscoverFiltersPanel } from '../components/discover/DiscoverFiltersPanel';
@@ -118,6 +120,7 @@ function EmptyDiscoverState({ onCreate, filterId, searchQuery }) {
 export function HomeScreen({ navigation, route }) {
   const { currentUser, isAuthenticated } = useAuth();
   const { requireAuth, authPromptProps } = useRequireAuth(navigation);
+  const { exitConfirmVisible, confirmExit, cancelExit } = useHomeBackHandler();
   const queryClient = useQueryClient();
   const { scrollPaddingBottom } = useScreenInsets();
   const { contentMaxWidth, horizontalPadding } = useResponsiveLayout();
@@ -147,6 +150,17 @@ export function HomeScreen({ navigation, route }) {
   const [registrationByTournamentId, setRegistrationByTournamentId] = useState({});
   const [expandedTournamentId, setExpandedTournamentId] = useState(null);
   const expansionAnimationByIdRef = useRef({});
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      return;
+    }
+
+    setInviteCodeByTournamentId({});
+    setValidationByTournamentId({});
+    setRegistrationByTournamentId({});
+    setExpandedTournamentId(null);
+  }, [isAuthenticated]);
 
   const {
     data: discoveryData,
@@ -233,13 +247,17 @@ export function HomeScreen({ navigation, route }) {
 
   const getRequestEnabled = useCallback(
     (item) => {
+      if (!isAuthenticated) {
+        return false;
+      }
+
       const isHostTournament = String(item.hostUserId) === String(currentUser?.id);
       if (item.registrationStatus !== 'open') return false;
       if (isHostTournament) return true;
       if (item.registrationMode === 'public') return true;
       return validationByTournamentId[item.id]?.requestEnabled === true;
     },
-    [currentUser?.id, validationByTournamentId]
+    [currentUser?.id, isAuthenticated, validationByTournamentId]
   );
 
   useEffect(() => {
@@ -533,8 +551,9 @@ export function HomeScreen({ navigation, route }) {
             {filteredItems.map((item, index) => {
               const tournamentValidation = validationByTournamentId[item.id] || {};
               const registrationState = registrationByTournamentId[item.id] || {};
-              const existingRegistrationStatus =
-                registrationState.status || item.currentUserRegistrationStatus || null;
+              const existingRegistrationStatus = isAuthenticated
+                ? registrationState.status || item.currentUserRegistrationStatus || null
+                : null;
               const hasExistingRegistration = Boolean(existingRegistrationStatus);
               const requestEnabled = getRequestEnabled(item);
               const isHostTournament = String(item.hostUserId) === String(currentUser?.id);
@@ -547,6 +566,7 @@ export function HomeScreen({ navigation, route }) {
                     item={item}
                     isExpanded={isExpanded}
                     isHighlighted={isHighlighted}
+                    isAuthenticated={isAuthenticated}
                     isHostTournament={isHostTournament}
                     highlightBlinkAnimation={highlightBlinkAnimation}
                     expansionAnimation={getExpansionAnimation(item.id)}
@@ -592,6 +612,17 @@ export function HomeScreen({ navigation, route }) {
         )}
       </ScrollView>
       <AuthPromptModal {...authPromptProps} />
+      <ConfirmModal
+        visible={exitConfirmVisible}
+        title="Exit Rack-N-Roll?"
+        message="Are you sure you want to close the app?"
+        confirmLabel="Exit"
+        cancelLabel="Stay"
+        onConfirm={confirmExit}
+        onCancel={cancelExit}
+        confirmVariant="danger"
+        icon="warning"
+      />
     </>
   );
 }

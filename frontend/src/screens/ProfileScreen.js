@@ -7,6 +7,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { LegalMenuSection } from '../components/legal/LegalLinks';
 import { ActionButton, SectionCard } from '../components/tournament/TournamentChrome';
 import { useAuth } from '../context/AuthContext';
+import { useSignOutRequest } from '../context/SignOutContext';
 import { setMyPassword } from '../services/userService';
 import { useMyProfile } from '../hooks/queries/useMyProfile';
 import { queryKeys } from '../hooks/queries/queryKeys';
@@ -14,6 +15,7 @@ import { useScreenInsets } from '../hooks/useScreenInsets';
 import { discoverUi, tournamentColors, tournamentUi } from '../styles/tournamentUi';
 import { useResponsiveLayout, centeredContentStyle } from '../utils/responsive';
 import { formatApiError } from '../hooks/useScreenFeedback';
+import { getAuthErrorMessage } from '../utils/authErrors';
 import { AuthField, AuthPasswordMatchHint } from '../components/auth/AuthChrome';
 import { hasValidationErrors, validateChangePasswordInput, validateSetPasswordInput } from '../utils/authValidation';
 
@@ -64,7 +66,8 @@ function formatMemberSince(value) {
 }
 
 export function ProfileScreen({ navigation }) {
-  const { signOut, currentUser } = useAuth();
+  const { currentUser } = useAuth();
+  const { requestSignOut } = useSignOutRequest();
   const queryClient = useQueryClient();
   const { scrollPaddingBottom } = useScreenInsets();
   const { contentMaxWidth } = useResponsiveLayout();
@@ -322,7 +325,7 @@ export function ProfileScreen({ navigation }) {
                           setConfirmPasswordInput('');
                           setPasswordSuccessText('Password saved. You can now sign in with email and password.');
                         } catch (error) {
-                          setSaveErrorText(error.message || 'Unable to set password.');
+                          setSaveErrorText(getAuthErrorMessage(error, 'Unable to set password.'));
                         } finally {
                           setIsSavingPassword(false);
                         }
@@ -441,7 +444,7 @@ export function ProfileScreen({ navigation }) {
                           });
                           setPasswordSuccessText('Password updated successfully.');
                         } catch (error) {
-                          setSaveErrorText(error.message || 'Unable to change password.');
+                          setSaveErrorText(getAuthErrorMessage(error, 'Unable to change password.'));
                         } finally {
                           setIsSavingPassword(false);
                         }
@@ -464,7 +467,7 @@ export function ProfileScreen({ navigation }) {
         </View>
 
         <View style={{ marginTop: 20 }}>
-          <ActionButton label="Sign out" onPress={signOut} variant="danger" fullWidth />
+          <ActionButton label="Sign out" onPress={requestSignOut} variant="danger" fullWidth />
         </View>
       </ScrollView>
     </View>

@@ -9,7 +9,9 @@ const registerRoutes = (app) => {
   app.use('/', healthRoutes);
   app.use('/api/auth', authRoutes);
   app.use('/api/protected', protectedRoutes);
-  app.use('/api/debug', debugRoutes);
+  if (process.env.NODE_ENV !== 'production') {
+    app.use('/api/debug', debugRoutes);
+  }
   app.use('/api/users', userRoutes);
   app.use('/api/tournaments', tournamentRoutes);
 };

@@ -5,6 +5,7 @@ import { ActionButton } from '../tournament/TournamentChrome';
 import { AuthDivider } from './AuthChrome';
 import { useGoogleSignIn } from '../../hooks/useGoogleSignIn';
 import { authUi } from '../../styles/authUi';
+import { getAuthErrorMessage } from '../../utils/authErrors';
 
 export function GoogleSignInSection({ onIdToken, disabled = false }) {
   const { promptGoogleSignIn, isGoogleLoading } = useGoogleSignIn();
@@ -21,7 +22,7 @@ export function GoogleSignInSection({ onIdToken, disabled = false }) {
 
       await onIdToken(idToken);
     } catch (error) {
-      setErrorText(error.message || 'Google sign-in failed. Please try again.');
+      setErrorText(getAuthErrorMessage(error, 'Google sign-in failed. Please try again.'));
     }
   };
 

@@ -167,6 +167,7 @@ const signup = async ({ name, email, password }) => {
   validateSignupInput({ name, email, password });
   const normalizedEmail = normalizeEmail(email);
   const normalizedName = normalizeName(name);
+  const normalizedPassword = validatePassword(password);
 
   const existingUser = await User.findOne({ email: normalizedEmail }).lean();
   if (existingUser) {
@@ -178,7 +179,7 @@ const signup = async ({ name, email, password }) => {
     );
   }
 
-  const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+  const passwordHash = await bcrypt.hash(normalizedPassword, SALT_ROUNDS);
 
   const createdUser = await User.create({
     name: normalizedName,
@@ -198,7 +199,14 @@ const signup = async ({ name, email, password }) => {
 };
 
 const login = async ({ email, password }) => {
-  const normalizedEmail = normalizeEmail(email);
+  let normalizedEmail;
+
+  try {
+    normalizedEmail = validateEmail(email);
+  } catch {
+    throw new ApiError(401, 'INVALID_CREDENTIALS', 'Invalid email or password');
+  }
+
   const normalizedPassword = normalizePassword(password);
 
   if (!normalizedEmail || !normalizedPassword) {

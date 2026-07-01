@@ -44,7 +44,7 @@ const createApp = (env) => {
   registerRoutes(app);
 
   app.use((req, res, next) => {
-    next(new ApiError(404, 'NOT_FOUND', 'Route not found', { path: req.originalUrl }));
+    next(new ApiError(404, 'NOT_FOUND', 'Route not found'));
   });
 
   app.use(errorHandler);

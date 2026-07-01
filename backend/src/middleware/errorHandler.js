@@ -18,9 +18,15 @@ const errorHandler = (err, req, res, _next) => {
   };
 
   if (!isApiError) {
-    logger.error({ ...logPayload, err }, 'unexpected error');
+    logger.error(
+      { ...logPayload, errMessage: err?.message, errStack: err?.stack },
+      'unexpected error'
+    );
   } else if (status >= 500) {
-    logger.error({ ...logPayload, err }, 'request failed');
+    logger.error(
+      { ...logPayload, errMessage: err?.message, errStack: err?.stack },
+      'request failed'
+    );
   } else {
     logger.warn(logPayload, message);
   }
