@@ -16,6 +16,7 @@ import { discoverUi, tournamentColors, tournamentUi } from '../styles/tournament
 import { useResponsiveLayout, centeredContentStyle } from '../utils/responsive';
 import { formatApiError } from '../hooks/useScreenFeedback';
 import { getAuthErrorMessage } from '../utils/authErrors';
+import { resetCreateTournamentWalkthrough, resetDiscoverWalkthrough } from '../utils/onboardingStore';
 import { AuthField, AuthPasswordMatchHint } from '../components/auth/AuthChrome';
 import { hasValidationErrors, validateChangePasswordInput, validateSetPasswordInput } from '../utils/authValidation';
 
@@ -459,6 +460,31 @@ export function ProfileScreen({ navigation }) {
             ) : null}
           </>
         )}
+
+        <View style={{ marginTop: 14 }}>
+          <SectionCard title="Help" subtitle="Learn how to use the app">
+            <View style={{ gap: 10 }}>
+              <ActionButton
+                label="Replay discover tour"
+                onPress={async () => {
+                  await resetDiscoverWalkthrough();
+                  navigation.navigate('DiscoverWalkthrough');
+                }}
+                variant="secondary"
+                fullWidth
+              />
+              <ActionButton
+                label="Replay create tournament tour"
+                onPress={async () => {
+                  await resetCreateTournamentWalkthrough();
+                  navigation.navigate('CreateTournamentWalkthrough');
+                }}
+                variant="secondary"
+                fullWidth
+              />
+            </View>
+          </SectionCard>
+        </View>
 
         <View style={{ marginTop: 14 }}>
           <SectionCard title="Legal" subtitle="Terms and privacy information">

@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Platform, Pressable, ScrollView, View } from 'react-native';
+import React, { useMemo, useRef, useState } from 'react';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import { ScaledText as Text } from '../components/ui/ScaledText';
 import { ScaledTextInput as TextInput } from '../components/ui/ScaledTextInput';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -7,7 +7,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { FeedbackModal } from '../components/FeedbackModal';
 import { AppIcon } from '../components/ui/AppIcon';
 import { ChipSelector } from '../components/tournament/TournamentChrome';
-import { StickyFooterScreen } from '../components/layout/ScreenLayout';
+import { useScreenInsets } from '../hooks/useScreenInsets';
 import { invalidateTournamentCache } from '../hooks/queries/invalidateTournamentCache';
 import { createTournament } from '../services/tournamentService';
 import { tournamentColors, tournamentUi } from '../styles/tournamentUi';
@@ -114,10 +114,12 @@ function ModeOption({ label, description, selected, onPress }) {
   );
 }
 
-export function CreateTournamentScreen({ navigation }) {
+export function CreateTournamentScreen({ navigation, route }) {
   const queryClient = useQueryClient();
   const { contentMaxWidth } = useResponsiveLayout();
+  const { scrollPaddingBottom } = useScreenInsets();
   const defaultStartsAt = useMemo(() => buildDefaultStartsAt(), []);
+  const scrollRef = useRef(null);
   const [name, setName] = useState('');
   const [maxParticipants, setMaxParticipants] = useState('16');
   const [registrationMode, setRegistrationMode] = useState('public');
@@ -270,28 +272,20 @@ export function CreateTournamentScreen({ navigation }) {
       dismissLabel="View on Discover"
       onDismiss={onSuccessDismiss}
     />
-    <StickyFooterScreen
-      style={tournamentUi.screen}
-      keyboardAvoiding
-      contentContainerStyle={[centeredContentStyle(contentMaxWidth), { gap: 14 }]}
-      footer={
-        <Pressable
-          onPress={onSubmit}
-          disabled={isSubmitting}
-          style={({ pressed }) => ({
-            backgroundColor: isSubmitting ? tournamentColors.primaryMuted : tournamentColors.primary,
-            borderRadius: 12,
-            paddingVertical: 16,
-            alignItems: 'center',
-            opacity: pressed || isSubmitting ? 0.85 : 1,
-          })}
-        >
-          <Text style={{ color: tournamentColors.white, fontSize: 16, fontWeight: '700' }}>
-            {isSubmitting ? 'Creating tournament...' : 'Launch tournament'}
-          </Text>
-        </Pressable>
-      }
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      <ScrollView
+        ref={scrollRef}
+        style={tournamentUi.screen}
+        contentContainerStyle={[
+          centeredContentStyle(contentMaxWidth),
+          { padding: 16, paddingBottom: scrollPaddingBottom, gap: 14 },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
       <View
         style={{
           borderRadius: 16,
@@ -305,7 +299,6 @@ export function CreateTournamentScreen({ navigation }) {
         </Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           <Text style={previewPillStyle}>Host Dashboard</Text>
-          
         </View>
       </View>
 
@@ -364,6 +357,20 @@ export function CreateTournamentScreen({ navigation }) {
             })}
           </View>
           {Boolean(fieldErrors.maxParticipants) && <Text style={errorTextStyle}>{fieldErrors.maxParticipants}</Text>}
+        </View>
+
+        <View style={{ gap: 6 }}>
+          <FieldLabel>Tournament held at</FieldLabel>
+          <TextInput
+            style={tournamentUi.input}
+            placeholder="e.g. Rack House Billiards, 120 Main St, Toronto"
+            value={venue}
+            onChangeText={(value) => {
+              setVenue(value);
+              setFieldErrors((current) => ({ ...current, venue: '' }));
+            }}
+          />
+          {Boolean(fieldErrors.venue) && <Text style={errorTextStyle}>{fieldErrors.venue}</Text>}
         </View>
       </SectionCard>
 
@@ -545,23 +552,6 @@ export function CreateTournamentScreen({ navigation }) {
         {Boolean(fieldErrors.schedule) && <Text style={errorTextStyle}>{fieldErrors.schedule}</Text>}
       </SectionCard>
 
-      <SectionCard title="Location" subtitle="One place name or address — no map coordinates needed.">
-        <View style={{ gap: 6 }}>
-          <FieldLabel>Tournament held at</FieldLabel>
-          <TextInput
-            style={[tournamentUi.input, { minHeight: 88, textAlignVertical: 'top' }]}
-            placeholder="e.g. Rack House Billiards, 120 Main St, Toronto"
-            value={venue}
-            onChangeText={(value) => {
-              setVenue(value);
-              setFieldErrors((current) => ({ ...current, venue: '' }));
-            }}
-            multiline
-          />
-          {Boolean(fieldErrors.venue) && <Text style={errorTextStyle}>{fieldErrors.venue}</Text>}
-        </View>
-      </SectionCard>
-
       <View
         style={{
           borderRadius: 14,
@@ -585,7 +575,24 @@ export function CreateTournamentScreen({ navigation }) {
       </View>
 
       {Boolean(errorText) && <Text style={errorTextStyle}>{errorText}</Text>}
-    </StickyFooterScreen>
+
+        <Pressable
+          onPress={onSubmit}
+          disabled={isSubmitting}
+          style={({ pressed }) => ({
+            backgroundColor: isSubmitting ? tournamentColors.primaryMuted : tournamentColors.primary,
+            borderRadius: 12,
+            paddingVertical: 16,
+            alignItems: 'center',
+            opacity: pressed || isSubmitting ? 0.85 : 1,
+          })}
+        >
+          <Text style={{ color: tournamentColors.white, fontSize: 16, fontWeight: '700' }}>
+            {isSubmitting ? 'Creating tournament...' : 'Launch tournament'}
+          </Text>
+        </Pressable>
+      </ScrollView>
+    </KeyboardAvoidingView>
   </>
   );
 }

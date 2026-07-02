@@ -30,8 +30,14 @@ import { useHomeBackHandler } from '../hooks/useHomeBackHandler';
 import { DiscoverHero } from '../components/discover/DiscoverHero';
 import { DiscoverRegisteredSection } from '../components/discover/DiscoverRegisteredSection';
 import { DiscoverFiltersPanel } from '../components/discover/DiscoverFiltersPanel';
+import { DiscoverTournamentsHeader } from '../components/discover/DiscoverTournamentsHeader';
 import { DiscoverTournamentCard } from '../components/discover/DiscoverTournamentCard';
 import { PaginationBar } from '../components/discover/PaginationBar';
+import {
+  isCreateTournamentWalkthroughCompleted,
+  isDiscoverWalkthroughCompleted,
+  WALKTHROUGH_FORCE_EVERY_VISIT,
+} from '../utils/onboardingStore';
 
 const HIGHLIGHT_BLINK_DURATION_MS = 6000;
 
@@ -150,6 +156,7 @@ export function HomeScreen({ navigation, route }) {
   const [registrationByTournamentId, setRegistrationByTournamentId] = useState({});
   const [expandedTournamentId, setExpandedTournamentId] = useState(null);
   const expansionAnimationByIdRef = useRef({});
+  const scrollViewRef = useRef(null);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -243,6 +250,34 @@ export function HomeScreen({ navigation, route }) {
         setFilterId('all');
       }
     }, [route.params?.highlightTournamentId, setPage, setFilterId])
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+
+      const maybeOpenWalkthrough = async () => {
+        if (!isAuthenticated || cancelled) {
+          return;
+        }
+
+        if (WALKTHROUGH_FORCE_EVERY_VISIT) {
+          navigation.replace('DiscoverWalkthrough');
+          return;
+        }
+
+        const completed = await isDiscoverWalkthroughCompleted();
+        if (!completed && !cancelled) {
+          navigation.replace('DiscoverWalkthrough');
+        }
+      };
+
+      maybeOpenWalkthrough();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [isAuthenticated, navigation])
   );
 
   const getRequestEnabled = useCallback(
@@ -419,7 +454,15 @@ export function HomeScreen({ navigation, route }) {
   );
 
   const onCreateTournament = useCallback(() => {
-    requireAuth(() => navigation.navigate('CreateTournament'), {
+    requireAuth(async () => {
+      if (WALKTHROUGH_FORCE_EVERY_VISIT) {
+        navigation.navigate('CreateTournamentWalkthrough');
+        return;
+      }
+
+      const completed = await isCreateTournamentWalkthroughCompleted();
+      navigation.navigate(completed ? 'CreateTournament' : 'CreateTournamentWalkthrough');
+    }, {
       message: 'Sign in to host a tournament.',
       returnTo: { screen: 'Home' },
     });
@@ -445,6 +488,7 @@ export function HomeScreen({ navigation, route }) {
   return (
     <>
       <ScrollView
+        ref={scrollViewRef}
         style={tournamentUi.screen}
         contentContainerStyle={[
           { padding: horizontalPadding, paddingBottom: scrollPaddingBottom },
@@ -485,26 +529,6 @@ export function HomeScreen({ navigation, route }) {
           </View>
         ) : null}
 
-        <View style={{ marginBottom: 16 }}>
-          <DiscoverFiltersPanel
-            expanded={filtersExpanded}
-            onToggle={onToggleFiltersPanel}
-            panelAnimation={filtersPanelAnimation}
-            activeFilterCount={activeFilterCount}
-            searchQuery={searchQuery}
-            sortId={sortId}
-            filterId={filterId}
-            pageSize={pageSize}
-            isRefreshing={isRefreshing || isLoadingDiscovery}
-            onRefresh={() => refetchDiscovery()}
-            onSearchQueryChange={setSearchQuery}
-            onClearSearch={() => setSearchQuery('')}
-            onSortChange={setSortId}
-            onFilterChange={onFilterChange}
-            onPageSizeChange={onPageSizeChange}
-          />
-        </View>
-
         {Boolean(discoveryError) && (
           <View
             style={{
@@ -524,61 +548,67 @@ export function HomeScreen({ navigation, route }) {
           </View>
         )}
 
-        {isLoadingDiscovery && discoveryItems.length === 0 ? (
-          <LoadingPlaceholder pulse={skeletonPulse} />
-        ) : filteredItems.length === 0 ? (
-          <EmptyDiscoverState
-            onCreate={onCreateTournament}
-            filterId={filterId}
-            searchQuery={searchQuery}
+        <View>
+          <DiscoverTournamentsHeader
+            shownCount={filteredItems.length}
+            activeFilterCount={activeFilterCount}
+            filtersExpanded={filtersExpanded}
+            onToggleFilters={onToggleFiltersPanel}
           />
-        ) : (
-          <View>
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'baseline',
-                justifyContent: 'space-between',
-                marginBottom: 12,
-              }}
-            >
-              <Text style={{ fontSize: 16, fontWeight: '800', color: tournamentColors.text }}>Tournaments</Text>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: tournamentColors.textMuted }}>
-                {filteredItems.length} shown
-              </Text>
-            </View>
+          <DiscoverFiltersPanel
+            expanded={filtersExpanded}
+            panelAnimation={filtersPanelAnimation}
+            activeFilterCount={activeFilterCount}
+            searchQuery={searchQuery}
+            sortId={sortId}
+            filterId={filterId}
+            pageSize={pageSize}
+            isRefreshing={isRefreshing || isLoadingDiscovery}
+            onRefresh={() => refetchDiscovery()}
+            onSearchQueryChange={setSearchQuery}
+            onClearSearch={() => setSearchQuery('')}
+            onSortChange={setSortId}
+            onFilterChange={onFilterChange}
+            onPageSizeChange={onPageSizeChange}
+          />
 
-            {filteredItems.map((item, index) => {
-              const tournamentValidation = validationByTournamentId[item.id] || {};
-              const registrationState = registrationByTournamentId[item.id] || {};
-              const existingRegistrationStatus = isAuthenticated
-                ? registrationState.status || item.currentUserRegistrationStatus || null
-                : null;
-              const hasExistingRegistration = Boolean(existingRegistrationStatus);
-              const requestEnabled = getRequestEnabled(item);
-              const isHostTournament = String(item.hostUserId) === String(currentUser?.id);
-              const isExpanded = expandedTournamentId === item.id;
-              const isHighlighted = item.id === highlightTournamentId;
-
-              return (
-                <View key={item.id} style={{ marginBottom: index === filteredItems.length - 1 ? 0 : 12 }}>
+          {isLoadingDiscovery && discoveryItems.length === 0 ? (
+            <LoadingPlaceholder pulse={skeletonPulse} />
+          ) : filteredItems.length === 0 ? (
+            <EmptyDiscoverState
+              onCreate={onCreateTournament}
+              filterId={filterId}
+              searchQuery={searchQuery}
+            />
+          ) : (
+            <View style={{ gap: 12 }}>
+              {filteredItems.map((item) => (
+                <View key={item.id}>
                   <DiscoverTournamentCard
                     item={item}
-                    isExpanded={isExpanded}
-                    isHighlighted={isHighlighted}
+                    isExpanded={expandedTournamentId === item.id}
+                    isHighlighted={item.id === highlightTournamentId}
                     isAuthenticated={isAuthenticated}
-                    isHostTournament={isHostTournament}
+                    isHostTournament={String(item.hostUserId) === String(currentUser?.id)}
                     highlightBlinkAnimation={highlightBlinkAnimation}
                     expansionAnimation={getExpansionAnimation(item.id)}
                     inviteCode={inviteCodeByTournamentId[item.id] || ''}
                     onInviteCodeChange={(value) =>
                       setInviteCodeByTournamentId((prev) => ({ ...prev, [item.id]: value }))
                     }
-                    tournamentValidation={tournamentValidation}
-                    registrationState={registrationState}
-                    hasExistingRegistration={hasExistingRegistration}
-                    existingRegistrationStatus={existingRegistrationStatus}
-                    requestEnabled={requestEnabled}
+                    tournamentValidation={validationByTournamentId[item.id] || {}}
+                    registrationState={registrationByTournamentId[item.id] || {}}
+                    hasExistingRegistration={Boolean(
+                      isAuthenticated
+                        ? registrationByTournamentId[item.id]?.status || item.currentUserRegistrationStatus
+                        : null
+                    )}
+                    existingRegistrationStatus={
+                      isAuthenticated
+                        ? registrationByTournamentId[item.id]?.status || item.currentUserRegistrationStatus || null
+                        : null
+                    }
+                    requestEnabled={getRequestEnabled(item)}
                     onToggleExpand={onToggleExpand}
                     onOpenTournamentDetail={onOpenTournamentDetail}
                     onOpenScoresheet={onOpenScoresheet}
@@ -586,10 +616,10 @@ export function HomeScreen({ navigation, route }) {
                     onRequestRegistration={onRequestRegistration}
                   />
                 </View>
-              );
-            })}
-          </View>
-        )}
+              ))}
+            </View>
+          )}
+        </View>
 
         <View style={{ marginTop: 16 }}>
           <PaginationBar page={page} totalPages={totalPages} onPageChange={onPageChange} />

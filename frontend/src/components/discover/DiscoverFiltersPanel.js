@@ -9,13 +9,10 @@ import {
   FILTER_OPTIONS,
   SORT_OPTIONS,
   PAGE_SIZE_OPTIONS,
-  getSortLabel,
-  getFilterLabel,
 } from '../../hooks/useDiscoverFilters';
 
 export function DiscoverFiltersPanel({
   expanded,
-  onToggle,
   panelAnimation,
   activeFilterCount,
   searchQuery,
@@ -30,6 +27,10 @@ export function DiscoverFiltersPanel({
   onFilterChange,
   onPageSizeChange,
 }) {
+  if (!expanded) {
+    return null;
+  }
+
   const panelBodyStyle = {
     maxHeight: panelAnimation.interpolate({
       inputRange: [0, 1],
@@ -42,79 +43,34 @@ export function DiscoverFiltersPanel({
     overflow: 'hidden',
   };
 
-  const chevronRotation = panelAnimation.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '180deg'],
-  });
-
-  const summaryParts = [
-    searchQuery.trim() ? `"${searchQuery.trim()}"` : null,
-    getSortLabel(sortId),
-    getFilterLabel(filterId),
-    `${pageSize} / page`,
-  ].filter(Boolean);
-
   return (
-    <View style={[discoverUi.surfaceCard, { overflow: 'hidden' }]}>
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 10,
-          padding: 14,
-          backgroundColor: tournamentColors.white,
-        }}
-      >
-        <Pressable onPress={onToggle} style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.88 : 1, gap: 4 })}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Text style={{ fontSize: 15, fontWeight: '800', color: tournamentColors.text }}>Search & filters</Text>
-            {activeFilterCount > 0 && (
-              <View
-                style={{
-                  minWidth: 22,
-                  height: 22,
-                  paddingHorizontal: 6,
-                  borderRadius: 11,
-                  backgroundColor: tournamentColors.primary,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Text style={{ color: tournamentColors.white, fontSize: 11, fontWeight: '800' }}>
-                  {activeFilterCount}
-                </Text>
-              </View>
-            )}
+    <View style={[discoverUi.surfaceCard, { overflow: 'hidden', marginBottom: 16 }]}>
+      <Animated.View style={panelBodyStyle}>
+        <View style={{ gap: 14, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 18 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={{ fontSize: 14, fontWeight: '800', color: tournamentColors.text }}>Search & filters</Text>
+            <Pressable
+              onPress={onRefresh}
+              disabled={isRefreshing}
+              hitSlop={8}
+              style={{
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+                borderRadius: 8,
+                backgroundColor: '#f1f5f9',
+                opacity: isRefreshing ? 0.6 : 1,
+              }}
+            >
+              <AppIcon name="refresh" size={16} color={tournamentColors.primary} />
+            </Pressable>
           </View>
-          <Text style={{ fontSize: 12, color: tournamentColors.textMuted }} numberOfLines={1}>
-            {expanded ? 'Tap to hide options' : summaryParts.join(' · ')}
-          </Text>
-        </Pressable>
 
-        <Pressable
-          onPress={onRefresh}
-          disabled={isRefreshing}
-          hitSlop={8}
-          style={{
-            paddingHorizontal: 12,
-            paddingVertical: 8,
-            borderRadius: 10,
-            backgroundColor: '#f1f5f9',
-            opacity: isRefreshing ? 0.6 : 1,
-          }}
-        >
-          <AppIcon name="refresh" size={16} color={tournamentColors.primary} />
-        </Pressable>
+          {activeFilterCount > 0 ? (
+            <Text style={{ fontSize: 12, color: tournamentColors.textMuted }}>
+              {activeFilterCount} active {activeFilterCount === 1 ? 'filter' : 'filters'}
+            </Text>
+          ) : null}
 
-        <Pressable onPress={onToggle} hitSlop={8}>
-          <Animated.View style={{ transform: [{ rotate: chevronRotation }] }}>
-            <AppIcon name="chevronDown" size={18} color={tournamentColors.primary} />
-          </Animated.View>
-        </Pressable>
-      </View>
-
-      <Animated.View style={panelBodyStyle} pointerEvents={expanded ? 'auto' : 'none'}>
-        <View style={{ gap: 14, paddingHorizontal: 14, paddingBottom: 14 }}>
           <View style={{ gap: 8 }}>
             <Text style={{ fontSize: 12, fontWeight: '700', color: tournamentColors.textMuted, letterSpacing: 0.6 }}>
               SEARCH

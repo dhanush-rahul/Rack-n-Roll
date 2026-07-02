@@ -15,11 +15,13 @@ import { SignInScreen } from '../screens/SignInScreen';
 import { SignUpScreen } from '../screens/SignUpScreen';
 import { ForgotPasswordScreen } from '../screens/ForgotPasswordScreen';
 import { CreateTournamentScreen } from '../screens/CreateTournamentScreen';
+import { CreateTournamentWalkthroughScreen } from '../screens/CreateTournamentWalkthroughScreen';
 import { ScoresheetScreen } from '../screens/ScoresheetScreen';
 import { LiveMatchSessionScreen } from '../screens/LiveMatchSessionScreen';
 import { TournamentDetailScreen } from '../screens/TournamentDetailScreen';
 import { AppBootstrapScreen } from '../screens/AppBootstrapScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
+import { DiscoverWalkthroughScreen } from '../screens/DiscoverWalkthroughScreen';
 
 const Stack = createNativeStackNavigator();
 const navigationRef = createNavigationContainerRef();
@@ -84,11 +86,24 @@ const AppHeader = memo(function AppHeader({
       </View>
 
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-        {onInfoPress && (
-          <Pressable onPress={onInfoPress} hitSlop={8}>
-            <Text style={{ fontSize: 20, lineHeight: 20, fontWeight: 'bold', color: '#000000' }}>ⓘ</Text>
+        {onInfoPress ? (
+          <Pressable
+            onPress={onInfoPress}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Show tour"
+            style={({ pressed }) => ({
+              width: 34,
+              height: 34,
+              borderRadius: 17,
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: pressed ? 0.6 : 1,
+            })}
+          >
+            <AppIcon name="info" size={22} color={tournamentColors.text} />
           </Pressable>
-        )}
+        ) : null}
         {showGuestActions && (
           <>
             <Pressable onPress={onSignIn} hitSlop={8}>
@@ -143,7 +158,17 @@ function createRootStackHeader({ isAuthenticated, onSignOut }) {
     const title = options.title || route.name;
     const showHomeActions = route.name === 'Home' && isAuthenticated;
     const showGuestActions = route.name === 'Home' && !isAuthenticated;
-    const onInfoPress = route.params?.onInfoPress;
+
+    let onInfoPress = route.params?.onInfoPress;
+    if (typeof onInfoPress !== 'function') {
+      if (route.name === 'Home') {
+        onInfoPress = () => navigation.navigate('DiscoverWalkthrough');
+      } else if (route.name === 'CreateTournament') {
+        onInfoPress = () => navigation.navigate('CreateTournamentWalkthrough');
+      } else {
+        onInfoPress = undefined;
+      }
+    }
 
     return (
       <AppHeader
@@ -178,10 +203,20 @@ function RootStack({ isAuthenticated, onSignOut }) {
       }}
     >
       <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'Rack-N-Roll' }} />
+      <Stack.Screen
+        name="DiscoverWalkthrough"
+        component={DiscoverWalkthroughScreen}
+        options={{ title: 'Rack-N-Roll' }}
+      />
       <Stack.Screen name="SignIn" component={SignInScreen} options={{ title: 'Sign In' }} />
       <Stack.Screen name="SignUp" component={SignUpScreen} options={{ title: 'Create Account' }} />
       <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} options={{ title: 'Forgot Password' }} />
       <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'My Profile' }} />
+      <Stack.Screen
+        name="CreateTournamentWalkthrough"
+        component={CreateTournamentWalkthroughScreen}
+        options={{ title: 'Create Tournament' }}
+      />
       <Stack.Screen name="CreateTournament" component={CreateTournamentScreen} options={{ title: 'Create Tournament' }} />
       <Stack.Screen name="TournamentDetail" component={TournamentDetailScreen} options={{ title: 'Tournament' }} />
       <Stack.Screen name="Scoresheet" component={ScoresheetScreen} options={{ title: 'Scoresheet' }} />

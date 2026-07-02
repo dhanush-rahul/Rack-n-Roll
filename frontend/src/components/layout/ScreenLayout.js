@@ -25,11 +25,13 @@ export function StickyFooterScreen({
   contentContainerStyle,
   keyboardAvoiding = false,
   keyboardVerticalOffset = 0,
+  scrollRef,
 }) {
   const { scrollPaddingBottom, footerPaddingBottom } = useScreenInsets();
 
   const scroll = (
     <ScrollView
+      ref={scrollRef}
       style={[{ flex: 1 }, style]}
       contentContainerStyle={[{ padding: 16, paddingBottom: scrollPaddingBottom + 72, gap: 14 }, contentContainerStyle]}
       keyboardShouldPersistTaps="handled"

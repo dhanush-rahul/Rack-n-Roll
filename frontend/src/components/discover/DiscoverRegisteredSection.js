@@ -132,7 +132,7 @@ export function DiscoverRegisteredSection({ items, isLoading, errorMessage, onOp
     <CollapsibleSectionCard
       title="Your registrations"
       subtitle={subtitle}
-      defaultExpanded={items.length > 0}
+      defaultExpanded={false}
     >
       {isLoading && items.length === 0 ? (
         <View style={{ alignItems: 'center', paddingVertical: 16 }}>
