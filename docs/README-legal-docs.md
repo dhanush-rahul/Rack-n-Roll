@@ -11,7 +11,7 @@ Edit both HTML files in `docs/`:
 | `privacy-policy.html` | Privacy Policy |
 | `terms-and-conditions.html` | Terms and Conditions |
 
-Replace `YOUR_EMAIL@example.com` with your real contact email in **both** files. Update the "Last updated" dates when you change the text.
+Contact email in both HTML files: `racknrollemail@gmail.com`. Update the "Last updated" dates when you change the text.
 
 ## 2. Publish with GitHub Pages (free)
 
@@ -25,8 +25,8 @@ Replace `YOUR_EMAIL@example.com` with your real contact email in **both** files.
 
    Example (configured in the app today):
 
-   - `https://dhanushrahul.github.io/rack-n-roll/privacy-policy.html`
-   - `https://dhanushrahul.github.io/rack-n-roll/terms-and-conditions.html`
+   - `https://dhanush-rahul.github.io/Rack-n-Roll/privacy-policy.html`
+   - `https://dhanush-rahul.github.io/Rack-n-Roll/terms-and-conditions.html`
 
 5. Paste the **Privacy Policy** URL into Play Console / App Store Connect.
 

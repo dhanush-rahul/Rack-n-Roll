@@ -1,7 +1,9 @@
-import { NavigationContainer } from '@react-navigation/native';
+import { CommonActions, createNavigationContainerRef, NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as SplashScreen from 'expo-splash-screen';
-import React, { memo, useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ConfirmModal } from '../components/ConfirmModal';
+import { SignOutProvider } from '../context/SignOutContext';
 import { Pressable, View } from 'react-native';
 import { ScaledText as Text } from '../components/ui/ScaledText';
 import { AppIcon } from '../components/ui/AppIcon';
@@ -13,13 +15,16 @@ import { SignInScreen } from '../screens/SignInScreen';
 import { SignUpScreen } from '../screens/SignUpScreen';
 import { ForgotPasswordScreen } from '../screens/ForgotPasswordScreen';
 import { CreateTournamentScreen } from '../screens/CreateTournamentScreen';
+import { CreateTournamentWalkthroughScreen } from '../screens/CreateTournamentWalkthroughScreen';
 import { ScoresheetScreen } from '../screens/ScoresheetScreen';
 import { LiveMatchSessionScreen } from '../screens/LiveMatchSessionScreen';
 import { TournamentDetailScreen } from '../screens/TournamentDetailScreen';
 import { AppBootstrapScreen } from '../screens/AppBootstrapScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
+import { DiscoverWalkthroughScreen } from '../screens/DiscoverWalkthroughScreen';
 
 const Stack = createNativeStackNavigator();
+const navigationRef = createNavigationContainerRef();
 
 const AppHeader = memo(function AppHeader({
   navigation,
@@ -81,11 +86,24 @@ const AppHeader = memo(function AppHeader({
       </View>
 
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-        {onInfoPress && (
-          <Pressable onPress={onInfoPress} hitSlop={8}>
-            <Text style={{ fontSize: 20, lineHeight: 20, fontWeight: 'bold', color: '#000000' }}>ⓘ</Text>
+        {onInfoPress ? (
+          <Pressable
+            onPress={onInfoPress}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Show tour"
+            style={({ pressed }) => ({
+              width: 34,
+              height: 34,
+              borderRadius: 17,
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: pressed ? 0.6 : 1,
+            })}
+          >
+            <AppIcon name="info" size={22} color={tournamentColors.text} />
           </Pressable>
-        )}
+        ) : null}
         {showGuestActions && (
           <>
             <Pressable onPress={onSignIn} hitSlop={8}>
@@ -140,7 +158,17 @@ function createRootStackHeader({ isAuthenticated, onSignOut }) {
     const title = options.title || route.name;
     const showHomeActions = route.name === 'Home' && isAuthenticated;
     const showGuestActions = route.name === 'Home' && !isAuthenticated;
-    const onInfoPress = route.params?.onInfoPress;
+
+    let onInfoPress = route.params?.onInfoPress;
+    if (typeof onInfoPress !== 'function') {
+      if (route.name === 'Home') {
+        onInfoPress = () => navigation.navigate('DiscoverWalkthrough');
+      } else if (route.name === 'CreateTournament') {
+        onInfoPress = () => navigation.navigate('CreateTournamentWalkthrough');
+      } else {
+        onInfoPress = undefined;
+      }
+    }
 
     return (
       <AppHeader
@@ -175,10 +203,20 @@ function RootStack({ isAuthenticated, onSignOut }) {
       }}
     >
       <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'Rack-N-Roll' }} />
+      <Stack.Screen
+        name="DiscoverWalkthrough"
+        component={DiscoverWalkthroughScreen}
+        options={{ title: 'Rack-N-Roll' }}
+      />
       <Stack.Screen name="SignIn" component={SignInScreen} options={{ title: 'Sign In' }} />
       <Stack.Screen name="SignUp" component={SignUpScreen} options={{ title: 'Create Account' }} />
       <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} options={{ title: 'Forgot Password' }} />
       <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'My Profile' }} />
+      <Stack.Screen
+        name="CreateTournamentWalkthrough"
+        component={CreateTournamentWalkthroughScreen}
+        options={{ title: 'Create Tournament' }}
+      />
       <Stack.Screen name="CreateTournament" component={CreateTournamentScreen} options={{ title: 'Create Tournament' }} />
       <Stack.Screen name="TournamentDetail" component={TournamentDetailScreen} options={{ title: 'Tournament' }} />
       <Stack.Screen name="Scoresheet" component={ScoresheetScreen} options={{ title: 'Scoresheet' }} />
@@ -190,6 +228,8 @@ function RootStack({ isAuthenticated, onSignOut }) {
 export function AppNavigator() {
   const { isAuthenticated, isLoading, bootstrapMessage, signOut } = useAuth();
   const nativeSplashHiddenRef = useRef(false);
+  const [signOutConfirmVisible, setSignOutConfirmVisible] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const hideNativeSplash = useCallback(() => {
     if (nativeSplashHiddenRef.current) {
@@ -198,6 +238,39 @@ export function AppNavigator() {
     nativeSplashHiddenRef.current = true;
     SplashScreen.hideAsync().catch(() => {});
   }, []);
+
+  const requestSignOut = useCallback(() => {
+    setSignOutConfirmVisible(true);
+  }, []);
+
+  const handleCancelSignOut = useCallback(() => {
+    if (isSigningOut) {
+      return;
+    }
+    setSignOutConfirmVisible(false);
+  }, [isSigningOut]);
+
+  const handleConfirmSignOut = useCallback(async () => {
+    if (isSigningOut) {
+      return;
+    }
+
+    setIsSigningOut(true);
+    try {
+      await signOut();
+      setSignOutConfirmVisible(false);
+      if (navigationRef.isReady()) {
+        navigationRef.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name: 'Home' }],
+          })
+        );
+      }
+    } finally {
+      setIsSigningOut(false);
+    }
+  }, [isSigningOut, signOut]);
 
   useEffect(() => {
     if (!isLoading) {
@@ -210,8 +283,22 @@ export function AppNavigator() {
   }
 
   return (
-    <NavigationContainer>
-      <RootStack isAuthenticated={isAuthenticated} onSignOut={signOut} />
-    </NavigationContainer>
+    <SignOutProvider requestSignOut={requestSignOut}>
+      <NavigationContainer ref={navigationRef}>
+        <RootStack isAuthenticated={isAuthenticated} onSignOut={requestSignOut} />
+      </NavigationContainer>
+      <ConfirmModal
+        visible={signOutConfirmVisible}
+        title="Sign out?"
+        message="You'll need to sign in again to host tournaments or manage your registrations."
+        confirmLabel="Sign out"
+        cancelLabel="Stay signed in"
+        onConfirm={handleConfirmSignOut}
+        onCancel={handleCancelSignOut}
+        isLoading={isSigningOut}
+        confirmVariant="danger"
+        icon="logout"
+      />
+    </SignOutProvider>
   );
 }

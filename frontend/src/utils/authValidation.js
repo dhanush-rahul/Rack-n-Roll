@@ -68,8 +68,8 @@ export function validateSignInInput({ email, password }) {
 
   if (!normalizedPassword) {
     errors.password = 'Password is required.';
-  } else if (normalizedPassword.length > PASSWORD_MAX_LENGTH) {
-    errors.password = 'Password must be 72 characters or fewer.';
+  } else {
+    errors.password = validatePassword(normalizedPassword);
   }
 
   return {

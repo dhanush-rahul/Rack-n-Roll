@@ -23,7 +23,15 @@ export const logApiError = (error, context = {}) => {
       ...normalized,
       ...context,
     });
+    return;
   }
+
+  console.warn('[rack-n-roll:api-error]', {
+    code: normalized.code,
+    message: normalized.message,
+    status: normalized.status,
+    ...context,
+  });
 };
 
 export const logWarning = (message, context = {}) => {

@@ -18,6 +18,7 @@ import {
 import { LegalFooter } from '../components/legal/LegalLinks';
 import { confirmPasswordReset, requestPasswordResetPin, validatePasswordResetPin } from '../services/authService';
 import { authUi } from '../styles/authUi';
+import { getAuthErrorMessage } from '../utils/authErrors';
 import {
   hasValidationErrors,
   validateForgotPasswordPinInput,
@@ -98,7 +99,7 @@ export function ForgotPasswordScreen({ navigation }) {
       setPinExpiresInMinutes(Number(response.pinExpiresInMinutes) || null);
       setSuccessText(response.message || 'If an account exists for that email, a reset PIN has been sent.');
     } catch (error) {
-      setErrorText(error.message || 'Unable to send reset PIN.');
+      setErrorText(getAuthErrorMessage(error, 'Unable to send reset PIN.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -130,7 +131,7 @@ export function ForgotPasswordScreen({ navigation }) {
       setIsPinValidated(true);
       setSuccessText(response.message || 'PIN verified. Choose a new password below.');
     } catch (error) {
-      setErrorText(error.message || 'Unable to verify PIN.');
+      setErrorText(getAuthErrorMessage(error, 'Unable to verify PIN.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -183,7 +184,7 @@ export function ForgotPasswordScreen({ navigation }) {
         },
       ]);
     } catch (error) {
-      setErrorText(error.message || 'Unable to reset password.');
+      setErrorText(getAuthErrorMessage(error, 'Unable to reset password.'));
     } finally {
       setIsSubmitting(false);
     }

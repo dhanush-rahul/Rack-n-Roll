@@ -13,6 +13,7 @@ import {
 import { ScaledText as Text } from '../components/ui/ScaledText';
 import { useAuth } from '../context/AuthContext';
 import { AuthPromptModal } from '../components/AuthPromptModal';
+import { ConfirmModal } from '../components/ConfirmModal';
 import { useRequireAuth } from '../hooks/useRequireAuth';
 import { useDiscoverTournaments } from '../hooks/queries/useDiscoverTournaments';
 import { useMyRegisteredTournaments } from '../hooks/queries/useMyRegisteredTournaments';
@@ -25,11 +26,18 @@ import { AppIcon } from '../components/ui/AppIcon';
 import { tournamentColors, tournamentUi } from '../styles/tournamentUi';
 import { useResponsiveLayout, centeredContentStyle } from '../utils/responsive';
 import { useDiscoverFilters } from '../hooks/useDiscoverFilters';
+import { useHomeBackHandler } from '../hooks/useHomeBackHandler';
 import { DiscoverHero } from '../components/discover/DiscoverHero';
 import { DiscoverRegisteredSection } from '../components/discover/DiscoverRegisteredSection';
 import { DiscoverFiltersPanel } from '../components/discover/DiscoverFiltersPanel';
+import { DiscoverTournamentsHeader } from '../components/discover/DiscoverTournamentsHeader';
 import { DiscoverTournamentCard } from '../components/discover/DiscoverTournamentCard';
 import { PaginationBar } from '../components/discover/PaginationBar';
+import {
+  isCreateTournamentWalkthroughCompleted,
+  isDiscoverWalkthroughCompleted,
+  WALKTHROUGH_FORCE_EVERY_VISIT,
+} from '../utils/onboardingStore';
 
 const HIGHLIGHT_BLINK_DURATION_MS = 6000;
 
@@ -118,6 +126,7 @@ function EmptyDiscoverState({ onCreate, filterId, searchQuery }) {
 export function HomeScreen({ navigation, route }) {
   const { currentUser, isAuthenticated } = useAuth();
   const { requireAuth, authPromptProps } = useRequireAuth(navigation);
+  const { exitConfirmVisible, confirmExit, cancelExit } = useHomeBackHandler();
   const queryClient = useQueryClient();
   const { scrollPaddingBottom } = useScreenInsets();
   const { contentMaxWidth, horizontalPadding } = useResponsiveLayout();
@@ -147,6 +156,18 @@ export function HomeScreen({ navigation, route }) {
   const [registrationByTournamentId, setRegistrationByTournamentId] = useState({});
   const [expandedTournamentId, setExpandedTournamentId] = useState(null);
   const expansionAnimationByIdRef = useRef({});
+  const scrollViewRef = useRef(null);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      return;
+    }
+
+    setInviteCodeByTournamentId({});
+    setValidationByTournamentId({});
+    setRegistrationByTournamentId({});
+    setExpandedTournamentId(null);
+  }, [isAuthenticated]);
 
   const {
     data: discoveryData,
@@ -231,15 +252,47 @@ export function HomeScreen({ navigation, route }) {
     }, [route.params?.highlightTournamentId, setPage, setFilterId])
   );
 
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+
+      const maybeOpenWalkthrough = async () => {
+        if (!isAuthenticated || cancelled) {
+          return;
+        }
+
+        if (WALKTHROUGH_FORCE_EVERY_VISIT) {
+          navigation.replace('DiscoverWalkthrough');
+          return;
+        }
+
+        const completed = await isDiscoverWalkthroughCompleted();
+        if (!completed && !cancelled) {
+          navigation.replace('DiscoverWalkthrough');
+        }
+      };
+
+      maybeOpenWalkthrough();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [isAuthenticated, navigation])
+  );
+
   const getRequestEnabled = useCallback(
     (item) => {
+      if (!isAuthenticated) {
+        return false;
+      }
+
       const isHostTournament = String(item.hostUserId) === String(currentUser?.id);
       if (item.registrationStatus !== 'open') return false;
       if (isHostTournament) return true;
       if (item.registrationMode === 'public') return true;
       return validationByTournamentId[item.id]?.requestEnabled === true;
     },
-    [currentUser?.id, validationByTournamentId]
+    [currentUser?.id, isAuthenticated, validationByTournamentId]
   );
 
   useEffect(() => {
@@ -401,7 +454,15 @@ export function HomeScreen({ navigation, route }) {
   );
 
   const onCreateTournament = useCallback(() => {
-    requireAuth(() => navigation.navigate('CreateTournament'), {
+    requireAuth(async () => {
+      if (WALKTHROUGH_FORCE_EVERY_VISIT) {
+        navigation.navigate('CreateTournamentWalkthrough');
+        return;
+      }
+
+      const completed = await isCreateTournamentWalkthroughCompleted();
+      navigation.navigate(completed ? 'CreateTournament' : 'CreateTournamentWalkthrough');
+    }, {
       message: 'Sign in to host a tournament.',
       returnTo: { screen: 'Home' },
     });
@@ -427,6 +488,7 @@ export function HomeScreen({ navigation, route }) {
   return (
     <>
       <ScrollView
+        ref={scrollViewRef}
         style={tournamentUi.screen}
         contentContainerStyle={[
           { padding: horizontalPadding, paddingBottom: scrollPaddingBottom },
@@ -467,26 +529,6 @@ export function HomeScreen({ navigation, route }) {
           </View>
         ) : null}
 
-        <View style={{ marginBottom: 16 }}>
-          <DiscoverFiltersPanel
-            expanded={filtersExpanded}
-            onToggle={onToggleFiltersPanel}
-            panelAnimation={filtersPanelAnimation}
-            activeFilterCount={activeFilterCount}
-            searchQuery={searchQuery}
-            sortId={sortId}
-            filterId={filterId}
-            pageSize={pageSize}
-            isRefreshing={isRefreshing || isLoadingDiscovery}
-            onRefresh={() => refetchDiscovery()}
-            onSearchQueryChange={setSearchQuery}
-            onClearSearch={() => setSearchQuery('')}
-            onSortChange={setSortId}
-            onFilterChange={onFilterChange}
-            onPageSizeChange={onPageSizeChange}
-          />
-        </View>
-
         {Boolean(discoveryError) && (
           <View
             style={{
@@ -506,59 +548,67 @@ export function HomeScreen({ navigation, route }) {
           </View>
         )}
 
-        {isLoadingDiscovery && discoveryItems.length === 0 ? (
-          <LoadingPlaceholder pulse={skeletonPulse} />
-        ) : filteredItems.length === 0 ? (
-          <EmptyDiscoverState
-            onCreate={onCreateTournament}
-            filterId={filterId}
-            searchQuery={searchQuery}
+        <View>
+          <DiscoverTournamentsHeader
+            shownCount={filteredItems.length}
+            activeFilterCount={activeFilterCount}
+            filtersExpanded={filtersExpanded}
+            onToggleFilters={onToggleFiltersPanel}
           />
-        ) : (
-          <View>
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'baseline',
-                justifyContent: 'space-between',
-                marginBottom: 12,
-              }}
-            >
-              <Text style={{ fontSize: 16, fontWeight: '800', color: tournamentColors.text }}>Tournaments</Text>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: tournamentColors.textMuted }}>
-                {filteredItems.length} shown
-              </Text>
-            </View>
+          <DiscoverFiltersPanel
+            expanded={filtersExpanded}
+            panelAnimation={filtersPanelAnimation}
+            activeFilterCount={activeFilterCount}
+            searchQuery={searchQuery}
+            sortId={sortId}
+            filterId={filterId}
+            pageSize={pageSize}
+            isRefreshing={isRefreshing || isLoadingDiscovery}
+            onRefresh={() => refetchDiscovery()}
+            onSearchQueryChange={setSearchQuery}
+            onClearSearch={() => setSearchQuery('')}
+            onSortChange={setSortId}
+            onFilterChange={onFilterChange}
+            onPageSizeChange={onPageSizeChange}
+          />
 
-            {filteredItems.map((item, index) => {
-              const tournamentValidation = validationByTournamentId[item.id] || {};
-              const registrationState = registrationByTournamentId[item.id] || {};
-              const existingRegistrationStatus =
-                registrationState.status || item.currentUserRegistrationStatus || null;
-              const hasExistingRegistration = Boolean(existingRegistrationStatus);
-              const requestEnabled = getRequestEnabled(item);
-              const isHostTournament = String(item.hostUserId) === String(currentUser?.id);
-              const isExpanded = expandedTournamentId === item.id;
-              const isHighlighted = item.id === highlightTournamentId;
-
-              return (
-                <View key={item.id} style={{ marginBottom: index === filteredItems.length - 1 ? 0 : 12 }}>
+          {isLoadingDiscovery && discoveryItems.length === 0 ? (
+            <LoadingPlaceholder pulse={skeletonPulse} />
+          ) : filteredItems.length === 0 ? (
+            <EmptyDiscoverState
+              onCreate={onCreateTournament}
+              filterId={filterId}
+              searchQuery={searchQuery}
+            />
+          ) : (
+            <View style={{ gap: 12 }}>
+              {filteredItems.map((item) => (
+                <View key={item.id}>
                   <DiscoverTournamentCard
                     item={item}
-                    isExpanded={isExpanded}
-                    isHighlighted={isHighlighted}
-                    isHostTournament={isHostTournament}
+                    isExpanded={expandedTournamentId === item.id}
+                    isHighlighted={item.id === highlightTournamentId}
+                    isAuthenticated={isAuthenticated}
+                    isHostTournament={String(item.hostUserId) === String(currentUser?.id)}
                     highlightBlinkAnimation={highlightBlinkAnimation}
                     expansionAnimation={getExpansionAnimation(item.id)}
                     inviteCode={inviteCodeByTournamentId[item.id] || ''}
                     onInviteCodeChange={(value) =>
                       setInviteCodeByTournamentId((prev) => ({ ...prev, [item.id]: value }))
                     }
-                    tournamentValidation={tournamentValidation}
-                    registrationState={registrationState}
-                    hasExistingRegistration={hasExistingRegistration}
-                    existingRegistrationStatus={existingRegistrationStatus}
-                    requestEnabled={requestEnabled}
+                    tournamentValidation={validationByTournamentId[item.id] || {}}
+                    registrationState={registrationByTournamentId[item.id] || {}}
+                    hasExistingRegistration={Boolean(
+                      isAuthenticated
+                        ? registrationByTournamentId[item.id]?.status || item.currentUserRegistrationStatus
+                        : null
+                    )}
+                    existingRegistrationStatus={
+                      isAuthenticated
+                        ? registrationByTournamentId[item.id]?.status || item.currentUserRegistrationStatus || null
+                        : null
+                    }
+                    requestEnabled={getRequestEnabled(item)}
                     onToggleExpand={onToggleExpand}
                     onOpenTournamentDetail={onOpenTournamentDetail}
                     onOpenScoresheet={onOpenScoresheet}
@@ -566,10 +616,10 @@ export function HomeScreen({ navigation, route }) {
                     onRequestRegistration={onRequestRegistration}
                   />
                 </View>
-              );
-            })}
-          </View>
-        )}
+              ))}
+            </View>
+          )}
+        </View>
 
         <View style={{ marginTop: 16 }}>
           <PaginationBar page={page} totalPages={totalPages} onPageChange={onPageChange} />
@@ -592,6 +642,17 @@ export function HomeScreen({ navigation, route }) {
         )}
       </ScrollView>
       <AuthPromptModal {...authPromptProps} />
+      <ConfirmModal
+        visible={exitConfirmVisible}
+        title="Exit Rack-N-Roll?"
+        message="Are you sure you want to close the app?"
+        confirmLabel="Exit"
+        cancelLabel="Stay"
+        onConfirm={confirmExit}
+        onCancel={cancelExit}
+        confirmVariant="danger"
+        icon="warning"
+      />
     </>
   );
 }

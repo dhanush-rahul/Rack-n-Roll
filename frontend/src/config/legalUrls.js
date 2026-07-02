@@ -1,4 +1,4 @@
-const LEGAL_DOCS_BASE_URL = 'https://dhanushrahul.github.io/rack-n-roll';
+const LEGAL_DOCS_BASE_URL = 'https://dhanush-rahul.github.io/Rack-n-Roll';
 
 export const legalUrls = {
   privacyPolicy: `${LEGAL_DOCS_BASE_URL}/privacy-policy.html`,

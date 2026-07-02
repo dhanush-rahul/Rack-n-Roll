@@ -64,6 +64,17 @@ const loadAndValidateEnv = () => {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
 
+  if (process.env.NODE_ENV === 'production') {
+    const mailMode = String(process.env.MAIL_DELIVERY_MODE || '').trim().toLowerCase();
+    const effectiveMailMode = mailMode || (process.env.SMTP_HOST ? 'smtp' : 'log');
+
+    if (effectiveMailMode === 'log') {
+      throw new Error(
+        'MAIL_DELIVERY_MODE=log is not allowed in production. Configure SMTP or set MAIL_DELIVERY_MODE=smtp.'
+      );
+    }
+  }
+
   return {
     port: Number(process.env.PORT),
     jwtSecret: process.env.JWT_SECRET,

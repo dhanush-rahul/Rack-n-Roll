@@ -16,21 +16,9 @@ import { GoogleSignInSection } from '../components/auth/GoogleSignInSection';
 import { isGoogleSignInConfigured } from '../config/googleAuth';
 import { useAuth } from '../context/AuthContext';
 import { tournamentColors } from '../styles/tournamentUi';
+import { getAuthErrorMessage } from '../utils/authErrors';
 import { hasValidationErrors, validateSignUpInput } from '../utils/authValidation';
-
-const navigateAfterAuth = (navigation, returnTo) => {
-  if (returnTo?.screen) {
-    navigation.navigate(returnTo.screen, returnTo.params || {});
-    return;
-  }
-
-  if (navigation.canGoBack()) {
-    navigation.goBack();
-    return;
-  }
-
-  navigation.navigate('Home');
-};
+import { navigateAfterAuth } from '../utils/navigateAfterAuth';
 
 export function SignUpScreen({ navigation, route }) {
   const { signUp, signInWithGoogle } = useAuth();
@@ -66,7 +54,7 @@ export function SignUpScreen({ navigation, route }) {
       await signUp(sanitized);
       navigateAfterAuth(navigation, route.params?.returnTo);
     } catch (error) {
-      setErrorText(error.message || 'Unable to create account. Please try again.');
+      setErrorText(getAuthErrorMessage(error, 'Unable to create account. Please try again.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -79,15 +67,7 @@ export function SignUpScreen({ navigation, route }) {
       await signInWithGoogle(idToken);
       navigateAfterAuth(navigation, route.params?.returnTo);
     } catch (error) {
-      if (error?.code === 'NETWORK_ERROR') {
-        setErrorText(
-          __DEV__
-            ? 'Unable to reach the server. Start the backend and restart Expo with -c.'
-            : 'Unable to reach the server. Check your connection and try again.'
-        );
-      } else {
-        setErrorText(error.message || 'Google sign-in failed. Please try again.');
-      }
+      setErrorText(getAuthErrorMessage(error, 'Google sign-in failed. Please try again.'));
     } finally {
       setIsGoogleSubmitting(false);
     }

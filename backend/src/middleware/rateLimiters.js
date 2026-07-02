@@ -31,7 +31,19 @@ const passwordResetRateLimiter = rateLimit({
   validate: { trustProxy: true },
 });
 
+const accountPasswordRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: isTestEnv,
+  handler: rateLimitHandler,
+  validate: { trustProxy: true },
+  keyGenerator: (req) => req.auth?.userId || req.ip,
+});
+
 module.exports = {
   authRateLimiter,
   passwordResetRateLimiter,
+  accountPasswordRateLimiter,
 };

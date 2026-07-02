@@ -59,7 +59,6 @@ export function AuthProvider({ children }) {
       isLoading,
       bootstrapMessage,
       isAuthenticated: Boolean(token),
-      token,
       currentUser,
       async signIn({ email, password }) {
         const result = await loginUser({ email, password });

@@ -8,7 +8,7 @@ See also **`README-legal-docs.md`** for Terms and Conditions hosting and in-app 
 
 Edit `docs/privacy-policy.html` and `docs/terms-and-conditions.html`:
 
-- Replace `YOUR_EMAIL@example.com` with your real contact email.
+- Contact email: `racknrollemail@gmail.com`
 - Adjust the "Last updated" date if you change the text.
 
 ## 2. Publish with GitHub Pages (free)
@@ -21,7 +21,7 @@ Edit `docs/privacy-policy.html` and `docs/terms-and-conditions.html`:
 
    `https://<github-username>.github.io/<repo-name>/privacy-policy.html`
 
-   Example: `https://dhanushrahul.github.io/rack-n-roll/privacy-policy.html`
+   Example: `https://dhanush-rahul.github.io/Rack-n-Roll/privacy-policy.html`
 
 6. Paste that URL into **Play Console** → **App content** → **Privacy policy**.
 

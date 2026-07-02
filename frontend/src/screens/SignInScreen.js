@@ -14,21 +14,9 @@ import { LegalFooter } from '../components/legal/LegalLinks';
 import { GoogleSignInSection } from '../components/auth/GoogleSignInSection';
 import { isGoogleSignInConfigured } from '../config/googleAuth';
 import { useAuth } from '../context/AuthContext';
+import { getAuthErrorMessage } from '../utils/authErrors';
 import { hasValidationErrors, validateSignInInput } from '../utils/authValidation';
-
-const navigateAfterAuth = (navigation, returnTo) => {
-  if (returnTo?.screen) {
-    navigation.navigate(returnTo.screen, returnTo.params || {});
-    return;
-  }
-
-  if (navigation.canGoBack()) {
-    navigation.goBack();
-    return;
-  }
-
-  navigation.navigate('Home');
-};
+import { navigateAfterAuth } from '../utils/navigateAfterAuth';
 
 export function SignInScreen({ navigation, route }) {
   const { signIn, signInWithGoogle } = useAuth();
@@ -54,22 +42,7 @@ export function SignInScreen({ navigation, route }) {
       await signIn(sanitized);
       navigateAfterAuth(navigation, route.params?.returnTo);
     } catch (error) {
-      if (error?.code === 'NETWORK_ERROR') {
-        setErrorText(
-          __DEV__
-            ? 'Unable to reach the server. Start the backend (node src/index.js) and restart Expo with -c. Check the Metro log for [rack-n-roll] API base URL.'
-            : 'Unable to reach the server. Check your connection and try again.'
-        );
-      } else if (error?.code === 'GOOGLE_AUTH_REQUIRED') {
-        setErrorText('This account uses Google sign-in. Continue with Google or set a password in Profile.');
-      } else if (error?.code === 'ACCOUNT_LOCKED') {
-        const retryMinutes = error?.details?.retryAfterSeconds
-          ? Math.max(1, Math.ceil(error.details.retryAfterSeconds / 60))
-          : 15;
-        setErrorText(`Too many failed sign-in attempts. Try again in about ${retryMinutes} minute(s).`);
-      } else {
-        setErrorText('Invalid email or password. Please try again.');
-      }
+      setErrorText(getAuthErrorMessage(error, 'Invalid email or password. Please try again.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -82,15 +55,7 @@ export function SignInScreen({ navigation, route }) {
       await signInWithGoogle(idToken);
       navigateAfterAuth(navigation, route.params?.returnTo);
     } catch (error) {
-      if (error?.code === 'NETWORK_ERROR') {
-        setErrorText(
-          __DEV__
-            ? 'Unable to reach the server. Start the backend (node src/index.js) and restart Expo with -c. Check the Metro log for [rack-n-roll] API base URL.'
-            : 'Unable to reach the server. Check your connection and try again.'
-        );
-      } else {
-        setErrorText(error.message || 'Google sign-in failed. Please try again.');
-      }
+      setErrorText(getAuthErrorMessage(error, 'Google sign-in failed. Please try again.'));
     } finally {
       setIsGoogleSubmitting(false);
     }

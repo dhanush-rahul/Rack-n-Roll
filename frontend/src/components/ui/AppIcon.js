@@ -50,6 +50,7 @@ const ICON_MAP = {
   chevronRight: 'chevron-right',
   arrowRight: 'arrow-right',
   refresh: 'refresh',
+  filter: 'filter-variant',
 
   // Medals (color is applied at the call site / defaults below)
   medal: 'medal',

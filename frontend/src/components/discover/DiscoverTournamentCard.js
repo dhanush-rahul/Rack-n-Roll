@@ -149,6 +149,7 @@ export function DiscoverTournamentCard({
   item,
   isExpanded,
   isHighlighted,
+  isAuthenticated,
   isHostTournament,
   highlightBlinkAnimation,
   expansionAnimation,
@@ -313,7 +314,7 @@ export function DiscoverTournamentCard({
               <DiscoverActionButton label="Scoresheet" onPress={() => onOpenScoresheet(item)} variant="ghost" />
             </View>
 
-            {item.registrationMode === 'inviteOnly' && !isHostTournament && (
+            {item.registrationMode === 'inviteOnly' && !isHostTournament && isAuthenticated && (
               <View style={{ gap: 8 }}>
                 <TextInput
                   style={tournamentUi.input}
@@ -365,8 +366,12 @@ export function DiscoverTournamentCard({
               <Text style={{ fontSize: 13, color: tournamentColors.error, lineHeight: 18 }}>
                 {item.registrationStatus !== 'open'
                   ? 'Registration is closed for this tournament.'
+                  : item.registrationMode === 'inviteOnly' && !isAuthenticated
+                  ? 'Sign in to validate your invite code and register.'
                   : item.registrationMode === 'inviteOnly'
                   ? 'Validate your invite code above to unlock registration.'
+                  : !isAuthenticated
+                  ? 'Sign in to request a spot in this tournament.'
                   : 'Registration is not available right now.'}
               </Text>
             )}

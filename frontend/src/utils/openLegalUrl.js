@@ -1,10 +1,13 @@
 import { Alert, Linking } from 'react-native';
+import { legalUrls } from '../config/legalUrls';
+
+const ALLOWED_LEGAL_URLS = new Set([legalUrls.privacyPolicy, legalUrls.termsAndConditions]);
 
 export async function openLegalUrl(url, label = 'document') {
   const normalizedUrl = String(url || '').trim();
 
-  if (!normalizedUrl) {
-    Alert.alert('Unavailable', `The ${label} link is not configured yet.`);
+  if (!normalizedUrl || !ALLOWED_LEGAL_URLS.has(normalizedUrl)) {
+    Alert.alert('Unable to open link', `The ${label} link is not available.`);
     return;
   }
 

@@ -14,7 +14,7 @@ export const SORT_OPTIONS = [
   { id: 'oldest', label: 'Oldest' },
 ];
 export const SEARCH_DEBOUNCE_MS = 350;
-export const FILTERS_PANEL_MAX_HEIGHT = 360;
+export const FILTERS_PANEL_MAX_HEIGHT = 440;
 
 export const getSortLabel = (sortId) => SORT_OPTIONS.find((option) => option.id === sortId)?.label || 'Newest';
 export const getFilterLabel = (filterId) => FILTER_OPTIONS.find((option) => option.id === filterId)?.label || 'All';
