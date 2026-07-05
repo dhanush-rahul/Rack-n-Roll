@@ -36,6 +36,7 @@
     },
     "android": {
       "versionCode": 14,
+
       "package": "com.dhanushcharipally.racknroll",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
