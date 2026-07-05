@@ -41,6 +41,10 @@ export function GoogleSignInSection({ onIdToken, disabled = false }) {
         variant="secondary"
         fullWidth
       />
+      <Text style={[authUi.hintText, { marginTop: 10, marginBottom: 0, textAlign: 'center' }]}>
+        We use your Google name and email only to create or sign in to your Rack-n-Roll account. We don&apos;t access
+        other Google data.
+      </Text>
     </View>
   );
 }
