@@ -1,4 +1,5 @@
 const appJson = require('./app.json');
+const packageJson = require('./package.json');
 
 function toGoogleIosUrlScheme(clientId) {
   const normalized = String(clientId || '').trim();
@@ -39,6 +40,7 @@ if (iosUrlScheme) {
 module.exports = {
   expo: {
     ...appJson.expo,
+    version: packageJson.version,
     plugins,
   },
 };
