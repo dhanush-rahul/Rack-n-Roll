@@ -46,6 +46,11 @@
     "ios": {
       "buildNumber": "14",
       "bundleIdentifier": "com.dhanushcharipally.racknroll"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "single"
     }
   }
 }

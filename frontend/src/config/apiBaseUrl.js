@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
 const API_PORT = 4000;
+export const PRODUCTION_API_BASE_URL = 'https://rack-n-roll.onrender.com';
 
 const trimTrailingSlash = (url) => String(url).replace(/\/$/, '');
 
@@ -37,6 +38,9 @@ export const resolveApiBaseUrl = () => {
   }
 
   if (Platform.OS === 'web') {
+    if (typeof __DEV__ !== 'undefined' && !__DEV__) {
+      return PRODUCTION_API_BASE_URL;
+    }
     return `http://localhost:${API_PORT}`;
   }
 
