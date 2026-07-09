@@ -2,7 +2,9 @@ import React from 'react';
 import { Button, Modal, Pressable, ScrollView, View } from 'react-native';
 import { ScaledText as Text } from '../../components/ui/ScaledText';
 import { AppIcon } from '../../components/ui/AppIcon';
+import { useTypography } from '../../context/TypographyContext';
 import { tournamentUi } from '../../styles/tournamentUi';
+import { getWebModalStyles } from '../../utils/modalStyles';
 
 const FINAL_BEST_OF_OPTIONS = ['1', '3', '5'];
 
@@ -24,12 +26,15 @@ export function FinalePlayerModal({
   onFinalStageProctoredChange,
   isDoubles = false,
 }) {
+  const { width } = useTypography();
+  const webModal = getWebModalStyles(width);
+
   return (
     <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
-      <View style={tournamentUi.modalOverlay}>
+      <View style={[tournamentUi.modalOverlay, webModal?.overlay]}>
         <Pressable style={tournamentUi.modalBackdrop} onPress={onClose} />
-        <View style={[tournamentUi.modalCard, { maxHeight: '80%' }]}>
-          <Text style={tournamentUi.modalTitle}>
+        <View style={[tournamentUi.modalCard, webModal?.card, { maxHeight: '80%' }]}>
+          <Text style={[tournamentUi.modalTitle, webModal?.title]}>
             {isDoubles ? 'Select Finale Teams' : 'Select Finale Players'}
           </Text>
           <Text style={{ marginTop: 4 }}>

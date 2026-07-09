@@ -43,6 +43,14 @@ export function AuthProvider({ children }) {
           }
         }
 
+        setBootstrapMessage('Ready');
+      }
+
+      // Hold the splash message for a beat so it doesn't flash by, then let the
+      // navigator crossfade smoothly into the dashboard.
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      if (isMounted) {
         setIsLoading(false);
       }
     };

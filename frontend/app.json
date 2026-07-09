@@ -27,7 +27,8 @@
         }
       ],
       "expo-web-browser",
-      "expo-secure-store"
+      "expo-secure-store",
+      "./plugins/withLargeScreenSupport"
     ],
     "extra": {
       "eas": {
@@ -35,8 +36,7 @@
       }
     },
     "android": {
-      "versionCode": 14,
-
+      "versionCode": 15,
       "package": "com.dhanushcharipally.racknroll",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
@@ -44,11 +44,11 @@
       }
     },
     "ios": {
-      "buildNumber": "14",
+      "buildNumber": "15",
       "bundleIdentifier": "com.dhanushcharipally.racknroll"
     },
     "web": {
-      "favicon": "./assets/favicon.png",
+      "favicon": "./assets/logo.png",
       "bundler": "metro",
       "output": "single"
     }

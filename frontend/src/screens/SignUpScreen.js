@@ -74,14 +74,15 @@ export function SignUpScreen({ navigation, route }) {
   };
 
   return (
-    <AuthScreenShell>
-      <AuthHero
-        compact
-        eyebrow="JOIN THE TABLE"
-        title="Create account"
-        subtitle="Set up your profile to discover tournaments and track your matches."
-      />
-
+    <AuthScreenShell
+      sidePanel={
+        <AuthHero
+          eyebrow="JOIN THE TABLE"
+          title="Create account"
+          subtitle="Set up your profile to discover tournaments and track your matches."
+        />
+      }
+    >
       <AuthFormCard title="Your details" subtitle="You'll use these to sign in and appear on tournament rosters.">
         <AuthErrorBanner message={errorText} />
 

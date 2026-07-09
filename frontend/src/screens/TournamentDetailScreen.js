@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -10,8 +10,9 @@ import { useAuth } from '../context/AuthContext';
 import { useGroupStageFixtures } from '../hooks/useGroupStageFixtures';
 import { useGroupStandings } from '../hooks/useGroupStandings';
 import { formatApiError, useScreenFeedback } from '../hooks/useScreenFeedback';
-import { useScreenInsets } from '../hooks/useScreenInsets';
 import { logApiError } from '../utils/errorLogger';
+import { ScreenScrollShell } from '../components/layout/ScreenScrollShell';
+import { HostTournamentTabLayout } from '../components/layout/TournamentTabLayout';
 import { useHostTournamentDetail } from '../hooks/queries/useHostTournamentDetail';
 import { useHostTournamentRegistrations } from '../hooks/queries/useHostTournamentRegistrations';
 import { invalidateTournamentCache } from '../hooks/queries/invalidateTournamentCache';
@@ -44,7 +45,6 @@ import {
   SuccessBanner,
   TournamentScreenHero,
 } from '../components/tournament/TournamentChrome';
-import { TournamentTabBar } from './tournamentDetail/TournamentTabBar';
 
 const isPlayedScoreEntry = (entry) => {
   const playerAScore = Number(entry?.playerAScore);
@@ -112,8 +112,6 @@ export function TournamentDetailScreen({ route, navigation }) {
     clearSuccess,
     clearAll,
   } = useScreenFeedback();
-  const { scrollPaddingBottom } = useScreenInsets();
-
   const [isHostInfoModalVisible, setIsHostInfoModalVisible] = useState(false);
   const [finalStageGames, setFinalStageGames] = useState([]);
   const [canEditFinalScores, setCanEditFinalScores] = useState(false);
@@ -814,11 +812,7 @@ export function TournamentDetailScreen({ route, navigation }) {
   );
 
   return (
-    <ScrollView
-      style={tournamentUi.screen}
-      contentContainerStyle={[tournamentUi.content, { paddingBottom: scrollPaddingBottom }]}
-      removeClippedSubviews={false}
-    >
+    <ScreenScrollShell contentContainerStyle={{ gap: 16 }}>
       <View style={{ marginBottom: 16 }}>
         <TournamentScreenHero
           eyebrow="HOST DASHBOARD"
@@ -852,17 +846,12 @@ export function TournamentDetailScreen({ route, navigation }) {
         />
       </View>
 
-      <View style={{ marginBottom: 16 }}>
-        <TournamentTabBar
-          activeTab={activeTab}
-          onSelectTab={setActiveTab}
-          shouldShowFinaleTab={shouldShowFinaleTab}
-        />
-      </View>
-
-      <View style={{ marginBottom: 16 }}>
+      <HostTournamentTabLayout
+        activeTab={activeTab}
+        onSelectTab={setActiveTab}
+        shouldShowFinaleTab={shouldShowFinaleTab}
+      >
         <SuccessBanner message={successMessage} />
-      </View>
 
       {activeTab === 'registrations' && (
         <RegistrationsTab
@@ -1002,6 +991,7 @@ export function TournamentDetailScreen({ route, navigation }) {
           finalStageProctored={finalStageProctored}
         />
       )}
+      </HostTournamentTabLayout>
 
       <FeedbackModal visible={Boolean(errorMessage)} message={errorMessage} onDismiss={clearError} />
 
@@ -1119,6 +1109,6 @@ export function TournamentDetailScreen({ route, navigation }) {
         finalStageProctored={finalStageProctoredInput}
         onFinalStageProctoredChange={setFinalStageProctoredInput}
       />
-    </ScrollView>
+    </ScreenScrollShell>
   );
 }

@@ -62,14 +62,15 @@ export function SignInScreen({ navigation, route }) {
   };
 
   return (
-    <AuthScreenShell>
-      <AuthHero
-        compact
-        eyebrow="WELCOME BACK"
-        title="Sign in"
-        subtitle="Pick up where you left off—your tournaments and scores are waiting."
-      />
-
+    <AuthScreenShell
+      sidePanel={
+        <AuthHero
+          eyebrow="WELCOME BACK"
+          title="Sign in"
+          subtitle="Pick up where you left off—your tournaments and scores are waiting."
+        />
+      }
+    >
       <AuthFormCard title="Account details" subtitle="Use the email and password for your Rack n Roll account.">
         <AuthErrorBanner message={errorText} />
 

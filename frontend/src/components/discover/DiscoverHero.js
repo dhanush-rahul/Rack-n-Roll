@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, View } from 'react-native';
 import { ScaledText as Text } from '../ui/ScaledText';
 import { discoverUi, tournamentColors } from '../../styles/tournamentUi';
+import { useResponsiveLayout } from '../../utils/responsive';
 
 const heroStatTile = {
   flex: 1,
@@ -17,6 +18,65 @@ const heroStatLabel = { color: '#94a3b8', fontSize: 11, fontWeight: '700', lette
 const heroStatValue = { fontSize: 24, fontWeight: '800', marginTop: 4 };
 
 export function DiscoverHero({ total, openCount, myCount, onCreate }) {
+  const { isDesktopWeb } = useResponsiveLayout();
+
+  if (isDesktopWeb) {
+    return (
+      <View
+        style={[
+          discoverUi.hero,
+          {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 20,
+            paddingVertical: 20,
+            paddingHorizontal: 22,
+          },
+        ]}
+      >
+        <View style={[discoverUi.heroGlow, { top: -40, right: -30 }]} />
+        <View style={{ flex: 1, gap: 8, minWidth: 0 }}>
+          <Text style={{ color: '#94a3b8', fontSize: 12, fontWeight: '700', letterSpacing: 1.2 }}>DISCOVER</Text>
+          <Text style={{ color: '#f8fafc', fontSize: 20, fontWeight: '800', lineHeight: 26 }}>Find your next table</Text>
+          <Text style={{ color: '#94a3b8', fontSize: 14, lineHeight: 20 }}>
+            Browse tournaments, join open events, or host your own.
+          </Text>
+        </View>
+
+        <View style={{ flexDirection: 'row', gap: 8, flexShrink: 0 }}>
+          <View style={[heroStatTile, { minWidth: 88 }]}>
+            <Text style={heroStatLabel}>TOTAL</Text>
+            <Text style={[heroStatValue, { color: '#f8fafc' }]}>{total}</Text>
+          </View>
+          <View style={[heroStatTile, { minWidth: 88 }]}>
+            <Text style={heroStatLabel}>OPEN</Text>
+            <Text style={[heroStatValue, { color: '#86efac' }]}>{openCount}</Text>
+          </View>
+          <View style={[heroStatTile, { minWidth: 88 }]}>
+            <Text style={heroStatLabel}>YOURS</Text>
+            <Text style={[heroStatValue, { color: '#c4b5fd' }]}>{myCount}</Text>
+          </View>
+        </View>
+
+        <Pressable
+          onPress={onCreate}
+          style={({ pressed }) => ({
+            backgroundColor: tournamentColors.primary,
+            borderRadius: 12,
+            paddingVertical: 14,
+            paddingHorizontal: 18,
+            alignItems: 'center',
+            opacity: pressed ? 0.9 : 1,
+            flexShrink: 0,
+          })}
+        >
+          <Text style={{ color: tournamentColors.white, fontWeight: '800', fontSize: 15 }}>+ Host</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   return (
     <View style={discoverUi.hero}>
       <View style={[discoverUi.heroGlow, { top: -40, right: -30 }]} />

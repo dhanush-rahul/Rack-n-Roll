@@ -8,6 +8,7 @@ import {
   WALKTHROUGH_SECTION_ORDER,
 } from '../config/createTournamentWalkthrough';
 import { setCreateTournamentWalkthroughCompleted } from '../utils/onboardingStore';
+import { exitWalkthroughTo } from '../utils/exitWalkthrough';
 import { useScreenInsets } from '../hooks/useScreenInsets';
 import { tournamentColors, tournamentUi } from '../styles/tournamentUi';
 import { centeredContentStyle, useResponsiveLayout } from '../utils/responsive';
@@ -416,7 +417,7 @@ export function CreateTournamentWalkthroughScreen({ navigation }) {
     await setCreateTournamentWalkthroughCompleted(true);
 
     InteractionManager.runAfterInteractions(() => {
-      navigation.replace('CreateTournament');
+      exitWalkthroughTo(navigation, 'CreateTournament');
     });
   }, [navigation]);
 

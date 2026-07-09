@@ -191,14 +191,15 @@ export function ForgotPasswordScreen({ navigation }) {
   };
 
   return (
-    <AuthScreenShell>
-      <AuthHero
-        compact
-        eyebrow="ACCOUNT RECOVERY"
-        title="Reset password"
-        subtitle="We'll email a 6-digit PIN. Verify it, then set a new password."
-      />
-
+    <AuthScreenShell
+      sidePanel={
+        <AuthHero
+          eyebrow="ACCOUNT RECOVERY"
+          title="Reset password"
+          subtitle="We'll email a 6-digit PIN. Verify it, then set a new password."
+        />
+      }
+    >
       <AuthFormCard>
         <AuthStepIndicator steps={['Email', 'PIN', 'Password']} currentIndex={currentStepIndex} />
         <AuthErrorBanner message={errorText} />

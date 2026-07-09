@@ -3,7 +3,9 @@ import { Modal, Platform, Pressable, View } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { ScaledText as Text } from '../ui/ScaledText';
 import { ActionButton } from './TournamentChrome';
+import { useTypography } from '../../context/TypographyContext';
 import { discoverUi, tournamentColors, tournamentUi } from '../../styles/tournamentUi';
+import { getWebModalStyles } from '../../utils/modalStyles';
 
 const formatPickerDate = (date) =>
   date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
@@ -60,6 +62,8 @@ export function MatchScheduleModal({
   onCancel,
   isSaving = false,
 }) {
+  const { width } = useTypography();
+  const webModal = getWebModalStyles(width);
   const [scheduledAt, setScheduledAt] = useState(new Date());
   const [activePicker, setActivePicker] = useState(null);
 
@@ -95,10 +99,12 @@ export function MatchScheduleModal({
 
   return (
     <Modal animationType="fade" transparent visible={Boolean(visible)} onRequestClose={onCancel}>
-      <View style={tournamentUi.modalOverlay}>
+      <View style={[tournamentUi.modalOverlay, webModal?.overlay]}>
         <Pressable style={tournamentUi.modalBackdrop} onPress={isSaving ? undefined : onCancel} />
-        <View style={[discoverUi.surfaceCard, { marginHorizontal: 4, gap: 12 }]}>
-          <Text style={{ fontSize: 18, fontWeight: '800', color: tournamentColors.text }}>Schedule match</Text>
+        <View style={[discoverUi.surfaceCard, webModal?.sheetCard, { marginHorizontal: 4, gap: 12 }]}>
+          <Text style={[{ fontSize: 18, fontWeight: '800', color: tournamentColors.text }, webModal?.title]}>
+            Schedule match
+          </Text>
           {Boolean(matchLabel) && (
             <Text style={{ fontSize: 14, lineHeight: 20, color: tournamentColors.textMuted }}>{matchLabel}</Text>
           )}

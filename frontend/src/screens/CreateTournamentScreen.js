@@ -12,6 +12,7 @@ import { invalidateTournamentCache } from '../hooks/queries/invalidateTournament
 import { createTournament } from '../services/tournamentService';
 import { tournamentColors, tournamentUi } from '../styles/tournamentUi';
 import { useResponsiveLayout, centeredContentStyle } from '../utils/responsive';
+import { WebFormColumns } from '../components/layout/WebTwoColumnLayout';
 
 const PLAYER_PRESETS = [8, 16, 32, 64];
 
@@ -116,7 +117,7 @@ function ModeOption({ label, description, selected, onPress }) {
 
 export function CreateTournamentScreen({ navigation, route }) {
   const queryClient = useQueryClient();
-  const { contentMaxWidth } = useResponsiveLayout();
+  const { contentMaxWidth, horizontalPadding, isDesktopWeb } = useResponsiveLayout();
   const { scrollPaddingBottom } = useScreenInsets();
   const defaultStartsAt = useMemo(() => buildDefaultStartsAt(), []);
   const scrollRef = useRef(null);
@@ -278,10 +279,10 @@ export function CreateTournamentScreen({ navigation, route }) {
     >
       <ScrollView
         ref={scrollRef}
-        style={tournamentUi.screen}
+        style={[tournamentUi.screen, isDesktopWeb && { backgroundColor: '#eef2f6' }]}
         contentContainerStyle={[
           centeredContentStyle(contentMaxWidth),
-          { padding: 16, paddingBottom: scrollPaddingBottom, gap: 14 },
+          { paddingHorizontal: horizontalPadding, paddingTop: 16, paddingBottom: scrollPaddingBottom, gap: 14 },
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -302,6 +303,9 @@ export function CreateTournamentScreen({ navigation, route }) {
         </View>
       </View>
 
+      <WebFormColumns
+        left={
+          <>
       <SectionCard title="Tournament details" subtitle="What players will see first on Discover.">
         <View style={{ gap: 6 }}>
           <FieldLabel>Tournament name</FieldLabel>
@@ -467,7 +471,10 @@ export function CreateTournamentScreen({ navigation, route }) {
         </View>
         )}
       </SectionCard>
-
+          </>
+        }
+        right={
+          <>
       <SectionCard title="Registration" subtitle="Choose who can request a spot.">
         <View style={{ flexDirection: 'row', gap: 10 }}>
           <ModeOption
@@ -591,6 +598,9 @@ export function CreateTournamentScreen({ navigation, route }) {
             {isSubmitting ? 'Creating tournament...' : 'Launch tournament'}
           </Text>
         </Pressable>
+          </>
+        }
+      />
       </ScrollView>
     </KeyboardAvoidingView>
   </>
