@@ -17,7 +17,7 @@ export function WebTwoColumnLayout({ left, right, gap = 24, leftWidth }) {
   const resolvedLeftWidth = leftWidth || sidebarWidth || 300;
 
   return (
-    <View style={{ flexDirection: 'row', gap, alignItems: 'flex-start', width: '100%' }}>
+    <View style={{ flexDirection: 'row', gap, alignItems: 'stretch', width: '100%' }}>
       <View style={{ width: resolvedLeftWidth, flexShrink: 0 }}>{left}</View>
       <View style={{ flex: 1, minWidth: 0 }}>{right}</View>
     </View>

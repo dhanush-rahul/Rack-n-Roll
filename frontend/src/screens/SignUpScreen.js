@@ -5,10 +5,10 @@ import {
   AuthErrorBanner,
   AuthField,
   AuthFormCard,
-  AuthHero,
   AuthPasswordMatchHint,
   AuthPrimaryButton,
   AuthScreenShell,
+  AuthSidePanel,
   AuthTextLink,
 } from '../components/auth/AuthChrome';
 import { LegalConsent, LegalFooter } from '../components/legal/LegalLinks';
@@ -76,14 +76,31 @@ export function SignUpScreen({ navigation, route }) {
   return (
     <AuthScreenShell
       sidePanel={
-        <AuthHero
+        <AuthSidePanel
           eyebrow="JOIN THE TABLE"
-          title="Create account"
+          title="Create your account"
           subtitle="Set up your profile to discover tournaments and track your matches."
+          features={[
+            {
+              icon: 'registration',
+              title: 'One profile',
+              description: 'Use the same account to join events and appear on rosters.',
+            },
+            {
+              icon: 'secure',
+              title: 'Your data stays yours',
+              description: 'We only use your name and email to run your Rack n Roll account.',
+            },
+            {
+              icon: 'celebrate',
+              title: 'Ready in minutes',
+              description: 'Sign up, find a tournament, and get on the bracket fast.',
+            },
+          ]}
         />
       }
     >
-      <AuthFormCard title="Your details" subtitle="You'll use these to sign in and appear on tournament rosters.">
+      <AuthFormCard title="Create account" subtitle="You'll use these details to sign in and show up on tournament rosters.">
         <AuthErrorBanner message={errorText} />
 
         <AuthField

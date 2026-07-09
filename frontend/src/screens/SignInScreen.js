@@ -4,9 +4,9 @@ import {
   AuthErrorBanner,
   AuthField,
   AuthFormCard,
-  AuthHero,
   AuthPrimaryButton,
   AuthScreenShell,
+  AuthSidePanel,
   AuthTextLink,
 } from '../components/auth/AuthChrome';
 import { ActionButton } from '../components/tournament/TournamentChrome';
@@ -64,14 +64,31 @@ export function SignInScreen({ navigation, route }) {
   return (
     <AuthScreenShell
       sidePanel={
-        <AuthHero
+        <AuthSidePanel
           eyebrow="WELCOME BACK"
-          title="Sign in"
+          title="Sign in to Rack n Roll"
           subtitle="Pick up where you left off—your tournaments and scores are waiting."
+          features={[
+            {
+              icon: 'pool',
+              title: 'Discover events',
+              description: 'Browse open tournaments and request a spot in seconds.',
+            },
+            {
+              icon: 'chart',
+              title: 'Track standings',
+              description: 'Follow brackets, scores, and your place in the field.',
+            },
+            {
+              icon: 'trophy',
+              title: 'Host tournaments',
+              description: 'Create events, manage players, and run matches from one place.',
+            },
+          ]}
         />
       }
     >
-      <AuthFormCard title="Account details" subtitle="Use the email and password for your Rack n Roll account.">
+      <AuthFormCard title="Sign in" subtitle="Use the email and password for your Rack n Roll account.">
         <AuthErrorBanner message={errorText} />
 
         <AuthField
