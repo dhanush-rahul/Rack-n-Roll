@@ -75,6 +75,7 @@ const renderRound = ({
   onScheduleMatch,
   sp = (n) => n,
   isWide = false,
+  isDesktopWeb = false,
 }) => {
   const roundKey = round.roundKey || `round-${round.roundNumber}`;
   const matchPad = isWide ? sp(14) : 12;
@@ -226,8 +227,24 @@ const renderRound = ({
                 backgroundColor: '#fafbfc',
               }}
             >
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: isWide ? sp(10) : 8 }}>
-                <View style={{ flex: 1, gap: isWide ? sp(6) : 4 }}>
+              <View
+                style={
+                  isDesktopWeb
+                    ? {
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 16,
+                        flexWrap: 'wrap',
+                      }
+                    : {
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
+                        gap: isWide ? sp(10) : 8,
+                      }
+                }
+              >
+                <View style={{ flex: isDesktopWeb ? 1 : undefined, minWidth: isDesktopWeb ? 220 : undefined, gap: isWide ? sp(6) : 4 }}>
                   <Text style={{ fontWeight: '800', fontSize: 14, color: tournamentColors.text }}>
                     Match {match.matchNumber}
                   </Text>
@@ -236,12 +253,21 @@ const renderRound = ({
                     <Text style={{ color: tournamentColors.textMuted }}> vs </Text>
                     {playerBName}
                   </Text>
-                  <Text style={{ fontSize: 12, color: tournamentColors.textMuted }}>
-                    {useLiveSessionScoring
-                      ? `Best of ${seriesTargetBestOf} · Series ${Number(match.playerASeriesWins || 0)}–${Number(match.playerBSeriesWins || 0)}`
-                      : `Best of ${seriesTargetBestOf} · ${scoreInputEntries.length}/${seriesTargetBestOf} games entered`}
-                  </Text>
+                  {!isDesktopWeb ? (
+                    <Text style={{ fontSize: 12, color: tournamentColors.textMuted }}>
+                      {useLiveSessionScoring
+                        ? `Best of ${seriesTargetBestOf} · Series ${Number(match.playerASeriesWins || 0)}–${Number(match.playerBSeriesWins || 0)}`
+                        : `Best of ${seriesTargetBestOf} · ${scoreInputEntries.length}/${seriesTargetBestOf} games entered`}
+                    </Text>
+                  ) : null}
                 </View>
+                {isDesktopWeb ? (
+                  <Text style={{ fontSize: 12, color: tournamentColors.textMuted, minWidth: 140 }}>
+                    {useLiveSessionScoring
+                      ? `Bo${seriesTargetBestOf} · ${Number(match.playerASeriesWins || 0)}–${Number(match.playerBSeriesWins || 0)}`
+                      : `${scoreInputEntries.length}/${seriesTargetBestOf} games`}
+                  </Text>
+                ) : null}
                 {showAppointmentInHeader ? (
                   <Text
                     style={{
@@ -262,7 +288,7 @@ const renderRound = ({
               </View>
 
               {onScheduleMatch && match.canScheduleMatch !== false && matchId ? (
-                <View style={{ marginTop: 10 }}>
+                <View style={{ marginTop: 10, ...(isDesktopWeb ? { maxWidth: 180, marginLeft: 'auto' } : null) }}>
                   <MatchActionButton
                     label={match.scheduledStartAt ? 'Reschedule' : 'Schedule match'}
                     onPress={() =>
@@ -280,7 +306,7 @@ const renderRound = ({
               ) : null}
 
               {useLiveSessionScoring && onStartGame ? (
-                <View style={{ marginTop: 10 }}>
+                <View style={{ marginTop: 10, ...(isDesktopWeb ? { maxWidth: 180, marginLeft: 'auto' } : null) }}>
                   {match.status === 'completed' ? (
                     <Text style={{ fontSize: 13, fontWeight: '700', color: '#166534' }}>
                       Series complete · {Number(match.playerASeriesWins || 0)}–{Number(match.playerBSeriesWins || 0)}
@@ -464,7 +490,7 @@ export function RoundMatchesDisplay({
         ? `round-${expandedRoundNumber}`
         : null;
 
-  const { sp, isWide } = useTypography();
+  const { sp, isWide, isDesktopWeb } = useTypography();
 
   const handleToggleRound = (roundKey) => {
     if (typeof onToggleRound === 'function') {
@@ -475,6 +501,7 @@ export function RoundMatchesDisplay({
   const roundRendererProps = {
     sp,
     isWide,
+    isDesktopWeb,
     expandedRoundKey: resolvedExpandedRoundKey,
     onToggleRound: handleToggleRound,
     scoreInputsByGameId,

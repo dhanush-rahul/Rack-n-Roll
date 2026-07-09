@@ -129,7 +129,7 @@ export function HomeScreen({ navigation, route }) {
   const { exitConfirmVisible, confirmExit, cancelExit } = useHomeBackHandler();
   const queryClient = useQueryClient();
   const { scrollPaddingBottom } = useScreenInsets();
-  const { contentMaxWidth, horizontalPadding } = useResponsiveLayout();
+  const { contentMaxWidth, horizontalPadding, isDesktopWeb } = useResponsiveLayout();
 
   const {
     filterId,
@@ -485,11 +485,87 @@ export function HomeScreen({ navigation, route }) {
   const totalCount = discoveryMeta?.total ?? discoveryItems.length;
   const totalPages = discoveryMeta?.totalPages ?? 1;
 
+  const filtersPanel = (
+    <DiscoverFiltersPanel
+      expanded={filtersExpanded}
+      panelAnimation={filtersPanelAnimation}
+      activeFilterCount={activeFilterCount}
+      searchQuery={searchQuery}
+      sortId={sortId}
+      filterId={filterId}
+      pageSize={pageSize}
+      isRefreshing={isRefreshing || isLoadingDiscovery}
+      onRefresh={() => refetchDiscovery()}
+      onSearchQueryChange={setSearchQuery}
+      onClearSearch={() => setSearchQuery('')}
+      onSortChange={setSortId}
+      onFilterChange={onFilterChange}
+      onPageSizeChange={onPageSizeChange}
+    />
+  );
+
+  const tournamentCards = isLoadingDiscovery && discoveryItems.length === 0 ? (
+    <LoadingPlaceholder pulse={skeletonPulse} />
+  ) : filteredItems.length === 0 ? (
+    <EmptyDiscoverState onCreate={onCreateTournament} filterId={filterId} searchQuery={searchQuery} />
+  ) : (
+    <View style={{ gap: 12 }}>
+      {filteredItems.map((item) => (
+        <View key={item.id}>
+          <DiscoverTournamentCard
+            item={item}
+            isExpanded={expandedTournamentId === item.id}
+            isHighlighted={item.id === highlightTournamentId}
+            isAuthenticated={isAuthenticated}
+            isHostTournament={String(item.hostUserId) === String(currentUser?.id)}
+            highlightBlinkAnimation={highlightBlinkAnimation}
+            expansionAnimation={getExpansionAnimation(item.id)}
+            inviteCode={inviteCodeByTournamentId[item.id] || ''}
+            onInviteCodeChange={(value) =>
+              setInviteCodeByTournamentId((prev) => ({ ...prev, [item.id]: value }))
+            }
+            tournamentValidation={validationByTournamentId[item.id] || {}}
+            registrationState={registrationByTournamentId[item.id] || {}}
+            hasExistingRegistration={Boolean(
+              isAuthenticated
+                ? registrationByTournamentId[item.id]?.status || item.currentUserRegistrationStatus
+                : null
+            )}
+            existingRegistrationStatus={
+              isAuthenticated
+                ? registrationByTournamentId[item.id]?.status || item.currentUserRegistrationStatus || null
+                : null
+            }
+            requestEnabled={getRequestEnabled(item)}
+            onToggleExpand={onToggleExpand}
+            onOpenTournamentDetail={onOpenTournamentDetail}
+            onOpenScoresheet={onOpenScoresheet}
+            onValidateInviteCode={onValidateInviteCode}
+            onRequestRegistration={onRequestRegistration}
+          />
+        </View>
+      ))}
+    </View>
+  );
+
+  const tournamentListSection = (
+    <View>
+      <DiscoverTournamentsHeader
+        shownCount={filteredItems.length}
+        activeFilterCount={activeFilterCount}
+        filtersExpanded={filtersExpanded}
+        onToggleFilters={onToggleFiltersPanel}
+      />
+      {filtersPanel}
+      {tournamentCards}
+    </View>
+  );
+
   return (
     <>
       <ScrollView
         ref={scrollViewRef}
-        style={tournamentUi.screen}
+        style={[tournamentUi.screen, isDesktopWeb && { backgroundColor: '#eef2f6' }]}
         contentContainerStyle={[
           { padding: horizontalPadding, paddingBottom: scrollPaddingBottom },
           centeredContentStyle(contentMaxWidth),
@@ -518,17 +594,6 @@ export function HomeScreen({ navigation, route }) {
           />
         </View>
 
-        {isAuthenticated ? (
-          <View style={{ marginBottom: 16 }}>
-            <DiscoverRegisteredSection
-              items={registeredItems}
-              isLoading={isLoadingRegistered}
-              errorMessage={registeredError}
-              onOpenScoresheet={onOpenScoresheet}
-            />
-          </View>
-        ) : null}
-
         {Boolean(discoveryError) && (
           <View
             style={{
@@ -548,78 +613,18 @@ export function HomeScreen({ navigation, route }) {
           </View>
         )}
 
-        <View>
-          <DiscoverTournamentsHeader
-            shownCount={filteredItems.length}
-            activeFilterCount={activeFilterCount}
-            filtersExpanded={filtersExpanded}
-            onToggleFilters={onToggleFiltersPanel}
-          />
-          <DiscoverFiltersPanel
-            expanded={filtersExpanded}
-            panelAnimation={filtersPanelAnimation}
-            activeFilterCount={activeFilterCount}
-            searchQuery={searchQuery}
-            sortId={sortId}
-            filterId={filterId}
-            pageSize={pageSize}
-            isRefreshing={isRefreshing || isLoadingDiscovery}
-            onRefresh={() => refetchDiscovery()}
-            onSearchQueryChange={setSearchQuery}
-            onClearSearch={() => setSearchQuery('')}
-            onSortChange={setSortId}
-            onFilterChange={onFilterChange}
-            onPageSizeChange={onPageSizeChange}
-          />
-
-          {isLoadingDiscovery && discoveryItems.length === 0 ? (
-            <LoadingPlaceholder pulse={skeletonPulse} />
-          ) : filteredItems.length === 0 ? (
-            <EmptyDiscoverState
-              onCreate={onCreateTournament}
-              filterId={filterId}
-              searchQuery={searchQuery}
+        {isAuthenticated ? (
+          <View style={{ marginBottom: 16 }}>
+            <DiscoverRegisteredSection
+              items={registeredItems}
+              isLoading={isLoadingRegistered}
+              errorMessage={registeredError}
+              onOpenScoresheet={onOpenScoresheet}
             />
-          ) : (
-            <View style={{ gap: 12 }}>
-              {filteredItems.map((item) => (
-                <View key={item.id}>
-                  <DiscoverTournamentCard
-                    item={item}
-                    isExpanded={expandedTournamentId === item.id}
-                    isHighlighted={item.id === highlightTournamentId}
-                    isAuthenticated={isAuthenticated}
-                    isHostTournament={String(item.hostUserId) === String(currentUser?.id)}
-                    highlightBlinkAnimation={highlightBlinkAnimation}
-                    expansionAnimation={getExpansionAnimation(item.id)}
-                    inviteCode={inviteCodeByTournamentId[item.id] || ''}
-                    onInviteCodeChange={(value) =>
-                      setInviteCodeByTournamentId((prev) => ({ ...prev, [item.id]: value }))
-                    }
-                    tournamentValidation={validationByTournamentId[item.id] || {}}
-                    registrationState={registrationByTournamentId[item.id] || {}}
-                    hasExistingRegistration={Boolean(
-                      isAuthenticated
-                        ? registrationByTournamentId[item.id]?.status || item.currentUserRegistrationStatus
-                        : null
-                    )}
-                    existingRegistrationStatus={
-                      isAuthenticated
-                        ? registrationByTournamentId[item.id]?.status || item.currentUserRegistrationStatus || null
-                        : null
-                    }
-                    requestEnabled={getRequestEnabled(item)}
-                    onToggleExpand={onToggleExpand}
-                    onOpenTournamentDetail={onOpenTournamentDetail}
-                    onOpenScoresheet={onOpenScoresheet}
-                    onValidateInviteCode={onValidateInviteCode}
-                    onRequestRegistration={onRequestRegistration}
-                  />
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
+          </View>
+        ) : null}
+
+        {tournamentListSection}
 
         <View style={{ marginTop: 16 }}>
           <PaginationBar page={page} totalPages={totalPages} onPageChange={onPageChange} />

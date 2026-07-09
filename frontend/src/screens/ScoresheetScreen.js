@@ -1,15 +1,15 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { View } from 'react-native';
 import { FeedbackModal } from '../components/FeedbackModal';
 import {
   ReadOnlyBanner,
   TournamentScreenHero,
-  TournamentSegmentTabs,
 } from '../components/tournament/TournamentChrome';
 import { useGroupStageFixtures } from '../hooks/useGroupStageFixtures';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatApiError, useScreenFeedback } from '../hooks/useScreenFeedback';
-import { useScreenInsets } from '../hooks/useScreenInsets';
+import { ScreenScrollShell } from '../components/layout/ScreenScrollShell';
+import { ScoresheetTabLayout } from '../components/layout/TournamentTabLayout';
 import { useFetchScoresheetPages, useScoresheetMeta } from '../hooks/queries/useScoresheetPages';
 import { useTournamentGroupStandings } from '../hooks/queries/useTournamentGroupStandings';
 import { queryKeys } from '../hooks/queries/queryKeys';
@@ -66,7 +66,6 @@ export function ScoresheetScreen({ route, navigation }) {
 
   const [scoresByGameId, setScoresByGameId] = useState({});
   const { errorMessage, showError, clearError } = useScreenFeedback({ successAutoClearMs: 0 });
-  const { scrollPaddingBottom } = useScreenInsets();
   const [expandedRoundKey, setExpandedRoundKey] = useState(null);
   const [expandedSectionId, setExpandedSectionId] = useState(null);
   const [expandedFinalRoundNumber, setExpandedFinalRoundNumber] = useState(null);
@@ -452,11 +451,7 @@ export function ScoresheetScreen({ route, navigation }) {
   );
 
   return (
-    <ScrollView
-      style={tournamentUi.screen}
-      contentContainerStyle={[tournamentUi.content, { paddingBottom: scrollPaddingBottom }]}
-      removeClippedSubviews={false}
-    >
+    <ScreenScrollShell contentContainerStyle={{ gap: 16 }}>
       <View style={{ marginBottom: 16 }}>
         <TournamentScreenHero
           eyebrow="SCORESHEET"
@@ -515,24 +510,7 @@ export function ScoresheetScreen({ route, navigation }) {
         {!canEditPatternScores && <ReadOnlyBanner />}
       </View>
 
-      <View style={{ marginBottom: 16 }}>
-        <TournamentSegmentTabs tabs={scoresheetTabs} activeTab={activeTab} onSelectTab={setActiveTab} />
-      </View>
-
-      <FeedbackModal visible={Boolean(errorMessage)} message={errorMessage} onDismiss={clearError} />
-      <MatchScheduleModal
-        visible={Boolean(scheduleTarget)}
-        matchLabel={
-          scheduleTarget
-            ? `${scheduleTarget.playerAName || 'Player A'} vs ${scheduleTarget.playerBName || 'Player B'}`
-            : ''
-        }
-        initialScheduledAt={scheduleTarget?.scheduledStartAt || null}
-        onSave={onSaveMatchSchedule}
-        onCancel={() => setScheduleTarget(null)}
-        isSaving={isSavingSchedule}
-      />
-
+      <ScoresheetTabLayout tabs={scoresheetTabs} activeTab={activeTab} onSelectTab={setActiveTab}>
       {activeTab === 'teams' ? (
         <TeamsSection
           tournamentId={tournamentId}
@@ -583,6 +561,21 @@ export function ScoresheetScreen({ route, navigation }) {
           scoresByGameId={scoresByGameId}
         />
       )}
-    </ScrollView>
+      </ScoresheetTabLayout>
+
+      <FeedbackModal visible={Boolean(errorMessage)} message={errorMessage} onDismiss={clearError} />
+      <MatchScheduleModal
+        visible={Boolean(scheduleTarget)}
+        matchLabel={
+          scheduleTarget
+            ? `${scheduleTarget.playerAName || 'Player A'} vs ${scheduleTarget.playerBName || 'Player B'}`
+            : ''
+        }
+        initialScheduledAt={scheduleTarget?.scheduledStartAt || null}
+        onSave={onSaveMatchSchedule}
+        onCancel={() => setScheduleTarget(null)}
+        isSaving={isSavingSchedule}
+      />
+    </ScreenScrollShell>
   );
 }

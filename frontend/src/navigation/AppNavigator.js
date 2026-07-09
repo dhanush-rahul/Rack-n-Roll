@@ -3,8 +3,10 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { AppHeaderShell } from '../components/layout/AppHeaderShell';
+import { WebDesktopFooter } from '../components/layout/WebNavigationChrome';
 import { SignOutProvider } from '../context/SignOutContext';
-import { Pressable, View } from 'react-native';
+import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 import { ScaledText as Text } from '../components/ui/ScaledText';
 import { AppIcon } from '../components/ui/AppIcon';
 import { tournamentColors } from '../styles/tournamentUi';
@@ -19,7 +21,7 @@ import { CreateTournamentWalkthroughScreen } from '../screens/CreateTournamentWa
 import { ScoresheetScreen } from '../screens/ScoresheetScreen';
 import { LiveMatchSessionScreen } from '../screens/LiveMatchSessionScreen';
 import { TournamentDetailScreen } from '../screens/TournamentDetailScreen';
-import { AppBootstrapScreen } from '../screens/AppBootstrapScreen';
+import { AppBootstrapScreen, BOOTSTRAP_BACKGROUND } from '../screens/AppBootstrapScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { DiscoverWalkthroughScreen } from '../screens/DiscoverWalkthroughScreen';
 
@@ -43,19 +45,16 @@ const AppHeader = memo(function AppHeader({
   const displayTitle = titleText.length > 20 ? `${titleText.slice(0, 20)}...` : titleText;
 
   return (
-    <View
-      style={{
-        paddingTop: topInset + 12,
-        paddingBottom: 12,
-        paddingHorizontal: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: '#d3e0e6',
-        backgroundColor: '#d3e0e6',
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-      }}
-    >
+    <AppHeaderShell>
+      <View
+        style={{
+          paddingTop: topInset + 12,
+          paddingBottom: 12,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
       <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0, marginRight: 10 }}>
         {showBack && (
           <Pressable
@@ -149,57 +148,45 @@ const AppHeader = memo(function AppHeader({
           </>
         )}
       </View>
-    </View>
+      </View>
+    </AppHeaderShell>
   );
 });
 
-function createRootStackHeader({ isAuthenticated, onSignOut }) {
-  return function RootStackHeader({ navigation, route, options, back }) {
-    const title = options.title || route.name;
-    const showHomeActions = route.name === 'Home' && isAuthenticated;
-    const showGuestActions = route.name === 'Home' && !isAuthenticated;
+const ROUTE_TITLES = {
+  Home: 'Rack-N-Roll',
+  DiscoverWalkthrough: 'Rack-N-Roll',
+  SignIn: 'Sign In',
+  SignUp: 'Create Account',
+  ForgotPassword: 'Forgot Password',
+  Profile: 'My Profile',
+  CreateTournamentWalkthrough: 'Create Tournament',
+  CreateTournament: 'Create Tournament',
+  TournamentDetail: 'Tournament',
+  Scoresheet: 'Scoresheet',
+  LiveMatchSession: 'Live match',
+};
 
-    let onInfoPress = route.params?.onInfoPress;
-    if (typeof onInfoPress !== 'function') {
-      if (route.name === 'Home') {
-        onInfoPress = () => navigation.navigate('DiscoverWalkthrough');
-      } else if (route.name === 'CreateTournament') {
-        onInfoPress = () => navigation.navigate('CreateTournamentWalkthrough');
-      } else {
-        onInfoPress = undefined;
-      }
-    }
-
-    return (
-      <AppHeader
-        navigation={navigation}
-        title={title}
-        showBack={Boolean(back)}
-        showHomeActions={showHomeActions}
-        showGuestActions={showGuestActions}
-        onSignOut={onSignOut}
-        onSignIn={() => navigation.navigate('SignIn', { returnTo: { screen: 'Home' } })}
-        onSignUp={() => navigation.navigate('SignUp', { returnTo: { screen: 'Home' } })}
-        onInfoPress={onInfoPress}
-      />
-    );
-  };
+function resolveRouteTitle(route) {
+  if (!route?.name) {
+    return 'Rack-N-Roll';
+  }
+  if (route.name === 'TournamentDetail' || route.name === 'Scoresheet') {
+    return route.params?.tournamentName || ROUTE_TITLES[route.name];
+  }
+  return ROUTE_TITLES[route.name] || route.name;
 }
 
-function RootStack({ isAuthenticated, onSignOut }) {
-  const header = useMemo(
-    () => createRootStackHeader({ isAuthenticated, onSignOut }),
-    [isAuthenticated, onSignOut]
-  );
-
+function RootStack() {
   return (
     <Stack.Navigator
       initialRouteName="Home"
       screenOptions={{
         animation: 'slide_from_right',
         contentStyle: { backgroundColor: '#f8fafc' },
-        headerTitleAlign: 'left',
-        header,
+        // The header lives outside the navigator so it stays fixed in the
+        // background while only the screen content animates underneath it.
+        headerShown: false,
       }}
     >
       <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'Rack-N-Roll' }} />
@@ -231,6 +218,15 @@ export function AppNavigator() {
   const [signOutConfirmVisible, setSignOutConfirmVisible] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
 
+  const [currentRoute, setCurrentRoute] = useState({
+    name: 'Home',
+    params: undefined,
+    canGoBack: false,
+  });
+
+  const [isBootstrapOverlayVisible, setIsBootstrapOverlayVisible] = useState(true);
+  const bootstrapOverlayOpacity = useRef(new Animated.Value(1)).current;
+
   const hideNativeSplash = useCallback(() => {
     if (nativeSplashHiddenRef.current) {
       return;
@@ -238,6 +234,38 @@ export function AppNavigator() {
     nativeSplashHiddenRef.current = true;
     SplashScreen.hideAsync().catch(() => {});
   }, []);
+
+  const handleNavigationStateChange = useCallback(() => {
+    if (!navigationRef.isReady()) {
+      return;
+    }
+    const route = navigationRef.getCurrentRoute();
+    if (!route) {
+      return;
+    }
+    setCurrentRoute({
+      name: route.name,
+      params: route.params,
+      canGoBack: navigationRef.canGoBack(),
+    });
+  }, []);
+
+  const headerNavigation = useMemo(
+    () => ({
+      canGoBack: () => navigationRef.isReady() && navigationRef.canGoBack(),
+      pop: () => {
+        if (navigationRef.isReady() && navigationRef.canGoBack()) {
+          navigationRef.goBack();
+        }
+      },
+      navigate: (name, params) => {
+        if (navigationRef.isReady()) {
+          navigationRef.navigate(name, params);
+        }
+      },
+    }),
+    []
+  );
 
   const requestSignOut = useCallback(() => {
     setSignOutConfirmVisible(true);
@@ -273,20 +301,76 @@ export function AppNavigator() {
   }, [isSigningOut, signOut]);
 
   useEffect(() => {
-    if (!isLoading) {
-      hideNativeSplash();
+    if (isLoading) {
+      return;
     }
-  }, [hideNativeSplash, isLoading]);
 
-  if (isLoading) {
-    return <AppBootstrapScreen statusMessage={bootstrapMessage} onReady={hideNativeSplash} />;
+    hideNativeSplash();
+
+    // Fade the splash overlay away to reveal the dashboard underneath.
+    const animation = Animated.timing(bootstrapOverlayOpacity, {
+      toValue: 0,
+      duration: 550,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
+    animation.start(({ finished }) => {
+      if (finished) {
+        setIsBootstrapOverlayVisible(false);
+      }
+    });
+
+    return () => animation.stop();
+  }, [bootstrapOverlayOpacity, hideNativeSplash, isLoading]);
+
+  const showHomeActions = currentRoute.name === 'Home' && isAuthenticated;
+  const showGuestActions = currentRoute.name === 'Home' && !isAuthenticated;
+
+  let onInfoPress;
+  if (currentRoute.name === 'Home') {
+    onInfoPress = () => headerNavigation.navigate('DiscoverWalkthrough');
+  } else if (currentRoute.name === 'CreateTournament') {
+    onInfoPress = () => headerNavigation.navigate('CreateTournamentWalkthrough');
   }
 
   return (
     <SignOutProvider requestSignOut={requestSignOut}>
-      <NavigationContainer ref={navigationRef}>
-        <RootStack isAuthenticated={isAuthenticated} onSignOut={requestSignOut} />
-      </NavigationContainer>
+      <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
+        {!isLoading && (
+          <NavigationContainer
+            ref={navigationRef}
+            onReady={handleNavigationStateChange}
+            onStateChange={handleNavigationStateChange}
+          >
+            <View style={{ flex: 1 }}>
+              <AppHeader
+                navigation={headerNavigation}
+                title={resolveRouteTitle(currentRoute)}
+                showBack={currentRoute.canGoBack}
+                showHomeActions={showHomeActions}
+                showGuestActions={showGuestActions}
+                onSignOut={requestSignOut}
+                onSignIn={() => headerNavigation.navigate('SignIn', { returnTo: { screen: 'Home' } })}
+                onSignUp={() => headerNavigation.navigate('SignUp', { returnTo: { screen: 'Home' } })}
+                onInfoPress={onInfoPress}
+              />
+              <View style={{ flex: 1 }}>
+                <RootStack />
+              </View>
+              <WebDesktopFooter />
+            </View>
+          </NavigationContainer>
+        )}
+
+        {isBootstrapOverlayVisible && (
+          <Animated.View
+            style={[StyleSheet.absoluteFill, { opacity: bootstrapOverlayOpacity, backgroundColor: BOOTSTRAP_BACKGROUND }]}
+            pointerEvents={isLoading ? 'auto' : 'none'}
+          >
+            <AppBootstrapScreen statusMessage={bootstrapMessage} onReady={hideNativeSplash} />
+          </Animated.View>
+        )}
+      </View>
       <ConfirmModal
         visible={signOutConfirmVisible}
         title="Sign out?"

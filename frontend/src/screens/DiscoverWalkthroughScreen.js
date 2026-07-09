@@ -8,6 +8,7 @@ import {
   WALKTHROUGH_MOCK_TOURNAMENTS,
 } from '../config/discoverWalkthrough';
 import { setDiscoverWalkthroughCompleted } from '../utils/onboardingStore';
+import { exitWalkthroughTo } from '../utils/exitWalkthrough';
 import { useScreenInsets } from '../hooks/useScreenInsets';
 import { discoverUi, tournamentColors, tournamentUi } from '../styles/tournamentUi';
 import { centeredContentStyle, useResponsiveLayout } from '../utils/responsive';
@@ -95,7 +96,7 @@ export function DiscoverWalkthroughScreen({ navigation }) {
     await setDiscoverWalkthroughCompleted(true);
 
     InteractionManager.runAfterInteractions(() => {
-      navigation.replace('Home');
+      exitWalkthroughTo(navigation, 'Home');
     });
   }, [navigation]);
 

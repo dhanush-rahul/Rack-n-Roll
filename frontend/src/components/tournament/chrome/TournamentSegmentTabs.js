@@ -4,11 +4,19 @@ import { ScaledText as Text } from '../../ui/ScaledText';
 import { useTypography } from '../../../context/TypographyContext';
 import { discoverUi, tournamentColors } from '../../../styles/tournamentUi';
 
-export function TournamentSegmentTabs({ tabs, activeTab, onSelectTab }) {
-  const { sp, isWide } = useTypography();
+export function TournamentSegmentTabs({ tabs, activeTab, onSelectTab, layout = 'horizontal' }) {
+  const { sp, isWide, isDesktopWeb } = useTypography();
+  const isVertical = layout === 'vertical' && isDesktopWeb;
 
   return (
-    <View style={[discoverUi.surfaceCard, { padding: isWide ? sp(8) : 6, flexDirection: 'row', gap: isWide ? sp(8) : 6 }]}>
+    <View
+      style={[
+        discoverUi.surfaceCard,
+        isVertical
+          ? { padding: 8, gap: 6 }
+          : { padding: isWide ? sp(8) : 6, flexDirection: 'row', gap: isWide ? sp(8) : 6 },
+      ]}
+    >
       {tabs.map((tab) => {
         const selected = activeTab === tab.id;
 
@@ -17,11 +25,12 @@ export function TournamentSegmentTabs({ tabs, activeTab, onSelectTab }) {
             key={tab.id}
             onPress={() => onSelectTab(tab.id)}
             style={({ pressed }) => ({
-              flex: 1,
-              paddingVertical: isWide ? sp(13) : 11,
-              paddingHorizontal: isWide ? sp(8) : 6,
+              flex: isVertical ? undefined : 1,
+              width: isVertical ? '100%' : undefined,
+              paddingVertical: isVertical ? 12 : isWide ? sp(13) : 11,
+              paddingHorizontal: isVertical ? 14 : isWide ? sp(8) : 6,
               borderRadius: 10,
-              alignItems: 'center',
+              alignItems: isVertical ? 'flex-start' : 'center',
               justifyContent: 'center',
               backgroundColor: selected ? tournamentColors.primary : '#f8fafc',
               borderWidth: 1,

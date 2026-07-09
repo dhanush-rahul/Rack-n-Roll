@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useMemo } from 'react';
-import { useWindowDimensions } from 'react-native';
-import { getFontScale, getSpacingScale } from '../utils/responsive';
+import { Platform, useWindowDimensions } from 'react-native';
+import { BREAKPOINTS, getFontScale, getSpacingScale } from '../utils/responsive';
 
 const TypographyContext = createContext(null);
 
@@ -8,8 +8,9 @@ export function TypographyProvider({ children }) {
   const { width } = useWindowDimensions();
 
   const value = useMemo(() => {
-    const fontScale = getFontScale(width);
-    const spacingScale = getSpacingScale(width);
+    const fontScale = getFontScale(width, Platform.OS);
+    const spacingScale = getSpacingScale(width, Platform.OS);
+    const isWeb = Platform.OS === 'web';
 
     const fs = (size) => Math.round(size * fontScale);
     const sp = (size) => Math.round(size * spacingScale);
@@ -19,10 +20,12 @@ export function TypographyProvider({ children }) {
       width,
       fontScale,
       spacingScale,
-      isWide: width >= 480,
-      isTablet: width >= 768,
-      isLargeScreen: width >= 1024,
-      isXLargeScreen: width >= 1280,
+      isWide: width >= BREAKPOINTS.wide,
+      isTablet: width >= BREAKPOINTS.tablet,
+      isLargeScreen: width >= BREAKPOINTS.large,
+      isXLargeScreen: width >= BREAKPOINTS.xlarge,
+      isWeb,
+      isDesktopWeb: isWeb && width >= BREAKPOINTS.large,
       fs,
       sp,
       lh,
@@ -57,6 +60,8 @@ export function useTypography() {
       isTablet: false,
       isLargeScreen: false,
       isXLargeScreen: false,
+      isWeb: false,
+      isDesktopWeb: false,
       fs,
       sp,
       lh: (size, ratio = 1.35) => Math.round(size * ratio),

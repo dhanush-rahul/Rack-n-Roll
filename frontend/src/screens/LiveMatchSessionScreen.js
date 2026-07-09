@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { ScaledText as Text } from '../components/ui/ScaledText';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScreenScrollShell } from '../components/layout/ScreenScrollShell';
+import { useResponsiveLayout } from '../utils/responsive';
 import { ActionButton } from '../components/tournament/TournamentChrome';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { EndGameDropdown } from '../components/liveMatch/EndGameDropdown';
@@ -82,7 +83,7 @@ export function LiveMatchSessionScreen({ route, navigation }) {
   const tournamentId = route?.params?.tournamentId;
   const gameId = route?.params?.gameId;
   const shouldAutoStart = route?.params?.autoStart !== false;
-  const insets = useSafeAreaInsets();
+  const { isDesktopWeb } = useResponsiveLayout();
   const [session, setSession] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
@@ -312,8 +313,8 @@ export function LiveMatchSessionScreen({ route, navigation }) {
         : null;
 
   return (
-    <View style={[tournamentUi.screen, { backgroundColor: '#f1f5f9' }]}>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 16 + insets.bottom, gap: 16 }}>
+    <>
+      <ScreenScrollShell style={{ backgroundColor: '#f1f5f9' }} contentContainerStyle={{ gap: 16 }}>
         <View
           style={{
             padding: 18,
@@ -386,7 +387,7 @@ export function LiveMatchSessionScreen({ route, navigation }) {
 
         {isInProgress && (
           <>
-            <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={{ flexDirection: 'row', gap: isDesktopWeb ? 16 : 10, alignItems: 'stretch' }}>
               <PlayerSpotlight
                 player={session.playerA}
                 isActive={String(currentTurnId) === String(playerAId)}
@@ -395,6 +396,40 @@ export function LiveMatchSessionScreen({ route, navigation }) {
                 showLegWonFooter={legRequired && Boolean(legWinnerId && String(legWinnerId) === String(playerAId))}
                 currentInning={innings?.currentInning || 1}
               />
+              {isDesktopWeb && showPassTable ? (
+                <View
+                  style={{
+                    width: 260,
+                    flexShrink: 0,
+                    padding: 16,
+                    borderRadius: 16,
+                    backgroundColor: tournamentColors.white,
+                    borderWidth: 1,
+                    borderColor: tournamentColors.borderLight,
+                    gap: 10,
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: tournamentColors.text }}>
+                    Player turn
+                  </Text>
+                  <Text style={{ fontSize: 13, color: tournamentColors.textMuted, lineHeight: 18 }}>
+                    At the table: {activePlayer?.displayName || 'Player'}.
+                  </Text>
+                  <ActionButton
+                    label={
+                      isBusy
+                        ? 'Working…'
+                        : isActiveScorer
+                          ? `Pass to ${nextPlayer?.displayName || 'other player'}`
+                          : 'Start scoring'
+                    }
+                    onPress={onPassTable}
+                    disabled={isBusy}
+                    fullWidth
+                  />
+                </View>
+              ) : null}
               <PlayerSpotlight
                 player={session.playerB}
                 isActive={String(currentTurnId) === String(playerBId)}
@@ -405,7 +440,7 @@ export function LiveMatchSessionScreen({ route, navigation }) {
               />
             </View>
 
-            {showPassTable && (
+            {showPassTable && !isDesktopWeb && (
               <View
                 style={{
                   padding: 16,
@@ -544,7 +579,7 @@ export function LiveMatchSessionScreen({ route, navigation }) {
         {Boolean(errorMessage) && (
           <Text style={{ color: tournamentColors.error, fontSize: 14 }}>{errorMessage}</Text>
         )}
-      </ScrollView>
+      </ScreenScrollShell>
 
       <ConfirmModal
         visible={legWonConfirmVisible}
@@ -624,6 +659,6 @@ export function LiveMatchSessionScreen({ route, navigation }) {
         isLoading={isBusy}
         icon="crown"
       />
-    </View>
+    </>
   );
 }

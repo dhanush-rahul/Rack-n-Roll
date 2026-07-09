@@ -160,10 +160,50 @@ export function AuthPasswordMatchHint({ password, confirmPassword }) {
   );
 }
 
-export function AuthScreenShell({ children, keyboardVerticalOffset = 0 }) {
+export function AuthScreenShell({ children, sidePanel, keyboardVerticalOffset = 0 }) {
   const insets = useSafeAreaInsets();
   const scrollBottom = 16 + insets.bottom;
-  const { contentMaxWidth } = useResponsiveLayout();
+  const { contentMaxWidth, isDesktopWeb, formMaxWidth, horizontalPadding } = useResponsiveLayout();
+
+  if (isDesktopWeb && sidePanel) {
+    return (
+      <KeyboardAvoidingView
+        style={{ flex: 1, backgroundColor: '#f1f5f9' }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={keyboardVerticalOffset}
+      >
+        <View style={{ flex: 1, flexDirection: 'row', minHeight: '100%' }}>
+          <View
+            style={{
+              flex: 1,
+              backgroundColor: '#0f172a',
+              paddingHorizontal: 40,
+              paddingVertical: 48,
+              justifyContent: 'center',
+            }}
+          >
+            <View style={[centeredContentStyle(440), { width: '100%' }]}>{sidePanel}</View>
+          </View>
+          <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 40, paddingVertical: 32 }}>
+            <ScrollView
+              contentContainerStyle={[
+                {
+                  width: '100%',
+                  maxWidth: formMaxWidth || 480,
+                  alignSelf: 'center',
+                  paddingBottom: scrollBottom,
+                },
+              ]}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {children}
+            </ScrollView>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -172,10 +212,15 @@ export function AuthScreenShell({ children, keyboardVerticalOffset = 0 }) {
       keyboardVerticalOffset={keyboardVerticalOffset}
     >
       <ScrollView
-        contentContainerStyle={[authUi.scrollContent, { paddingBottom: scrollBottom }, centeredContentStyle(contentMaxWidth)]}
+        contentContainerStyle={[
+          authUi.scrollContent,
+          { paddingBottom: scrollBottom, paddingHorizontal: horizontalPadding },
+          centeredContentStyle(contentMaxWidth || formMaxWidth),
+        ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        {sidePanel}
         {children}
       </ScrollView>
     </KeyboardAvoidingView>
@@ -183,8 +228,10 @@ export function AuthScreenShell({ children, keyboardVerticalOffset = 0 }) {
 }
 
 export function AuthFormCard({ title, subtitle, children }) {
+  const { formMaxWidth } = useResponsiveLayout();
+
   return (
-    <View style={authUi.formCard}>
+    <View style={[authUi.formCard, formMaxWidth ? { maxWidth: formMaxWidth, width: '100%', alignSelf: 'center' } : null]}>
       {Boolean(title) && <Text style={authUi.formTitle}>{title}</Text>}
       {Boolean(subtitle) && <Text style={authUi.formSubtitle}>{subtitle}</Text>}
       {children}
