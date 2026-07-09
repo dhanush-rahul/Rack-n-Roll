@@ -13,7 +13,7 @@ import {
 } from '../components/auth/AuthChrome';
 import { LegalConsent, LegalFooter } from '../components/legal/LegalLinks';
 import { GoogleSignInSection } from '../components/auth/GoogleSignInSection';
-import { isGoogleSignInConfigured } from '../config/googleAuth';
+import { isGoogleSignInAvailable } from '../config/googleAuth';
 import { useAuth } from '../context/AuthContext';
 import { tournamentColors } from '../styles/tournamentUi';
 import { getAuthErrorMessage } from '../utils/authErrors';
@@ -202,7 +202,7 @@ export function SignUpScreen({ navigation, route }) {
           loading={isSubmitting}
         />
 
-        {isGoogleSignInConfigured() ? (
+        {isGoogleSignInAvailable() ? (
           <GoogleSignInSection
             onIdToken={handleGoogleIdToken}
             disabled={isSubmitting || isGoogleSubmitting}

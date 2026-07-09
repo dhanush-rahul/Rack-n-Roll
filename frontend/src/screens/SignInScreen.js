@@ -12,7 +12,7 @@ import {
 import { ActionButton } from '../components/tournament/TournamentChrome';
 import { LegalFooter } from '../components/legal/LegalLinks';
 import { GoogleSignInSection } from '../components/auth/GoogleSignInSection';
-import { isGoogleSignInConfigured } from '../config/googleAuth';
+import { isGoogleSignInAvailable } from '../config/googleAuth';
 import { useAuth } from '../context/AuthContext';
 import { getAuthErrorMessage } from '../utils/authErrors';
 import { hasValidationErrors, validateSignInInput } from '../utils/authValidation';
@@ -131,7 +131,7 @@ export function SignInScreen({ navigation, route }) {
 
         <AuthPrimaryButton label="Sign in" onPress={onSubmit} disabled={isSubmitting || isGoogleSubmitting} loading={isSubmitting} />
 
-        {isGoogleSignInConfigured() ? (
+        {isGoogleSignInAvailable() ? (
           <GoogleSignInSection
             onIdToken={handleGoogleIdToken}
             disabled={isSubmitting || isGoogleSubmitting}

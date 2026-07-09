@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 const readClientId = (value) => String(value || '').trim();
 
 export const googleAuthConfig = {
@@ -8,6 +10,11 @@ export const googleAuthConfig = {
 
 export function isGoogleSignInConfigured() {
   return Boolean(googleAuthConfig.webClientId);
+}
+
+/** Google sign-in is native-only until web OAuth is fully configured. */
+export function isGoogleSignInAvailable() {
+  return Platform.OS !== 'web' && isGoogleSignInConfigured();
 }
 
 export function resolveGoogleAuthRequestConfig() {
