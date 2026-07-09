@@ -1,4 +1,5 @@
-import { tournamentColors } from './tournamentUi';
+import { Platform } from 'react-native';
+import { cardShadow, tournamentColors } from './tournamentUi';
 
 export const authUi = {
   screen: {
@@ -12,10 +13,10 @@ export const authUi = {
   },
   hero: {
     borderRadius: 18,
-    padding: 20,
+    padding: 24,
     backgroundColor: '#0f172a',
     overflow: 'hidden',
-    marginBottom: 20,
+    marginBottom: 0,
   },
   heroGlow: {
     position: 'absolute',
@@ -48,7 +49,38 @@ export const authUi = {
     borderWidth: 1,
     borderColor: tournamentColors.borderLight,
     backgroundColor: tournamentColors.white,
-    padding: 18,
+    padding: 22,
+    ...(Platform.OS === 'web' ? cardShadow : { elevation: 2 }),
+  },
+  mobileIntro: {
+    marginBottom: 16,
+    paddingVertical: 4,
+    gap: 6,
+  },
+  mobileIntroEyebrow: {
+    color: tournamentColors.primary,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.1,
+  },
+  mobileIntroSubtitle: {
+    color: tournamentColors.textMuted,
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  sideFeatureList: {
+    gap: 14,
+    paddingTop: 18,
+    marginTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  sidePanel: {
+    borderRadius: 18,
+    padding: 24,
+    backgroundColor: '#0f172a',
+    overflow: 'hidden',
+    width: '100%',
   },
   formTitle: {
     fontSize: 18,
@@ -114,7 +146,7 @@ export const authUi = {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
-    marginBottom: 12,
+    marginBottom: 0,
   },
   featureIcon: {
     width: 36,

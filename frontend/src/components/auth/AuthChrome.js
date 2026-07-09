@@ -1,5 +1,5 @@
 import React, { useMemo, useRef } from 'react';
-import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { ScaledText as Text } from '../ui/ScaledText';
 import { ScaledTextInput as TextInput } from '../ui/ScaledTextInput';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,16 +7,62 @@ import { ActionButton } from '../tournament/TournamentChrome';
 import { AppIcon } from '../ui/AppIcon';
 import { authUi } from '../../styles/authUi';
 import { tournamentColors } from '../../styles/tournamentUi';
+import { WebTwoColumnLayout } from '../layout/WebTwoColumnLayout';
 import { useResponsiveLayout, centeredContentStyle } from '../../utils/responsive';
 
 export function AuthHero({ eyebrow, title, subtitle, compact = false }) {
   return (
-    <View style={[authUi.hero, compact && { padding: 16, marginBottom: 16 }]}>
+    <View style={[authUi.hero, compact && { padding: 18 }]}>
       <View style={[authUi.heroGlow, { top: -30, right: -20 }]} />
       <View style={[authUi.heroGlow, { bottom: -40, left: -10, backgroundColor: 'rgba(124, 58, 237, 0.28)' }]} />
       {Boolean(eyebrow) && <Text style={authUi.heroEyebrow}>{eyebrow}</Text>}
       <Text style={[authUi.heroTitle, compact && { fontSize: 22, lineHeight: 28 }]}>{title}</Text>
       {Boolean(subtitle) && <Text style={authUi.heroSubtitle}>{subtitle}</Text>}
+    </View>
+  );
+}
+
+export function AuthSidePanel({ eyebrow, title, subtitle, features = [] }) {
+  const { isDesktopWeb } = useResponsiveLayout();
+
+  if (!isDesktopWeb) {
+    return (
+      <View style={authUi.mobileIntro}>
+        {Boolean(eyebrow) && <Text style={authUi.mobileIntroEyebrow}>{eyebrow}</Text>}
+        {Boolean(subtitle) && <Text style={authUi.mobileIntroSubtitle}>{subtitle}</Text>}
+      </View>
+    );
+  }
+
+  return (
+    <View
+      style={[
+        authUi.sidePanel,
+        {
+          width: '100%',
+          position: 'relative',
+          backgroundColor: '#0f172a',
+        },
+      ]}
+    >
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        <View style={[authUi.heroGlow, { top: -30, right: -20 }]} />
+        <View style={[authUi.heroGlow, { bottom: -40, left: -10, backgroundColor: 'rgba(124, 58, 237, 0.28)' }]} />
+      </View>
+
+      <View style={{ position: 'relative', zIndex: 1 }}>
+        {Boolean(eyebrow) && <Text style={authUi.heroEyebrow}>{eyebrow}</Text>}
+        <Text style={authUi.heroTitle}>{title}</Text>
+        {Boolean(subtitle) && <Text style={authUi.heroSubtitle}>{subtitle}</Text>}
+
+        {features.length > 0 ? (
+          <View style={authUi.sideFeatureList}>
+            {features.map((feature) => (
+              <AuthFeature key={feature.title} variant="dark" {...feature} />
+            ))}
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -163,75 +209,53 @@ export function AuthPasswordMatchHint({ password, confirmPassword }) {
 export function AuthScreenShell({ children, sidePanel, keyboardVerticalOffset = 0 }) {
   const insets = useSafeAreaInsets();
   const scrollBottom = 16 + insets.bottom;
-  const { contentMaxWidth, isDesktopWeb, formMaxWidth, horizontalPadding } = useResponsiveLayout();
+  const { contentMaxWidth, isDesktopWeb, isWeb, formMaxWidth, horizontalPadding } = useResponsiveLayout();
 
-  if (isDesktopWeb && sidePanel) {
-    return (
-      <KeyboardAvoidingView
-        style={{ flex: 1, backgroundColor: '#f1f5f9' }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={keyboardVerticalOffset}
-      >
-        <View style={{ flex: 1, flexDirection: 'row', minHeight: '100%' }}>
-          <View
-            style={{
-              flex: 1,
-              backgroundColor: '#0f172a',
-              paddingHorizontal: 40,
-              paddingVertical: 48,
-              justifyContent: 'center',
-            }}
-          >
-            <View style={[centeredContentStyle(440), { width: '100%' }]}>{sidePanel}</View>
-          </View>
-          <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 40, paddingVertical: 32 }}>
-            <ScrollView
-              contentContainerStyle={[
-                {
-                  width: '100%',
-                  maxWidth: formMaxWidth || 480,
-                  alignSelf: 'center',
-                  paddingBottom: scrollBottom,
-                },
-              ]}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
-              {children}
-            </ScrollView>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
+  const body =
+    isDesktopWeb && sidePanel ? (
+      <WebTwoColumnLayout left={sidePanel} right={<View style={{ gap: 16 }}>{children}</View>} leftWidth={300} gap={32} />
+    ) : (
+      <View style={{ gap: 16 }}>
+        {sidePanel}
+        {children}
+      </View>
     );
-  }
 
   return (
     <KeyboardAvoidingView
-      style={authUi.screen}
+      style={[authUi.screen, isDesktopWeb && { backgroundColor: '#eef2f6' }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={keyboardVerticalOffset}
     >
       <ScrollView
         contentContainerStyle={[
-          authUi.scrollContent,
-          { paddingBottom: scrollBottom, paddingHorizontal: horizontalPadding },
-          centeredContentStyle(contentMaxWidth || formMaxWidth),
+          {
+            flexGrow: 1,
+            paddingBottom: scrollBottom,
+            paddingHorizontal: horizontalPadding,
+            paddingTop: isDesktopWeb ? 28 : 12,
+          },
+          isDesktopWeb && { justifyContent: 'center', minHeight: '100%' },
+          isWeb ? centeredContentStyle(contentMaxWidth) : centeredContentStyle(contentMaxWidth || formMaxWidth),
         ]}
         keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={Platform.OS === 'web'}
       >
-        {sidePanel}
-        {children}
+        {body}
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 export function AuthFormCard({ title, subtitle, children }) {
-  const { formMaxWidth } = useResponsiveLayout();
+  const { formMaxWidth, isDesktopWeb } = useResponsiveLayout();
+  const widthStyle =
+    formMaxWidth && !isDesktopWeb
+      ? { maxWidth: formMaxWidth, width: '100%', alignSelf: 'center' }
+      : { width: '100%' };
 
   return (
-    <View style={[authUi.formCard, formMaxWidth ? { maxWidth: formMaxWidth, width: '100%', alignSelf: 'center' } : null]}>
+    <View style={[authUi.formCard, widthStyle]}>
       {Boolean(title) && <Text style={authUi.formTitle}>{title}</Text>}
       {Boolean(subtitle) && <Text style={authUi.formSubtitle}>{subtitle}</Text>}
       {children}

@@ -24,9 +24,11 @@ import { TournamentDetailScreen } from '../screens/TournamentDetailScreen';
 import { AppBootstrapScreen, BOOTSTRAP_BACKGROUND } from '../screens/AppBootstrapScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { DiscoverWalkthroughScreen } from '../screens/DiscoverWalkthroughScreen';
+import { useWebBrowserBackGuard } from '../hooks/useWebBrowserBackGuard';
 
 const Stack = createNativeStackNavigator();
 const navigationRef = createNavigationContainerRef();
+const HEADER_CONTROL_SIZE = 34;
 
 const AppHeader = memo(function AppHeader({
   navigation,
@@ -53,38 +55,52 @@ const AppHeader = memo(function AppHeader({
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
+          minHeight: HEADER_CONTROL_SIZE + 24,
         }}
       >
-      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0, marginRight: 10 }}>
-        {showBack && (
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          flex: 1,
+          minWidth: 0,
+          marginRight: 10,
+          minHeight: HEADER_CONTROL_SIZE,
+        }}
+      >
+        {showBack ? (
           <Pressable
             onPress={() => (navigation.canGoBack() ? navigation.pop() : null)}
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
             android_ripple={{ color: '#ccc', borderless: true }}
-            style={({ pressed }) => [
-              {
-                marginRight: 10,
-                width: 30,
-                height: 30,
-                borderRadius: 15,
-                borderWidth: 1,
-                borderColor: '#d1d5db',
-                backgroundColor: 'transparent',
-                alignItems: 'center',
-                justifyContent: 'center',
-                opacity: pressed ? 0.6 : 1,
-              },
-            ]}
+            style={({ pressed }) => ({
+              marginRight: 10,
+              width: HEADER_CONTROL_SIZE,
+              height: HEADER_CONTROL_SIZE,
+              borderRadius: HEADER_CONTROL_SIZE / 2,
+              borderWidth: 1,
+              borderColor: '#cbd5e1',
+              backgroundColor: pressed ? '#e2e8f0' : '#ffffff',
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: pressed ? 0.85 : 1,
+            })}
           >
-            <Text style={{ fontSize: 18, lineHeight: 20, color: '#111827', marginLeft: -1 }}>‹</Text>
+            <AppIcon name="chevronLeft" size={22} color={tournamentColors.text} />
           </Pressable>
-        )}
-        <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: 20, fontWeight: '600', flexShrink: 1 }}>
+        ) : null}
+        <Text
+          numberOfLines={1}
+          ellipsizeMode="tail"
+          style={{ fontSize: 20, fontWeight: '600', lineHeight: 24, flexShrink: 1 }}
+        >
           {displayTitle}
         </Text>
       </View>
 
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: HEADER_CONTROL_SIZE }}>
         {onInfoPress ? (
           <Pressable
             onPress={onInfoPress}
@@ -92,9 +108,9 @@ const AppHeader = memo(function AppHeader({
             accessibilityRole="button"
             accessibilityLabel="Show tour"
             style={({ pressed }) => ({
-              width: 34,
-              height: 34,
-              borderRadius: 17,
+              width: HEADER_CONTROL_SIZE,
+              height: HEADER_CONTROL_SIZE,
+              borderRadius: HEADER_CONTROL_SIZE / 2,
               alignItems: 'center',
               justifyContent: 'center',
               opacity: pressed ? 0.6 : 1,
@@ -130,9 +146,9 @@ const AppHeader = memo(function AppHeader({
               accessibilityRole="button"
               accessibilityLabel="Open profile"
               style={({ pressed }) => ({
-                width: 34,
-                height: 34,
-                borderRadius: 17,
+                width: HEADER_CONTROL_SIZE,
+                height: HEADER_CONTROL_SIZE,
+                borderRadius: HEADER_CONTROL_SIZE / 2,
                 borderWidth: 1,
                 borderColor: '#cbd5e1',
                 backgroundColor: pressed ? '#e2e8f0' : '#ffffff',
@@ -267,6 +283,14 @@ export function AppNavigator() {
     []
   );
 
+  const {
+    exitConfirmVisible: webExitConfirmVisible,
+    confirmExit: confirmWebExit,
+    cancelExit: cancelWebExit,
+  } = useWebBrowserBackGuard({
+    enabled: !isLoading,
+  });
+
   const requestSignOut = useCallback(() => {
     setSignOutConfirmVisible(true);
   }, []);
@@ -382,6 +406,17 @@ export function AppNavigator() {
         isLoading={isSigningOut}
         confirmVariant="danger"
         icon="logout"
+      />
+      <ConfirmModal
+        visible={webExitConfirmVisible}
+        title="Exit Rack-N-Roll?"
+        message="Are you sure you want to leave the app?"
+        confirmLabel="Exit"
+        cancelLabel="Stay"
+        onConfirm={confirmWebExit}
+        onCancel={cancelWebExit}
+        confirmVariant="danger"
+        icon="warning"
       />
     </SignOutProvider>
   );
