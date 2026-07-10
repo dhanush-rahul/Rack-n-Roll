@@ -152,8 +152,12 @@ export function useRegistrationActions({
 
   const onOpenAddGuestPlayer = useCallback(() => {
     clearAll();
+    if (replaceTarget) {
+      setIsGuestAddFormVisible(true);
+      return;
+    }
     setIsGuestAddConfirmVisible(true);
-  }, [clearAll]);
+  }, [clearAll, replaceTarget]);
 
   const onConfirmGuestAddIntro = useCallback(() => {
     setIsGuestAddConfirmVisible(false);

@@ -91,7 +91,7 @@ export function AddGuestPlayerModal({ visible, onCancel, onSubmit, isLoading = f
 
               <AuthUsernameField
                 label="Username for sign-up"
-                placeholder="username_they_will_use"
+                placeholder="Enter username"
                 value={username}
                 onChangeText={(value) => {
                   usernameTouchedRef.current = true;

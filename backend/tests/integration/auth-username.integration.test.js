@@ -166,6 +166,27 @@ describe('Username auth and guest linking', () => {
     expect(linkedPlayer?.pendingLinkUsername).toBeNull();
   });
 
+  test('multiple username-only signups succeed without email index conflicts', async () => {
+    const firstSignup = await request(app).post('/api/auth/signup').send({
+      firstName: 'First',
+      lastName: 'Player',
+      username: 'firstnopass',
+      password: 'Password123!',
+    });
+
+    expect(firstSignup.status).toBe(201);
+
+    const secondSignup = await request(app).post('/api/auth/signup').send({
+      firstName: 'Second',
+      lastName: 'Player',
+      username: 'secondnopass',
+      password: 'Password123!',
+    });
+
+    expect(secondSignup.status).toBe(201);
+    expect(secondSignup.body.data.user.email).toBeNull();
+  });
+
   test('login works with username and legacy email alias', async () => {
     const signupResponse = await request(app).post('/api/auth/signup').send({
       firstName: 'Legacy',
