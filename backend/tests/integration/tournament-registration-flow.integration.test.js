@@ -672,8 +672,8 @@ describe('M6-S2 integration pack: discover -> register -> host approve', () => {
     expect(scoresheetResponse.body.data.items.every((item) => item.bestOf === 3)).toBe(true);
   });
 
-  test('group stage round robin with 8 players and 2 groups generates 24 games', async () => {
-    const host = await signup('Host Double Leg', 'host.double.leg@example.com');
+  test('group stage round robin with 8 players and 2 groups generates 12 games', async () => {
+    const host = await signup('Host Single Leg', 'host.single.leg@example.com');
     const players = await Promise.all([
       signup('Player A', 'player.a@example.com'),
       signup('Player B', 'player.b@example.com'),
@@ -733,8 +733,8 @@ describe('M6-S2 integration pack: discover -> register -> host approve', () => {
 
     expect(scoresheetResponse.status).toBe(200);
     expect(scoresheetResponse.body.success).toBe(true);
-    expect(scoresheetResponse.body.data.pagination.total).toBe(24);
-    expect(scoresheetResponse.body.data.items).toHaveLength(24);
+    expect(scoresheetResponse.body.data.pagination.total).toBe(12);
+    expect(scoresheetResponse.body.data.items).toHaveLength(12);
   });
 
   test('host can regenerate group stage fixtures after fixtures are removed', async () => {
@@ -807,8 +807,8 @@ describe('M6-S2 integration pack: discover -> register -> host approve', () => {
 
     expect(regeneratedScoresheetResponse.status).toBe(200);
     expect(regeneratedScoresheetResponse.body.success).toBe(true);
-    expect(regeneratedScoresheetResponse.body.data.pagination.total).toBe(24);
-    expect(regeneratedScoresheetResponse.body.data.items).toHaveLength(24);
+    expect(regeneratedScoresheetResponse.body.data.pagination.total).toBe(12);
+    expect(regeneratedScoresheetResponse.body.data.items).toHaveLength(12);
   });
 
   test('sprint9 flow: host starts final stage from group standings and can skip finals to complete', async () => {

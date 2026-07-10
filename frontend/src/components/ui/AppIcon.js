@@ -42,6 +42,7 @@ const ICON_MAP = {
 
   // Controls
   check: 'check',
+  close: 'close',
   checkboxOn: 'checkbox-marked',
   checkboxOff: 'checkbox-blank-outline',
   chevronUp: 'chevron-up',

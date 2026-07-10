@@ -68,15 +68,15 @@ export function AuthProvider({ children }) {
       bootstrapMessage,
       isAuthenticated: Boolean(token),
       currentUser,
-      async signIn({ email, password }) {
-        const result = await loginUser({ email, password });
+      async signIn({ username, password }) {
+        const result = await loginUser({ username, password });
         await setToken(result.token);
         setTokenState(result.token);
         setCurrentUser(result.user);
         return result;
       },
-      async signUp({ name, email, password }) {
-        const result = await signupUser({ name, email, password });
+      async signUp({ firstName, lastName, username, email, password }) {
+        const result = await signupUser({ firstName, lastName, username, email, password });
         await setToken(result.token);
         setTokenState(result.token);
         setCurrentUser(result.user);
@@ -88,6 +88,9 @@ export function AuthProvider({ children }) {
         setTokenState(result.token);
         setCurrentUser(result.user);
         return result;
+      },
+      updateCurrentUser(nextUser) {
+        setCurrentUser((current) => ({ ...(current || {}), ...(nextUser || {}) }));
       },
       async signOut() {
         await clearToken();

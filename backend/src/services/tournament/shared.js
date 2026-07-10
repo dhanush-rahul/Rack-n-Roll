@@ -3,6 +3,7 @@ const TournamentRegistration = require('../../models/tournamentRegistration.mode
 const Player = require('../../models/player.model');
 const User = require('../../models/user.model');
 const ApiError = require('../../utils/ApiError');
+const { validateUsernameFormat, normalizeUsername } = require('../username.service');
 
 // ── Parse / normalize helpers ──────────────────────────────────────────────
 
@@ -136,24 +137,20 @@ const GUEST_EMAIL_MAX_LENGTH = 254;
 const normalizeGuestEmail = (email) => String(email || '').trim().toLowerCase();
 const normalizeGuestName = (name) => String(name || '').trim().replace(/\s+/g, ' ');
 
-const validateGuestParticipantInput = ({ name, email }) => {
-  const normalizedName = normalizeGuestName(name);
+const validateGuestParticipantInput = ({ name, rosterName, username }) => {
+  const normalizedName = normalizeGuestName(name || rosterName);
 
   if (!normalizedName || normalizedName.length < GUEST_NAME_MIN_LENGTH) {
-    throw new ApiError(400, 'INVALID_NAME', 'Name must be at least 2 characters long');
+    throw new ApiError(400, 'INVALID_NAME', 'Roster name must be at least 2 characters long');
   }
 
   if (normalizedName.length > GUEST_NAME_MAX_LENGTH) {
-    throw new ApiError(400, 'INVALID_NAME', 'Name must be at most 120 characters long');
+    throw new ApiError(400, 'INVALID_NAME', 'Roster name must be at most 120 characters long');
   }
 
-  const normalizedEmail = normalizeGuestEmail(email);
+  const normalizedUsername = validateUsernameFormat(username);
 
-  if (!guestEmailRegex.test(normalizedEmail) || normalizedEmail.length > GUEST_EMAIL_MAX_LENGTH) {
-    throw new ApiError(400, 'INVALID_EMAIL', 'A valid email address is required');
-  }
-
-  return { normalizedName, normalizedEmail };
+  return { normalizedName, normalizedUsername };
 };
 
 // ── Mappers ────────────────────────────────────────────────────────────────
@@ -165,7 +162,7 @@ const mapGuestPlayerRosterItem = (player) => ({
   userId: null,
   status: 'approved',
   isGuest: true,
-  guestEmail: player.pendingLinkEmail,
+  guestUsername: player.pendingLinkUsername || null,
   inviteCodeUsed: null,
   reviewedByUserId: player.addedByHostUserId ? String(player.addedByHostUserId) : null,
   reviewedAt: player.createdAt || null,
@@ -173,7 +170,7 @@ const mapGuestPlayerRosterItem = (player) => ({
   updatedAt: player.updatedAt,
   user: {
     name: player.displayName,
-    email: player.pendingLinkEmail,
+    username: player.pendingLinkUsername || null,
   },
 });
 
@@ -261,6 +258,7 @@ const mapUserSummary = (user) =>
   user
     ? {
         id: String(user._id),
+        username: user.username,
         name: user.name,
         email: user.email,
       }
@@ -359,7 +357,10 @@ const ensureApprovedParticipantsCountInitialized = async (tournamentId) => {
       tournamentId,
       status: 'active',
       userId: null,
-      pendingLinkEmail: { $type: 'string', $ne: null },
+      $or: [
+        { pendingLinkEmail: { $type: 'string', $ne: null } },
+        { pendingLinkUsername: { $type: 'string', $ne: null } },
+      ],
     }),
   ]);
 

@@ -8,7 +8,7 @@ import { LegalMenuSection } from '../components/legal/LegalLinks';
 import { ActionButton, SectionCard } from '../components/tournament/TournamentChrome';
 import { useAuth } from '../context/AuthContext';
 import { useSignOutRequest } from '../context/SignOutContext';
-import { setMyPassword } from '../services/userService';
+import { setMyPassword, changeMyUsername, updateMyEmail } from '../services/userService';
 import { useMyProfile } from '../hooks/queries/useMyProfile';
 import { queryKeys } from '../hooks/queries/queryKeys';
 import { useScreenInsets } from '../hooks/useScreenInsets';
@@ -19,7 +19,15 @@ import { formatApiError } from '../hooks/useScreenFeedback';
 import { getAuthErrorMessage } from '../utils/authErrors';
 import { resetCreateTournamentWalkthrough, resetDiscoverWalkthrough } from '../utils/onboardingStore';
 import { AuthField, AuthPasswordMatchHint } from '../components/auth/AuthChrome';
-import { hasValidationErrors, validateChangePasswordInput, validateSetPasswordInput } from '../utils/authValidation';
+import { AuthUsernameField } from '../components/auth/AuthUsernameField';
+import { useUsernameAvailability } from '../hooks/useUsernameAvailability';
+import {
+  hasValidationErrors,
+  validateChangePasswordInput,
+  validateForgotPasswordRequestInput,
+  validateSetPasswordInput,
+} from '../utils/authValidation';
+import { normalizeUsername, validateUsernameFormat } from '../utils/usernameUtils';
 
 function StatCard({ label, value, accent }) {
   return (
@@ -68,7 +76,7 @@ function formatMemberSince(value) {
 }
 
 export function ProfileScreen({ navigation }) {
-  const { currentUser } = useAuth();
+  const { currentUser, updateCurrentUser } = useAuth();
   const { requestSignOut } = useSignOutRequest();
   const queryClient = useQueryClient();
   const { scrollPaddingBottom } = useScreenInsets();
@@ -93,12 +101,26 @@ export function ProfileScreen({ navigation }) {
   });
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [passwordSuccessText, setPasswordSuccessText] = useState('');
+  const [usernameInput, setUsernameInput] = useState('');
+  const [usernameFieldError, setUsernameFieldError] = useState('');
+  const [isSavingUsername, setIsSavingUsername] = useState(false);
+  const [usernameSuccessText, setUsernameSuccessText] = useState('');
+  const [emailInput, setEmailInput] = useState('');
+  const [emailFieldError, setEmailFieldError] = useState('');
+  const [isSavingEmail, setIsSavingEmail] = useState(false);
+  const [emailSuccessText, setEmailSuccessText] = useState('');
 
   useEffect(() => {
     if (profile?.user?.handicap !== undefined && profile?.user?.handicap !== null) {
       setHandicapInput(String(profile.user.handicap));
     }
   }, [profile?.user?.handicap]);
+
+  useEffect(() => {
+    if (profile?.user?.username) {
+      setUsernameInput(profile.user.username);
+    }
+  }, [profile?.user?.username]);
 
   useFocusEffect(
     useCallback(() => {
@@ -118,6 +140,32 @@ export function ProfileScreen({ navigation }) {
   const isRefreshing = isFetching && !isLoading;
   const showSetPassword = profile?.user?.hasPassword === false;
   const showChangePassword = profile?.user?.hasPassword === true;
+  const currentUsername = profile?.user?.username || currentUser?.username || '';
+  const usernameChangesRemaining = Number(profile?.user?.usernameChangesRemaining ?? 0);
+  const showUsernameChange = usernameChangesRemaining > 0;
+  const showAddEmail = !profile?.user?.email;
+
+  const usernameChanged =
+    normalizeUsername(usernameInput) !== normalizeUsername(currentUsername);
+
+  const { status: usernameAvailabilityStatus, reason: usernameAvailabilityReason, isAvailable: isUsernameAvailable, isChecking: isCheckingUsername } =
+    useUsernameAvailability(usernameInput, {
+      purpose: 'signup',
+      enabled: showUsernameChange && usernameChanged,
+    });
+
+  const resolvedUsernameAvailabilityStatus = usernameChanged ? usernameAvailabilityStatus : 'available';
+
+  const canSubmitUsernameChange =
+    !isSavingUsername && !isCheckingUsername && usernameChanged && !usernameFieldError && isUsernameAvailable;
+
+  const addEmailValidation = useMemo(
+    () => validateForgotPasswordRequestInput({ email: emailInput }),
+    [emailInput]
+  );
+
+  const canSubmitAddEmail =
+    !isSavingEmail && !hasValidationErrors(addEmailValidation.errors) && Boolean(emailInput.trim());
 
   const changePasswordValidation = useMemo(
     () =>
@@ -174,7 +222,12 @@ export function ProfileScreen({ navigation }) {
               <Text style={{ color: '#f8fafc', fontSize: 30, fontWeight: '800' }}>{initial}</Text>
             </View>
             <Text style={{ color: '#f8fafc', fontSize: 22, fontWeight: '800' }}>{displayName}</Text>
-            <Text style={{ color: '#94a3b8', fontSize: 14, marginTop: 4 }}>{profile?.user?.email || '—'}</Text>
+            <Text style={{ color: '#94a3b8', fontSize: 14, marginTop: 4 }}>
+              @{profile?.user?.username || currentUser?.username || 'username'}
+            </Text>
+            {profile?.user?.email ? (
+              <Text style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>{profile.user.email}</Text>
+            ) : null}
             <Text style={{ color: '#64748b', fontSize: 12, marginTop: 6 }}>
               Member since {formatMemberSince(profile?.user?.memberSince)}
             </Text>
@@ -252,10 +305,167 @@ export function ProfileScreen({ navigation }) {
             }
             right={
               <View style={{ gap: 14 }}>
+                {showUsernameChange ? (
+                  <SectionCard
+                    title="Username"
+                    subtitle={`You can change your username ${usernameChangesRemaining} more time${usernameChangesRemaining === 1 ? '' : 's'}. Tournament guest invites with a matching username will link automatically.`}
+                  >
+                    {Boolean(usernameSuccessText) && (
+                      <View
+                        style={{
+                          padding: 12,
+                          borderRadius: 12,
+                          backgroundColor: '#ecfdf5',
+                          borderWidth: 1,
+                          borderColor: '#a7f3d0',
+                          marginBottom: 14,
+                        }}
+                      >
+                        <Text style={{ color: '#166534', fontSize: 13, lineHeight: 18 }}>{usernameSuccessText}</Text>
+                      </View>
+                    )}
+
+                    <AuthUsernameField
+                      label="Username"
+                      placeholder="your_username"
+                      value={usernameInput}
+                      onChangeText={(value) => {
+                        setUsernameInput(value);
+                        setUsernameFieldError('');
+                        setSaveErrorText('');
+                        setUsernameSuccessText('');
+                      }}
+                      error={usernameFieldError}
+                      availabilityStatus={resolvedUsernameAvailabilityStatus}
+                      availabilityReason={usernameAvailabilityReason}
+                      helperText="Lowercase letters, numbers, and underscores only."
+                    />
+
+                    <View style={{ marginTop: 10 }}>
+                      <ActionButton
+                        label={isSavingUsername ? 'Saving…' : 'Update username'}
+                        onPress={async () => {
+                          const normalized = normalizeUsername(usernameInput);
+                          const formatError = validateUsernameFormat(normalized);
+                          setUsernameFieldError(formatError);
+
+                          if (formatError) {
+                            setSaveErrorText('Choose a valid username.');
+                            return;
+                          }
+
+                          if (!usernameChanged) {
+                            setSaveErrorText('Enter a different username to update.');
+                            return;
+                          }
+
+                          if (!isUsernameAvailable) {
+                            setSaveErrorText('Choose an available username.');
+                            return;
+                          }
+
+                          try {
+                            setIsSavingUsername(true);
+                            setSaveErrorText('');
+                            setUsernameSuccessText('');
+                            const result = await changeMyUsername(normalized);
+                            updateCurrentUser(result.user);
+                            queryClient.setQueryData(queryKeys.profile(), (current) =>
+                              current ? { ...current, user: result.user } : current
+                            );
+                            setUsernameSuccessText(
+                              `Username updated to @${result.user?.username || normalized}. ${result.usernameChangesRemaining} change${result.usernameChangesRemaining === 1 ? '' : 's'} remaining.`
+                            );
+                          } catch (error) {
+                            setSaveErrorText(getAuthErrorMessage(error, 'Unable to update username.'));
+                          } finally {
+                            setIsSavingUsername(false);
+                          }
+                        }}
+                        disabled={!canSubmitUsernameChange}
+                        variant={canSubmitUsernameChange ? 'primary' : 'muted'}
+                        fullWidth
+                      />
+                    </View>
+                  </SectionCard>
+                ) : null}
+
+                {showAddEmail ? (
+                  <SectionCard
+                    title="Recovery email"
+                    subtitle="Add an email to use forgot-password PIN recovery. Sign-in still uses your username."
+                  >
+                    {Boolean(emailSuccessText) && (
+                      <View
+                        style={{
+                          padding: 12,
+                          borderRadius: 12,
+                          backgroundColor: '#ecfdf5',
+                          borderWidth: 1,
+                          borderColor: '#a7f3d0',
+                          marginBottom: 14,
+                        }}
+                      >
+                        <Text style={{ color: '#166534', fontSize: 13, lineHeight: 18 }}>{emailSuccessText}</Text>
+                      </View>
+                    )}
+
+                    <AuthField
+                      label="Email"
+                      placeholder="you@example.com"
+                      value={emailInput}
+                      onChangeText={(value) => {
+                        setEmailInput(value);
+                        setEmailFieldError('');
+                        setSaveErrorText('');
+                        setEmailSuccessText('');
+                      }}
+                      error={emailFieldError}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      keyboardType="email-address"
+                      textContentType="emailAddress"
+                      maxLength={254}
+                    />
+
+                    <View style={{ marginTop: 10 }}>
+                      <ActionButton
+                        label={isSavingEmail ? 'Saving…' : 'Save email'}
+                        onPress={async () => {
+                          const { errors, sanitized } = addEmailValidation;
+                          setEmailFieldError(errors.email);
+
+                          if (hasValidationErrors(errors)) {
+                            setSaveErrorText('Enter a valid email address.');
+                            return;
+                          }
+
+                          try {
+                            setIsSavingEmail(true);
+                            setSaveErrorText('');
+                            setEmailSuccessText('');
+                            const updated = await updateMyEmail(sanitized.email);
+                            queryClient.setQueryData(queryKeys.profile(), updated);
+                            setEmailInput('');
+                            setEmailSuccessText('Email saved. You can now use forgot password with this address.');
+                          } catch (error) {
+                            setSaveErrorText(getAuthErrorMessage(error, 'Unable to save email.'));
+                          } finally {
+                            setIsSavingEmail(false);
+                          }
+                        }}
+                        disabled={!canSubmitAddEmail}
+                        variant={canSubmitAddEmail ? 'primary' : 'muted'}
+                        fullWidth
+                      />
+                    </View>
+                  </SectionCard>
+                ) : null}
+
                 {showSetPassword ? (
                   <SectionCard
                     title="Sign-in password"
-                    subtitle="Set a password to sign in with email or use forgot-password recovery. Google sign-in still works."
+                    subtitle="Set a password to sign in with your username or use forgot-password recovery. Google sign-in still works."
                   >
                     {Boolean(passwordSuccessText) && (
                       <View
@@ -330,7 +540,7 @@ export function ProfileScreen({ navigation }) {
                             queryClient.setQueryData(queryKeys.profile(), updated);
                             setPasswordInput('');
                             setConfirmPasswordInput('');
-                            setPasswordSuccessText('Password saved. You can now sign in with email and password.');
+                            setPasswordSuccessText('Password saved. You can now sign in with your username and password.');
                           } catch (error) {
                             setSaveErrorText(getAuthErrorMessage(error, 'Unable to set password.'));
                           } finally {
@@ -348,7 +558,7 @@ export function ProfileScreen({ navigation }) {
                 {showChangePassword ? (
                   <SectionCard
                     title="Change password"
-                    subtitle="Update the password you use to sign in with email."
+                    subtitle="Update the password you use to sign in with your username."
                   >
                     {Boolean(passwordSuccessText) && (
                       <View

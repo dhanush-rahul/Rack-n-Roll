@@ -17,18 +17,19 @@ import { useAuth } from '../context/AuthContext';
 import { getAuthErrorMessage } from '../utils/authErrors';
 import { hasValidationErrors, validateSignInInput } from '../utils/authValidation';
 import { navigateAfterAuth } from '../utils/navigateAfterAuth';
+import { navigateAfterGoogleAuth } from '../utils/navigateAfterGoogleAuth';
 
 export function SignInScreen({ navigation, route }) {
   const { signIn, signInWithGoogle } = useAuth();
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [fieldErrors, setFieldErrors] = useState({ email: '', password: '' });
+  const [fieldErrors, setFieldErrors] = useState({ username: '', password: '' });
   const [errorText, setErrorText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
 
   const onSubmit = async () => {
-    const { errors, sanitized } = validateSignInInput({ email, password });
+    const { errors, sanitized } = validateSignInInput({ username, password });
     setFieldErrors(errors);
 
     if (hasValidationErrors(errors)) {
@@ -42,7 +43,7 @@ export function SignInScreen({ navigation, route }) {
       await signIn(sanitized);
       navigateAfterAuth(navigation, route.params?.returnTo);
     } catch (error) {
-      setErrorText(getAuthErrorMessage(error, 'Invalid email or password. Please try again.'));
+      setErrorText(getAuthErrorMessage(error, 'Invalid username or password. Please try again.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -52,8 +53,8 @@ export function SignInScreen({ navigation, route }) {
     try {
       setIsGoogleSubmitting(true);
       setErrorText('');
-      await signInWithGoogle(idToken);
-      navigateAfterAuth(navigation, route.params?.returnTo);
+      const result = await signInWithGoogle(idToken);
+      navigateAfterGoogleAuth(navigation, route, result);
     } catch (error) {
       setErrorText(getAuthErrorMessage(error, 'Google sign-in failed. Please try again.'));
     } finally {
@@ -88,24 +89,22 @@ export function SignInScreen({ navigation, route }) {
         />
       }
     >
-      <AuthFormCard title="Sign in" subtitle="Use the email and password for your Rack n Roll account.">
+      <AuthFormCard title="Sign in" subtitle="Use your username and password, or continue with Google.">
         <AuthErrorBanner message={errorText} />
 
         <AuthField
-          label="Email"
-          placeholder="you@example.com"
-          value={email}
+          label="Username"
+          placeholder="your_username"
+          value={username}
           onChangeText={(value) => {
-            setEmail(value);
-            setFieldErrors((current) => ({ ...current, email: '' }));
+            setUsername(value);
+            setFieldErrors((current) => ({ ...current, username: '' }));
             setErrorText('');
           }}
-          error={fieldErrors.email}
+          error={fieldErrors.username}
           autoCapitalize="none"
-          keyboardType="email-address"
           autoCorrect={false}
-          textContentType="emailAddress"
-          maxLength={254}
+          maxLength={20}
         />
 
         <AuthField
