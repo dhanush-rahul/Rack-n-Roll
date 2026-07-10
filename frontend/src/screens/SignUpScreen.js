@@ -173,7 +173,7 @@ export function SignUpScreen({ navigation, route }) {
 
         <AuthUsernameField
           label="Username"
-          placeholder="your_username"
+          placeholder="dhanush01"
           value={username}
           onChangeText={(value) => {
             usernameTouchedRef.current = true;

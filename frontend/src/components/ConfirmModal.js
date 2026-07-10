@@ -13,8 +13,10 @@ export function ConfirmModal({
   message,
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
+  alternateLabel,
   onConfirm,
   onCancel,
+  onAlternate,
   isLoading = false,
   confirmVariant = 'primary',
   icon,
@@ -36,6 +38,17 @@ export function ConfirmModal({
           )}
           {Boolean(title) && <Text style={[tournamentUi.modalTitle, webModal?.title]}>{title}</Text>}
           {Boolean(message) && <Text style={[tournamentUi.modalMessage, webModal?.message]}>{message}</Text>}
+          {Boolean(alternateLabel) && onAlternate ? (
+            <View style={{ marginTop: 4 }}>
+              <ActionButton
+                label={alternateLabel}
+                onPress={onAlternate}
+                disabled={isLoading}
+                variant="secondary"
+                fullWidth
+              />
+            </View>
+          ) : null}
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
             <View style={{ flex: 1 }}>
               <ActionButton label={cancelLabel} onPress={onCancel} disabled={isLoading} variant="ghost" fullWidth />

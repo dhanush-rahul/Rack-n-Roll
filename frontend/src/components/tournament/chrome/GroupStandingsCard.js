@@ -96,7 +96,8 @@ function ScoresheetStandingsTable({
   const playerFontSize = col(15);
   const rowPaddingH = col(10);
   const rowPaddingV = col(10);
-  const tableMinWidth = playerWidth + hcpWidth + statWidth * 4 + winPctWidth;
+  const tableMinWidth =
+    playerWidth + (handicapEnabled ? hcpWidth : 0) + statWidth * 4 + winPctWidth;
 
   const headerCell = {
     fontWeight: '700',
@@ -123,13 +124,15 @@ function ScoresheetStandingsTable({
       }}
     >
       <Text style={{ ...headerCell, width: playerWidth }}>Player</Text>
-      <StandingsStatHeaderCell
-        label="HCP"
-        width={hcpWidth}
-        textAlign="right"
-        headerCell={headerCell}
-        onPress={() => setActiveStatHelp('HCP')}
-      />
+      {handicapEnabled ? (
+        <StandingsStatHeaderCell
+          label="HCP"
+          width={hcpWidth}
+          textAlign="right"
+          headerCell={headerCell}
+          onPress={() => setActiveStatHelp('HCP')}
+        />
+      ) : null}
       <StandingsStatHeaderCell
         label="W"
         width={statWidth}
@@ -203,9 +206,11 @@ function ScoresheetStandingsTable({
           {hasMedal ? '  ' : ''}
           {playerName}
         </Text>
-        <Text style={{ ...bodyCell, width: hcpWidth, textAlign: 'right' }}>
-          {handicapEnabled && entry.player?.handicapEnabled ? entry.player.handicapValue : '—'}
-        </Text>
+        {handicapEnabled ? (
+          <Text style={{ ...bodyCell, width: hcpWidth, textAlign: 'right' }}>
+            {entry.player?.handicapEnabled ? entry.player.handicapValue : '—'}
+          </Text>
+        ) : null}
         <Text style={{ ...bodyCell, width: statWidth, textAlign: 'right' }}>
           {entry.stats?.matchesWon ?? entry.wins ?? 0}
         </Text>

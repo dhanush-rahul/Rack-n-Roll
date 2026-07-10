@@ -84,6 +84,21 @@ export async function addGuestTournamentParticipant(tournamentId, payload) {
   return response.data;
 }
 
+export async function removeGuestTournamentParticipant(tournamentId, playerId) {
+  const response = await apiPost(`/api/tournaments/${tournamentId}/participants/guest/${playerId}/remove`);
+  return response.data;
+}
+
+export async function removeApprovedTournamentParticipant(tournamentId, userId) {
+  const response = await apiPost(`/api/tournaments/${tournamentId}/participants/${userId}/remove`);
+  return response.data;
+}
+
+export async function replaceTournamentParticipant(tournamentId, payload) {
+  const response = await apiPost(`/api/tournaments/${tournamentId}/participants/replace`, payload);
+  return response.data;
+}
+
 export async function fetchRoundRobinPlayingPattern(tournamentId) {
   const response = await apiGet(`/api/tournaments/${tournamentId}/playing-pattern/round-robin`);
   return response.data;

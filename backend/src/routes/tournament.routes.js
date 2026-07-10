@@ -16,6 +16,7 @@ const {
 	addGuestParticipantController,
 	manuallyRemoveParticipantController,
 	removeGuestParticipantController,
+	replaceApprovedParticipantController,
 	assignScoreEditorController,
 	removeScoreEditorController,
 	requestProctorTransferController,
@@ -84,8 +85,9 @@ router.post(
 router.get('/:tournamentId/participants/search', requireAuth, searchManualAddUsersController);
 router.post('/:tournamentId/participants/manual-add', requireAuth, manuallyAddParticipantController);
 router.post('/:tournamentId/participants/guest-add', requireAuth, addGuestParticipantController);
-router.post('/:tournamentId/participants/:userId/remove', requireAuth, manuallyRemoveParticipantController);
 router.post('/:tournamentId/participants/guest/:playerId/remove', requireAuth, removeGuestParticipantController);
+router.post('/:tournamentId/participants/replace', requireAuth, replaceApprovedParticipantController);
+router.post('/:tournamentId/participants/:userId/remove', requireAuth, manuallyRemoveParticipantController);
 router.post('/:tournamentId/score-editors', requireAuth, assignScoreEditorController);
 router.delete('/:tournamentId/score-editors/:editorUserId', requireAuth, removeScoreEditorController);
 router.post('/:tournamentId/proctor-transfer', requireAuth, requestProctorTransferController);

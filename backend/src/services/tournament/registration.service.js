@@ -237,6 +237,25 @@ const listHostRegistrations = async (tournamentId, hostUserId, query = {}) => {
   ]);
 
   const userSummaryById = await buildUserSummaryById(items.map((item) => item.userId));
+  const rosterPlayers = await Player.find({
+    tournamentId: tournament._id,
+    status: 'active',
+    userId: { $ne: null },
+  })
+    .select({ userId: 1, displayName: 1, _id: 1 })
+    .lean();
+  const rosterNameByUserId = rosterPlayers.reduce((accumulator, player) => {
+    if (player.userId) {
+      accumulator.set(String(player.userId), player.displayName);
+    }
+    return accumulator;
+  }, new Map());
+  const playerIdByUserId = rosterPlayers.reduce((accumulator, player) => {
+    if (player.userId) {
+      accumulator.set(String(player.userId), String(player._id));
+    }
+    return accumulator;
+  }, new Map());
   const guestPlayers = await Player.find({
     tournamentId: tournament._id,
     status: 'active',
@@ -253,7 +272,12 @@ const listHostRegistrations = async (tournamentId, hostUserId, query = {}) => {
   const totalPages = combinedTotal === 0 ? 0 : Math.ceil(combinedTotal / pageSize);
 
   return {
-    items: [...items.map((item) => mapRegistrationSummaryWithUser(item, userSummaryById)), ...guestItems],
+    items: [
+      ...items.map((item) =>
+        mapRegistrationSummaryWithUser(item, userSummaryById, rosterNameByUserId, playerIdByUserId)
+      ),
+      ...guestItems,
+    ],
     pagination: { page, pageSize, total: combinedTotal, totalPages },
   };
 };

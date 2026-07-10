@@ -6,6 +6,7 @@ import { ActionButton } from './TournamentChrome';
 import { useTypography } from '../../context/TypographyContext';
 import { discoverUi, tournamentColors, tournamentUi } from '../../styles/tournamentUi';
 import { getWebModalStyles } from '../../utils/modalStyles';
+import { WebScheduleInputs } from '../scheduling/WebScheduleInputs';
 
 const formatPickerDate = (date) =>
   date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
@@ -113,19 +114,30 @@ export function MatchScheduleModal({
           </Text>
 
           <View style={{ flexDirection: 'row', gap: 10 }}>
-            <PickerField
-              label="Date"
-              value={formatPickerDate(scheduledAt)}
-              onPress={() => setActivePicker((current) => (current === 'date' ? null : 'date'))}
-            />
-            <PickerField
-              label="Time"
-              value={formatPickerTime(scheduledAt)}
-              onPress={() => setActivePicker((current) => (current === 'time' ? null : 'time'))}
-            />
+            {Platform.OS === 'web' ? (
+              <WebScheduleInputs
+                value={scheduledAt}
+                onChange={setScheduledAt}
+                dateLabel="Date"
+                timeLabel="Time"
+              />
+            ) : (
+              <>
+                <PickerField
+                  label="Date"
+                  value={formatPickerDate(scheduledAt)}
+                  onPress={() => setActivePicker((current) => (current === 'date' ? null : 'date'))}
+                />
+                <PickerField
+                  label="Time"
+                  value={formatPickerTime(scheduledAt)}
+                  onPress={() => setActivePicker((current) => (current === 'time' ? null : 'time'))}
+                />
+              </>
+            )}
           </View>
 
-          {activePicker && (
+          {Platform.OS !== 'web' && activePicker && (
             <View
               style={{
                 borderWidth: 1,

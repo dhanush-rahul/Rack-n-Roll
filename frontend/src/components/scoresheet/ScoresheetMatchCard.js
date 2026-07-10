@@ -1,5 +1,5 @@
 import React from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { ScaledText as Text } from '../ui/ScaledText';
 import { ScaledTextInput as TextInput } from '../ui/ScaledTextInput';
 
@@ -36,6 +36,19 @@ export function ScoresheetMatchCard({ game, matchNumber, scoresByGameId }) {
   const completedGamesCount = scoreInputEntries.filter((entry) => isPlayedScoreEntry(entry)).length;
   const playerAName = game.playerA?.displayName || game.playerAId;
   const playerBName = game.playerB?.displayName || game.playerBId;
+
+  const scoreInputStyle = {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    backgroundColor: '#fff',
+    flex: 1,
+    minWidth: 0,
+    maxWidth: Platform.OS === 'web' ? 72 : undefined,
+    ...(Platform.OS === 'web' ? { boxSizing: 'border-box' } : null),
+  };
 
   return (
     <View
@@ -95,36 +108,24 @@ export function ScoresheetMatchCard({ game, matchNumber, scoresByGameId }) {
               <Text style={{ width: 48, color: '#111827', fontWeight: '600', fontSize: 12 }}>
                 G{entryIndex + 1}
               </Text>
-              <TextInput
-                style={{
-                  borderWidth: 1,
-                  borderColor: '#d1d5db',
-                  borderRadius: 8,
-                  paddingVertical: 6,
-                  paddingHorizontal: 8,
-                  backgroundColor: '#fff',
-                  flex: 1,
-                }}
-                placeholder="0"
-                value={safeEntry.playerAScore}
-                keyboardType="numeric"
-                editable={false}
-              />
-              <TextInput
-                style={{
-                  borderWidth: 1,
-                  borderColor: '#d1d5db',
-                  borderRadius: 8,
-                  paddingVertical: 6,
-                  paddingHorizontal: 8,
-                  backgroundColor: '#fff',
-                  flex: 1,
-                }}
-                placeholder="0"
-                value={safeEntry.playerBScore}
-                keyboardType="numeric"
-                editable={false}
-              />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <TextInput
+                  style={scoreInputStyle}
+                  placeholder="0"
+                  value={safeEntry.playerAScore}
+                  keyboardType="numeric"
+                  editable={false}
+                />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <TextInput
+                  style={scoreInputStyle}
+                  placeholder="0"
+                  value={safeEntry.playerBScore}
+                  keyboardType="numeric"
+                  editable={false}
+                />
+              </View>
             </View>
           );
         })}

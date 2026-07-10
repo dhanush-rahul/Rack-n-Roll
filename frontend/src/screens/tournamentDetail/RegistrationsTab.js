@@ -10,6 +10,13 @@ import {
   SectionCard,
 } from '../../components/tournament/TournamentChrome';
 import { tournamentColors, tournamentUi } from '../../styles/tournamentUi';
+import {
+  formatPendingRowSubtitle,
+  formatPendingRowTitle,
+  formatRosterRowSubtitle,
+  formatRosterRowTitle,
+  formatSearchUserSubtitle,
+} from '../../utils/rosterDisplay';
 import { ProctorsSection } from './ProctorsSection';
 import { TeamsSection } from './TeamsSection';
 
@@ -46,9 +53,36 @@ export function RegistrationsTab({
   currentUserId = null,
   onTeamsChanged,
   onTeamsError,
+  onRequestRemoveParticipant,
+  replaceTarget = null,
+  onCancelReplace,
 }) {
   return (
     <View style={{ gap: 14 }}>
+      {replaceTarget ? (
+        <View
+          style={{
+            padding: 14,
+            borderRadius: 12,
+            backgroundColor: '#eff6ff',
+            borderWidth: 1,
+            borderColor: '#bfdbfe',
+          }}
+        >
+          <Text style={{ fontWeight: '800', color: '#1e40af', fontSize: 15 }}>
+            Replacing {formatRosterRowTitle(replaceTarget)}
+          </Text>
+          <Text style={{ color: '#1d4ed8', fontSize: 13, lineHeight: 18, marginTop: 4 }}>
+            Search for a registered player or add a guest below. Scheduled group matches will carry over to the
+            replacement.
+          </Text>
+          {onCancelReplace ? (
+            <View style={{ marginTop: 10 }}>
+              <ActionButton label="Cancel replace" onPress={onCancelReplace} variant="ghost" fullWidth />
+            </View>
+          ) : null}
+        </View>
+      ) : null}
       {isRegistrationClosed && (
         <View
           style={{
@@ -82,8 +116,8 @@ export function RegistrationsTab({
           {pendingItems.map((item) => (
             <ListRowCard
               key={item.id}
-              title={item.user?.name || item.user?.email || item.userId}
-              subtitle={item.user?.email || item.userId}
+              title={formatPendingRowTitle(item)}
+              subtitle={formatPendingRowSubtitle(item)}
             >
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <View style={{ flex: 1 }}>
@@ -146,14 +180,8 @@ export function RegistrationsTab({
         {approvedItems.map((item) => (
           <ListRowCard
             key={item.id}
-            title={item.user?.name || item.user?.email || item.userId || item.displayName}
-            subtitle={
-              item.isGuest
-                ? `@${item.guestUsername || item.user?.username || 'guest'} · No account yet`
-                : item.user?.username
-                  ? `@${item.user.username}${item.user?.email ? ` · ${item.user.email}` : ''}`
-                  : item.user?.email || item.userId
-            }
+            title={formatRosterRowTitle(item)}
+            subtitle={formatRosterRowSubtitle(item)}
           >
             {item.isGuest && (
               <View
@@ -169,6 +197,16 @@ export function RegistrationsTab({
                 <Text style={{ fontSize: 11, fontWeight: '700', color: '#92400e' }}>No account yet</Text>
               </View>
             )}
+            {onRequestRemoveParticipant ? (
+              <View style={{ marginTop: 8 }}>
+                <ActionButton
+                  label="Remove"
+                  onPress={() => onRequestRemoveParticipant(item)}
+                  variant="danger"
+                  fullWidth
+                />
+              </View>
+            ) : null}
           </ListRowCard>
         ))}
       </CollapsibleSectionCard>
@@ -208,12 +246,9 @@ export function RegistrationsTab({
       {userSearchResults.length > 0 && (
         <CollapsibleSectionCard
           title={`Search results (${userSearchResults.length})`}
-          subtitle="Tap close when you want to review roster details above."
+          subtitle="Results from your latest search."
           defaultExpanded
         >
-          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 4 }}>
-            <ActionButton label="Close search" onPress={onClearUserSearch} variant="ghost" />
-          </View>
           {userSearchResults.map((user) => {
             const isAlreadyApproved = user.registrationStatus === 'approved';
             const isAdding = busyManualAddUserId === user.id;
@@ -221,12 +256,8 @@ export function RegistrationsTab({
             return (
               <ListRowCard
                 key={user.id}
-                title={user.name || user.username || user.email || user.id}
-                subtitle={
-                  user.username
-                    ? `@${user.username}${user.email ? ` · ${user.email}` : ''}`
-                    : user.email || 'No username on file'
-                }
+                title={user.name || user.username || 'Player'}
+                subtitle={formatSearchUserSubtitle(user)}
               >
                 {isAlreadyApproved ? (
                   <View

@@ -15,6 +15,7 @@ const {
   addGuestParticipant,
   manuallyRemoveParticipant,
   removeGuestParticipant,
+  replaceApprovedParticipant,
   assignScoreEditor,
   removeScoreEditor,
   requestProctorTransfer,
@@ -138,6 +139,11 @@ const removeGuestParticipantController = asyncHandler(async (req, res) => {
     req.auth?.userId,
     req.params.playerId
   );
+  return res.status(200).json({ success: true, data: result });
+});
+
+const replaceApprovedParticipantController = asyncHandler(async (req, res) => {
+  const result = await replaceApprovedParticipant(req.params.tournamentId, req.auth?.userId, req.body);
   return res.status(200).json({ success: true, data: result });
 });
 
@@ -364,6 +370,7 @@ module.exports = {
   addGuestParticipantController,
   manuallyRemoveParticipantController,
   removeGuestParticipantController,
+  replaceApprovedParticipantController,
   assignScoreEditorController,
   removeScoreEditorController,
   requestProctorTransferController,

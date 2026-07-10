@@ -163,6 +163,7 @@ const mapGuestPlayerRosterItem = (player) => ({
   status: 'approved',
   isGuest: true,
   guestUsername: player.pendingLinkUsername || null,
+  rosterName: player.displayName,
   inviteCodeUsed: null,
   reviewedByUserId: player.addedByHostUserId ? String(player.addedByHostUserId) : null,
   reviewedAt: player.createdAt || null,
@@ -264,12 +265,15 @@ const mapUserSummary = (user) =>
       }
     : null;
 
-const mapRegistrationSummaryWithUser = (registration, userSummaryById) => {
+const mapRegistrationSummaryWithUser = (registration, userSummaryById, rosterNameByUserId = null, playerIdByUserId = null) => {
   const summary = mapRegistrationSummary(registration);
+  const userId = summary.userId;
 
   return {
     ...summary,
-    user: userSummaryById.get(summary.userId) || null,
+    rosterName: rosterNameByUserId?.get(userId) || null,
+    playerId: playerIdByUserId?.get(userId) || null,
+    user: userSummaryById.get(userId) || null,
   };
 };
 
@@ -289,7 +293,7 @@ const buildUserSummaryById = async (userIds = []) => {
   }
 
   const users = await User.find({ _id: { $in: normalizedUniqueUserIds } })
-    .select({ _id: 1, name: 1, email: 1, handicap: 1 })
+    .select({ _id: 1, name: 1, email: 1, username: 1, handicap: 1 })
     .lean();
 
   return users.reduce((accumulator, user) => {

@@ -13,6 +13,7 @@ import { createTournament } from '../services/tournamentService';
 import { tournamentColors, tournamentUi } from '../styles/tournamentUi';
 import { useResponsiveLayout, centeredContentStyle } from '../utils/responsive';
 import { WebFormColumns } from '../components/layout/WebTwoColumnLayout';
+import { WebScheduleInputs } from '../components/scheduling/WebScheduleInputs';
 
 const PLAYER_PRESETS = [8, 16, 32, 64];
 
@@ -509,51 +510,66 @@ export function CreateTournamentScreen({ navigation, route }) {
         )}
       </SectionCard>
 
-      <SectionCard title="Schedule" subtitle="Tap to pick when play begins.">
-        <View style={{ flexDirection: 'row', gap: 10 }}>
-          <PickerField
-            label="Start date"
-            value={formatPickerDate(startsAt)}
-            onPress={() => setActivePicker((current) => (current === 'date' ? null : 'date'))}
-          />
-          <PickerField
-            label="Start time"
-            value={formatPickerTime(startsAt)}
-            onPress={() => setActivePicker((current) => (current === 'time' ? null : 'time'))}
-          />
-        </View>
-
-        {activePicker && (
-          <View
-            style={{
-              borderWidth: 1,
-              borderColor: tournamentColors.border,
-              borderRadius: 12,
-              overflow: 'hidden',
-              backgroundColor: tournamentColors.white,
+      <SectionCard title="Schedule" subtitle="Pick when play begins.">
+        {Platform.OS === 'web' ? (
+          <WebScheduleInputs
+            value={startsAt}
+            onChange={(nextDate) => {
+              setStartsAt(nextDate);
+              setFieldErrors((current) => ({ ...current, schedule: '' }));
             }}
-          >
-            <DateTimePicker
-              value={startsAt}
-              mode={activePicker}
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={onSchedulePickerChange}
-              minimumDate={activePicker === 'date' ? new Date() : undefined}
-            />
-            {Platform.OS === 'ios' && (
-              <Pressable
-                onPress={() => setActivePicker(null)}
+            dateLabel="Start date"
+            timeLabel="Start time"
+            minDate={new Date()}
+          />
+        ) : (
+          <>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <PickerField
+                label="Start date"
+                value={formatPickerDate(startsAt)}
+                onPress={() => setActivePicker((current) => (current === 'date' ? null : 'date'))}
+              />
+              <PickerField
+                label="Start time"
+                value={formatPickerTime(startsAt)}
+                onPress={() => setActivePicker((current) => (current === 'time' ? null : 'time'))}
+              />
+            </View>
+
+            {activePicker && (
+              <View
                 style={{
-                  paddingVertical: 12,
-                  alignItems: 'center',
-                  borderTopWidth: 1,
-                  borderTopColor: tournamentColors.borderLight,
+                  borderWidth: 1,
+                  borderColor: tournamentColors.border,
+                  borderRadius: 12,
+                  overflow: 'hidden',
+                  backgroundColor: tournamentColors.white,
                 }}
               >
-                <Text style={{ fontWeight: '700', color: tournamentColors.primary }}>Done</Text>
-              </Pressable>
+                <DateTimePicker
+                  value={startsAt}
+                  mode={activePicker}
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={onSchedulePickerChange}
+                  minimumDate={activePicker === 'date' ? new Date() : undefined}
+                />
+                {Platform.OS === 'ios' && (
+                  <Pressable
+                    onPress={() => setActivePicker(null)}
+                    style={{
+                      paddingVertical: 12,
+                      alignItems: 'center',
+                      borderTopWidth: 1,
+                      borderTopColor: tournamentColors.borderLight,
+                    }}
+                  >
+                    <Text style={{ fontWeight: '700', color: tournamentColors.primary }}>Done</Text>
+                  </Pressable>
+                )}
+              </View>
             )}
-          </View>
+          </>
         )}
 
         {Boolean(fieldErrors.schedule) && <Text style={errorTextStyle}>{fieldErrors.schedule}</Text>}

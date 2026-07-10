@@ -12,6 +12,7 @@ import {
 import { ScaledText as Text } from '../../components/ui/ScaledText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActionButton, formatProgressionLabel } from '../../components/tournament/TournamentChrome';
+import { useResponsiveLayout } from '../../utils/responsive';
 import { tournamentColors, tournamentUi } from '../../styles/tournamentUi';
 
 function formatRegistrationMode(mode) {
@@ -214,6 +215,7 @@ export function HostInfoModal({
   isLoadingRegistrations,
   isExporting = false,
   isEmailExporting = false,
+  hostHasEmail = true,
   onClose,
   onRefresh,
   onExport,
@@ -221,25 +223,42 @@ export function HostInfoModal({
 }) {
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
+  const { isDesktopWeb } = useResponsiveLayout();
   const isInviteOnly = detail?.registrationMode === 'inviteOnly';
   const inviteCode = detail?.inviteCode || '';
   const isRefreshing = isLoadingDetail || isLoadingRegistrations;
   const sheetHeight = Math.min(windowHeight * 0.88, windowHeight - insets.top - 16);
+  const useCenteredDialog = Platform.OS === 'web' && isDesktopWeb;
+
+  const modalCardStyle = useCenteredDialog
+    ? {
+        width: '100%',
+        maxWidth: 560,
+        maxHeight: Math.min(windowHeight * 0.85, 720),
+        alignSelf: 'center',
+        backgroundColor: tournamentColors.white,
+        borderRadius: 16,
+        overflow: 'hidden',
+      }
+    : {
+        height: sheetHeight,
+        backgroundColor: tournamentColors.white,
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        overflow: 'hidden',
+      };
 
   return (
     <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
-      <View style={[tournamentUi.modalOverlay, { justifyContent: 'flex-end', padding: 0 }]}>
+      <View
+        style={[
+          tournamentUi.modalOverlay,
+          useCenteredDialog ? { justifyContent: 'center', padding: 16 } : { justifyContent: 'flex-end', padding: 0 },
+        ]}
+      >
         <Pressable style={tournamentUi.modalBackdrop} onPress={onClose} />
 
-        <View
-          style={{
-            height: sheetHeight,
-            backgroundColor: tournamentColors.white,
-            borderTopLeftRadius: 20,
-            borderTopRightRadius: 20,
-            overflow: 'hidden',
-          }}
-        >
+        <View style={modalCardStyle}>
           <ScrollView
             style={{ flex: 1 }}
             contentContainerStyle={{
@@ -253,14 +272,16 @@ export function HostInfoModal({
             bounces
           >
             <View style={{ alignItems: 'center', marginBottom: 12 }}>
-              <View
-                style={{
-                  width: 36,
-                  height: 4,
-                  borderRadius: 2,
-                  backgroundColor: tournamentColors.border,
-                }}
-              />
+              {!useCenteredDialog ? (
+                <View
+                  style={{
+                    width: 36,
+                    height: 4,
+                    borderRadius: 2,
+                    backgroundColor: tournamentColors.border,
+                  }}
+                />
+              ) : null}
             </View>
 
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 10 }}>
@@ -364,12 +385,17 @@ export function HostInfoModal({
                 <ActionButton
                   label={isEmailExporting ? 'Emailing…' : 'Email Export'}
                   onPress={onEmailExport}
-                  disabled={isEmailExporting || isRefreshing || isExporting}
+                  disabled={isEmailExporting || isRefreshing || isExporting || !hostHasEmail}
                   variant="secondary"
                   fullWidth
                 />
               </View>
             </View>
+            {!hostHasEmail ? (
+              <Text style={{ fontSize: 12, lineHeight: 17, color: tournamentColors.textMuted }}>
+                Add a recovery email in Profile to enable email export.
+              </Text>
+            ) : null}
             <ActionButton
               label={isRefreshing ? 'Refreshing…' : 'Refresh snapshot'}
               onPress={onRefresh}

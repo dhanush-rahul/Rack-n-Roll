@@ -15,6 +15,7 @@ import { ScreenScrollShell } from '../components/layout/ScreenScrollShell';
 import { HostTournamentTabLayout } from '../components/layout/TournamentTabLayout';
 import { useHostTournamentDetail } from '../hooks/queries/useHostTournamentDetail';
 import { useHostTournamentRegistrations } from '../hooks/queries/useHostTournamentRegistrations';
+import { useMyProfile } from '../hooks/queries/useMyProfile';
 import { invalidateTournamentCache } from '../hooks/queries/invalidateTournamentCache';
 import { useFetchScoresheetPages } from '../hooks/queries/useScoresheetPages';
 import { useTournamentTeamsData } from '../hooks/queries/useTournamentTeamsData';
@@ -45,6 +46,7 @@ import {
   SuccessBanner,
   TournamentScreenHero,
 } from '../components/tournament/TournamentChrome';
+import { formatRosterRowTitle } from '../utils/rosterDisplay';
 
 const isPlayedScoreEntry = (entry) => {
   const playerAScore = Number(entry?.playerAScore);
@@ -82,6 +84,8 @@ export function TournamentDetailScreen({ route, navigation }) {
   const tournamentId = route?.params?.tournamentId;
   const { currentUser } = useAuth();
   const queryClient = useQueryClient();
+  const { data: myProfile } = useMyProfile({ enabled: Boolean(currentUser?.id) });
+  const hostHasEmail = Boolean(myProfile?.user?.email);
   const fetchScoresheetPages = useFetchScoresheetPages();
   const detailTabInitializedRef = useRef(null);
 
@@ -515,6 +519,16 @@ export function TournamentDetailScreen({ route, navigation }) {
     maxParticipantsInput,
     setMaxParticipantsInput,
     isSavingMaxParticipants,
+    removeTarget,
+    isRemoveConfirmVisible,
+    isRemovingParticipant,
+    replaceTarget,
+    setReplaceTarget,
+    onRequestRemoveParticipant,
+    onCancelRemoveParticipant,
+    onConfirmRemoveParticipant,
+    onChooseReplaceInstead,
+    onCancelReplace,
     onReviewRegistration,
     onSearchUsers,
     onClearUserSearch,
@@ -889,6 +903,9 @@ export function TournamentDetailScreen({ route, navigation }) {
             await loadRegistrations();
           }}
           onTeamsError={(error) => showError(formatApiError(error, 'Unable to update teams'))}
+          onRequestRemoveParticipant={isHost ? onRequestRemoveParticipant : null}
+          replaceTarget={replaceTarget}
+          onCancelReplace={onCancelReplace}
         />
       )}
 
@@ -1032,10 +1049,36 @@ export function TournamentDetailScreen({ route, navigation }) {
         onCancel={() => {
           if (!isAddingGuestPlayer) {
             setIsGuestAddFormVisible(false);
+            setReplaceTarget(null);
           }
         }}
         onSubmit={onSubmitGuestPlayer}
         isLoading={isAddingGuestPlayer}
+        title={replaceTarget ? 'Replace with guest player' : 'Add guest player'}
+        subtitle={
+          replaceTarget
+            ? `Replacing ${formatRosterRowTitle(replaceTarget)}. Enter the new roster name and username.`
+            : undefined
+        }
+      />
+
+      <ConfirmModal
+        visible={isRemoveConfirmVisible}
+        icon="warning"
+        title="Remove from roster?"
+        message={
+          removeTarget
+            ? `${formatRosterRowTitle(removeTarget)} will be removed from this tournament. Guest usernames are released. Scheduled group matches for this player will be cancelled unless you replace them.`
+            : ''
+        }
+        confirmLabel="Remove"
+        cancelLabel="Cancel"
+        alternateLabel="Replace instead"
+        onAlternate={onChooseReplaceInstead}
+        onConfirm={onConfirmRemoveParticipant}
+        onCancel={onCancelRemoveParticipant}
+        isLoading={isRemovingParticipant}
+        confirmVariant="danger"
       />
 
       <ConfirmModal
@@ -1085,6 +1128,7 @@ export function TournamentDetailScreen({ route, navigation }) {
         isLoadingRegistrations={loading.registrations}
         isExporting={isExportingWorkbook}
         isEmailExporting={isEmailExporting}
+        hostHasEmail={hostHasEmail}
         onClose={() => setIsHostInfoModalVisible(false)}
         onRefresh={onRefreshDetail}
         onExport={onExportWorkbook}
