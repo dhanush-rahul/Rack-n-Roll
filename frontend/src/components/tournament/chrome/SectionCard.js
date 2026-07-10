@@ -57,11 +57,24 @@ export function CollapsibleSectionCard({
   subtitle,
   children,
   defaultExpanded = false,
+  expanded: expandedProp,
+  onExpandedChange,
+  highlighted = false,
   headerAction,
+  sectionRef,
 }) {
   const { sp, isWide } = useTypography();
-  const [expanded, setExpanded] = useState(defaultExpanded);
-  const chevronAnimation = useRef(new Animated.Value(defaultExpanded ? 1 : 0)).current;
+  const [internalExpanded, setInternalExpanded] = useState(defaultExpanded);
+  const isControlled = expandedProp !== undefined;
+  const expanded = isControlled ? expandedProp : internalExpanded;
+  const chevronAnimation = useRef(new Animated.Value(expanded ? 1 : 0)).current;
+  const highlightAnimation = useRef(new Animated.Value(highlighted ? 1 : 0)).current;
+
+  useEffect(() => {
+    if (!isControlled) {
+      setInternalExpanded(defaultExpanded);
+    }
+  }, [defaultExpanded, isControlled]);
 
   useEffect(() => {
     Animated.timing(chevronAnimation, {
@@ -71,9 +84,23 @@ export function CollapsibleSectionCard({
     }).start();
   }, [chevronAnimation, expanded]);
 
+  useEffect(() => {
+    Animated.timing(highlightAnimation, {
+      toValue: highlighted ? 1 : 0,
+      duration: EXPAND_ANIM_MS,
+      useNativeDriver: false,
+    }).start();
+  }, [highlightAnimation, highlighted]);
+
   const toggleExpanded = () => {
     configureExpandAnimation();
-    setExpanded((current) => !current);
+    const nextExpanded = !expanded;
+
+    if (isControlled) {
+      onExpandedChange?.(nextExpanded);
+    } else {
+      setInternalExpanded(nextExpanded);
+    }
   };
 
   const chevronRotation = chevronAnimation.interpolate({
@@ -81,16 +108,24 @@ export function CollapsibleSectionCard({
     outputRange: ['0deg', '180deg'],
   });
 
+  const borderColor = highlightAnimation.interpolate({
+    inputRange: [0, 1],
+    outputRange: [tournamentColors.cardBorder, '#2563eb'],
+  });
+
   const cardPadding = isWide ? sp(14) : 12;
 
   return (
-    <View
+    <Animated.View
+      ref={sectionRef}
       style={[
         discoverUi.surfaceCard,
         {
           padding: 0,
           overflow: 'hidden',
-          borderColor: expanded ? '#bfdbfe' : tournamentColors.cardBorder,
+          borderWidth: highlighted ? 2 : 1,
+          borderColor: highlighted ? borderColor : expanded ? '#bfdbfe' : tournamentColors.cardBorder,
+          backgroundColor: highlighted ? '#f8fbff' : tournamentColors.white,
         },
       ]}
     >
@@ -149,6 +184,6 @@ export function CollapsibleSectionCard({
           {children}
         </View>
       ) : null}
-    </View>
+    </Animated.View>
   );
 }

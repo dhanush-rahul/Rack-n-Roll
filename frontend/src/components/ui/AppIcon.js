@@ -52,6 +52,7 @@ const ICON_MAP = {
   arrowRight: 'arrow-right',
   refresh: 'refresh',
   filter: 'filter-variant',
+  trash: 'trash-can-outline',
 
   // Medals (color is applied at the call site / defaults below)
   medal: 'medal',
