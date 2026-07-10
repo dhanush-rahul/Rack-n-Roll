@@ -82,6 +82,7 @@ function loadingReducer(state, action) {
 
 export function TournamentDetailScreen({ route, navigation }) {
   const tournamentId = route?.params?.tournamentId;
+  const scrollRef = useRef(null);
   const { currentUser } = useAuth();
   const queryClient = useQueryClient();
   const { data: myProfile } = useMyProfile({ enabled: Boolean(currentUser?.id) });
@@ -826,7 +827,7 @@ export function TournamentDetailScreen({ route, navigation }) {
   );
 
   return (
-    <ScreenScrollShell contentContainerStyle={{ gap: 16 }}>
+    <ScreenScrollShell ref={scrollRef} contentContainerStyle={{ gap: 16 }}>
       <View style={{ marginBottom: 16 }}>
         <TournamentScreenHero
           eyebrow="HOST DASHBOARD"
@@ -906,6 +907,7 @@ export function TournamentDetailScreen({ route, navigation }) {
           onRequestRemoveParticipant={isHost ? onRequestRemoveParticipant : null}
           replaceTarget={replaceTarget}
           onCancelReplace={onCancelReplace}
+          scrollRef={scrollRef}
         />
       )}
 

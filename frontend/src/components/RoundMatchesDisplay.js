@@ -44,6 +44,15 @@ function MatchActionButton({ label, onPress, disabled, variant = 'primary' }) {
   );
 }
 
+const SCORE_GRID_LABEL_WIDTH = 40;
+const SCORE_GRID_GAP = 8;
+
+const ScoreGridColumn = ({ children, isLabel = false }) => (
+  <View style={isLabel ? { width: SCORE_GRID_LABEL_WIDTH } : { flex: 1, minWidth: 0 }}>
+    {children}
+  </View>
+);
+
 const statusTone = (status) => {
   if (status === 'completed') {
     return { bg: '#dcfce7', text: '#166534', label: 'Completed' };
@@ -342,6 +351,7 @@ const renderRound = ({
                   style={{
                     flexDirection: 'row',
                     alignItems: 'center',
+                    gap: SCORE_GRID_GAP,
                     paddingHorizontal: 10,
                     paddingVertical: 8,
                     backgroundColor: '#f8fafc',
@@ -349,13 +359,19 @@ const renderRound = ({
                     borderBottomColor: tournamentColors.borderLight,
                   }}
                 >
-                  <Text style={{ width: 40, fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }}>G#</Text>
-                  <Text style={{ flex: 1, fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }} numberOfLines={1}>
-                    {playerAName}
-                  </Text>
-                  <Text style={{ flex: 1, fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }} numberOfLines={1}>
-                    {playerBName}
-                  </Text>
+                  <ScoreGridColumn isLabel>
+                    <Text style={{ fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }}>G#</Text>
+                  </ScoreGridColumn>
+                  <ScoreGridColumn>
+                    <Text style={{ fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }} numberOfLines={1}>
+                      {playerAName}
+                    </Text>
+                  </ScoreGridColumn>
+                  <ScoreGridColumn>
+                    <Text style={{ fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }} numberOfLines={1}>
+                      {playerBName}
+                    </Text>
+                  </ScoreGridColumn>
                 </View>
 
                 {scoreInputEntries.map((entry, entryIndex) => {
@@ -372,36 +388,42 @@ const renderRound = ({
                       style={{
                         flexDirection: 'row',
                         alignItems: 'center',
-                        gap: 8,
+                        gap: SCORE_GRID_GAP,
                         paddingHorizontal: 10,
                         paddingVertical: 8,
                         borderBottomWidth: isLastEntry ? 0 : 1,
                         borderBottomColor: '#f1f5f9',
                       }}
                     >
-                      <Text style={{ width: 40, color: tournamentColors.text, fontWeight: '700', fontSize: 12 }}>
-                        {entryIndex + 1}
-                      </Text>
-                      <TextInput
-                        style={{ flex: 1, ...tournamentUi.input, paddingVertical: 8 }}
-                        placeholder="0"
-                        value={safeEntry.playerAScore}
-                        onChangeText={(value) =>
-                          onChangeScoreInput(scoreStateKey, entryIndex, 'playerAScore', value)
-                        }
-                        keyboardType="numeric"
-                        editable={canEditThisMatch}
-                      />
-                      <TextInput
-                        style={{ flex: 1, ...tournamentUi.input, paddingVertical: 8 }}
-                        placeholder="0"
-                        value={safeEntry.playerBScore}
-                        onChangeText={(value) =>
-                          onChangeScoreInput(scoreStateKey, entryIndex, 'playerBScore', value)
-                        }
-                        keyboardType="numeric"
-                        editable={canEditThisMatch}
-                      />
+                      <ScoreGridColumn isLabel>
+                        <Text style={{ color: tournamentColors.text, fontWeight: '700', fontSize: 12 }}>
+                          {entryIndex + 1}
+                        </Text>
+                      </ScoreGridColumn>
+                      <ScoreGridColumn>
+                        <TextInput
+                          style={{ ...tournamentUi.input, paddingVertical: 8, width: '100%' }}
+                          placeholder="0"
+                          value={safeEntry.playerAScore}
+                          onChangeText={(value) =>
+                            onChangeScoreInput(scoreStateKey, entryIndex, 'playerAScore', value)
+                          }
+                          keyboardType="numeric"
+                          editable={canEditThisMatch}
+                        />
+                      </ScoreGridColumn>
+                      <ScoreGridColumn>
+                        <TextInput
+                          style={{ ...tournamentUi.input, paddingVertical: 8, width: '100%' }}
+                          placeholder="0"
+                          value={safeEntry.playerBScore}
+                          onChangeText={(value) =>
+                            onChangeScoreInput(scoreStateKey, entryIndex, 'playerBScore', value)
+                          }
+                          keyboardType="numeric"
+                          editable={canEditThisMatch}
+                        />
+                      </ScoreGridColumn>
                     </View>
                   );
                 })}

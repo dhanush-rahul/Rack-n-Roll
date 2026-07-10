@@ -31,10 +31,48 @@ const ensureLeaderboardIndexes = async () => {
   console.log('[startup] leaderboard indexes verified');
 };
 
+const ensureUserIndexes = async () => {
+  const User = require('../models/user.model');
+  const { backfillUsersMissingUsername } = require('../services/username.service');
+
+  const backfilledCount = await backfillUsersMissingUsername();
+
+  if (backfilledCount > 0) {
+    console.log(`[startup] assigned usernames to ${backfilledCount} legacy user(s)`);
+  }
+
+  const nullEmailCleanup = await User.updateMany(
+    { $or: [{ email: null }, { email: '' }] },
+    { $unset: { email: '' } }
+  );
+
+  if (nullEmailCleanup.modifiedCount > 0) {
+    console.log(`[startup] removed empty email field from ${nullEmailCleanup.modifiedCount} user(s)`);
+  }
+
+  try {
+    const indexes = await User.collection.indexes();
+    const emailIndex = indexes.find((index) => index.name === 'email_1');
+
+    if (emailIndex && !emailIndex.sparse) {
+      await User.collection.dropIndex('email_1');
+      console.log('[startup] dropped non-sparse users.email index');
+    }
+  } catch (error) {
+    if (error?.codeName !== 'IndexNotFound' && error?.code !== 27) {
+      console.warn('[startup] user email index cleanup skipped:', error.message);
+    }
+  }
+
+  await User.syncIndexes();
+  console.log('[startup] user indexes verified');
+};
+
 const connectToDatabase = async (mongoUri) => {
   await mongoose.connect(mongoUri);
   await ensureLeaderboardIndexes();
+  await ensureUserIndexes();
   console.log('[startup] connected to MongoDB');
 };
 
-module.exports = { connectToDatabase, ensureLeaderboardIndexes };
+module.exports = { connectToDatabase, ensureLeaderboardIndexes, ensureUserIndexes, ensureUserEmailIndex: ensureUserIndexes };

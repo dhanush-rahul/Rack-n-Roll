@@ -206,6 +206,36 @@ const suggestUsernameFromFirstName = async (firstName) => {
 const suggestMigrationUsername = async (name, email) =>
   allocateUniqueUsername(buildMigrationUsernameCandidate(name, email));
 
+const backfillUsersMissingUsername = async () => {
+  const users = await User.find({
+    $or: [{ username: { $exists: false } }, { username: null }, { username: '' }],
+  }).lean();
+
+  let updatedCount = 0;
+
+  for (const user of users) {
+    const parsed = parseNameParts(user.name);
+    const candidate = buildMigrationUsernameCandidate(user.name, user.email);
+    const username = await allocateUniqueUsername(candidate);
+
+    await User.updateOne(
+      { _id: user._id },
+      {
+        $set: {
+          username,
+          firstName: user.firstName || parsed.firstName,
+          lastName: user.lastName || parsed.lastName,
+          usernameChangeCount: Number(user.usernameChangeCount || 0),
+        },
+      }
+    );
+
+    updatedCount += 1;
+  }
+
+  return updatedCount;
+};
+
 const assertUsernameAvailableForSignup = async (username) => {
   const availability = await checkUsernameAvailability(username, 'signup');
 
@@ -285,6 +315,7 @@ module.exports = {
   allocateUniqueUsername,
   suggestUsernameFromFirstName,
   suggestMigrationUsername,
+  backfillUsersMissingUsername,
   assertUsernameAvailableForSignup,
   changeUsername,
 };

@@ -155,6 +155,7 @@ export function MatchCard({
           style={{
             flexDirection: 'row',
             alignItems: 'center',
+            gap: 6,
             paddingHorizontal: 8,
             paddingVertical: 6,
             borderBottomWidth: 1,
@@ -162,12 +163,16 @@ export function MatchCard({
           }}
         >
           <Text style={{ width: 48, fontWeight: '600', color: '#374151', fontSize: 12 }}>Game</Text>
-          <Text style={{ flex: 1, fontWeight: '600', color: '#374151', fontSize: 12 }} numberOfLines={1}>
-            {playerAName}
-          </Text>
-          <Text style={{ flex: 1, fontWeight: '600', color: '#374151', fontSize: 12 }} numberOfLines={1}>
-            {playerBName}
-          </Text>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={{ fontWeight: '600', color: '#374151', fontSize: 12 }} numberOfLines={1}>
+              {playerAName}
+            </Text>
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={{ fontWeight: '600', color: '#374151', fontSize: 12 }} numberOfLines={1}>
+              {playerBName}
+            </Text>
+          </View>
         </View>
 
         {/* Score rows */}
