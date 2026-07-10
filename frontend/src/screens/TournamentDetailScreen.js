@@ -1020,7 +1020,7 @@ export function TournamentDetailScreen({ route, navigation }) {
         visible={isGuestAddConfirmVisible}
         icon="person"
         title="Add player without an account?"
-        message="Use this when someone is playing in person but does not have the Rack-N-Roll app yet. They can sign up later with the email you provide to follow this tournament."
+        message="Use this when someone is playing in person but has not signed up yet. Enter the username they will use when they create an account — their entry links automatically."
         confirmLabel="Continue"
         cancelLabel="Cancel"
         onConfirm={onConfirmGuestAddIntro}

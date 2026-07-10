@@ -3,7 +3,7 @@ const TournamentRegistration = require('../../models/tournamentRegistration.mode
 const Player = require('../../models/player.model');
 const User = require('../../models/user.model');
 const ApiError = require('../../utils/ApiError');
-const { sendGuestTournamentInviteEmail } = require('../email.service');
+const { normalizeUsername } = require('../username.service');
 const { materializeApprovedPlayerForUser } = require('./roster.service');
 const { syncApprovedPlayerToGroups, syncApprovedPlayerToGroupsByPlayerId } = require('./fixtures.service');
 const {
@@ -134,37 +134,34 @@ const manuallyRemoveParticipant = async (tournamentId, hostUserId, targetUserId)
 
 const addGuestParticipant = async (tournamentId, hostUserId, payload = {}) => {
   const tournament = await assertHostAccess(tournamentId, hostUserId);
-  const { normalizedName, normalizedEmail } = validateGuestParticipantInput(payload);
-  const hostUser = await User.findById(tournament.hostUserId).select({ name: 1, email: 1 }).lean();
+  const { normalizedName, normalizedUsername } = validateGuestParticipantInput(payload);
+  const hostUser = await User.findById(tournament.hostUserId).select({ name: 1, username: 1 }).lean();
 
-  if (hostUser && normalizeGuestEmail(hostUser.email) === normalizedEmail) {
+  if (hostUser && normalizeUsername(hostUser.username) === normalizedUsername) {
     throw new ApiError(400, 'HOST_CANNOT_REGISTER', 'Host cannot be added as a participant');
   }
 
-  const existingUser = await User.findOne({ email: normalizedEmail }).select({ _id: 1 }).lean();
+  const existingUser = await User.findOne({ username: normalizedUsername }).select({ _id: 1 }).lean();
 
   if (existingUser) {
-    const manualAddResult = await manuallyAddParticipant(tournamentId, hostUserId, String(existingUser._id));
-
-    return {
-      ...manualAddResult,
-      isGuest: false,
-      linkedImmediately: true,
-      inviteEmailSent: false,
-    };
+    throw new ApiError(
+      409,
+      'USERNAME_ALREADY_REGISTERED',
+      'This username is already registered. Search for the player and add them directly.'
+    );
   }
 
   const existingGuest = await Player.findOne({
     tournamentId,
     status: 'active',
-    pendingLinkEmail: normalizedEmail,
+    pendingLinkUsername: normalizedUsername,
   }).lean();
 
   if (existingGuest) {
     throw new ApiError(
       409,
       'GUEST_ALREADY_ON_ROSTER',
-      'A guest player with this email is already on the roster for this tournament'
+      'A guest with this username is already on the roster for this tournament'
     );
   }
 
@@ -180,7 +177,8 @@ const addGuestParticipant = async (tournamentId, hostUserId, payload = {}) => {
       tournamentId,
       userId: null,
       displayName: normalizedName,
-      pendingLinkEmail: normalizedEmail,
+      pendingLinkUsername: normalizedUsername,
+      pendingLinkEmail: null,
       addedByHostUserId: hostUserId,
       handicapEnabled: useHandicap,
       handicapValue: 0,
@@ -193,7 +191,7 @@ const addGuestParticipant = async (tournamentId, hostUserId, payload = {}) => {
       throw new ApiError(
         409,
         'GUEST_ALREADY_ON_ROSTER',
-        'A guest player with this email is already on the roster for this tournament'
+        'A guest with this username is already on the roster for this tournament'
       );
     }
 
@@ -202,41 +200,45 @@ const addGuestParticipant = async (tournamentId, hostUserId, payload = {}) => {
 
   const groupSync = await syncApprovedPlayerToGroupsByPlayerId(tournamentId, String(createdPlayer._id));
 
-  void sendGuestTournamentInviteEmail({
-    toEmail: normalizedEmail,
-    toName: normalizedName,
-    tournamentName: tournamentMeta?.name || 'Tournament',
-    hostName: hostUser?.name || 'the tournament host',
-  }).catch((error) => {
-    console.error('[guest-add] invite email failed:', error?.message || error);
-  });
-
   return {
     ...mapGuestPlayerRosterItem(createdPlayer.toObject()),
     groupSync,
     isGuest: true,
     linkedImmediately: false,
-    inviteEmailSent: true,
-    inviteEmailQueued: true,
+    inviteEmailSent: false,
+    inviteEmailQueued: false,
   };
 };
 
-const linkPendingGuestPlayersForUser = async (userId, email) => {
-  const normalizedEmail = normalizeGuestEmail(email);
+const linkPendingGuestPlayersForUser = async (userId) => {
   const normalizedUserId = String(userId || '').trim();
 
-  if (!normalizedEmail || !normalizedUserId) {
+  if (!normalizedUserId) {
     return { linkedTournamentIds: [] };
   }
 
-  const user = await User.findById(normalizedUserId).select({ name: 1, email: 1 }).lean();
+  const user = await User.findById(normalizedUserId).select({ name: 1, email: 1, username: 1 }).lean();
 
   if (!user) {
     return { linkedTournamentIds: [] };
   }
 
+  const pendingFilters = [];
+
+  if (user.username) {
+    pendingFilters.push({ pendingLinkUsername: user.username });
+  }
+
+  if (user.email) {
+    pendingFilters.push({ pendingLinkEmail: normalizeGuestEmail(user.email) });
+  }
+
+  if (pendingFilters.length === 0) {
+    return { linkedTournamentIds: [] };
+  }
+
   const pendingPlayers = await Player.find({
-    pendingLinkEmail: normalizedEmail,
+    $or: pendingFilters,
     userId: null,
     status: 'active',
   }).lean();
@@ -247,8 +249,15 @@ const linkPendingGuestPlayersForUser = async (userId, email) => {
 
   const linkedTournamentIds = [];
   const reviewedAt = new Date();
+  const linkedPlayerIds = new Set();
 
   for (const player of pendingPlayers) {
+    if (linkedPlayerIds.has(String(player._id))) {
+      continue;
+    }
+
+    linkedPlayerIds.add(String(player._id));
+
     await Player.updateOne(
       { _id: player._id },
       {
@@ -256,6 +265,7 @@ const linkPendingGuestPlayersForUser = async (userId, email) => {
           userId: normalizedUserId,
           displayName: user.name || player.displayName,
           pendingLinkEmail: null,
+          pendingLinkUsername: null,
         },
       }
     );
@@ -312,9 +322,12 @@ const removeGuestParticipant = async (tournamentId, hostUserId, playerId) => {
       tournamentId,
       status: 'active',
       userId: null,
-      pendingLinkEmail: { $type: 'string', $ne: null },
+      $or: [
+        { pendingLinkEmail: { $type: 'string', $ne: null } },
+        { pendingLinkUsername: { $type: 'string', $ne: null } },
+      ],
     },
-    { $set: { status: 'removed', pendingLinkEmail: null } },
+    { $set: { status: 'removed', pendingLinkEmail: null, pendingLinkUsername: null } },
     { new: true }
   ).lean();
 

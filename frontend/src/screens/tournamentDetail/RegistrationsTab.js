@@ -149,8 +149,10 @@ export function RegistrationsTab({
             title={item.user?.name || item.user?.email || item.userId || item.displayName}
             subtitle={
               item.isGuest
-                ? `${item.guestEmail || item.user?.email || 'No email'} · No account yet`
-                : item.user?.email || item.userId
+                ? `@${item.guestUsername || item.user?.username || 'guest'} · No account yet`
+                : item.user?.username
+                  ? `@${item.user.username}${item.user?.email ? ` · ${item.user.email}` : ''}`
+                  : item.user?.email || item.userId
             }
           >
             {item.isGuest && (
@@ -173,17 +175,17 @@ export function RegistrationsTab({
 
       <CollapsibleSectionCard
         title="Search & add players"
-        subtitle="Find registered users by name or email, or add a guest without an account."
+        subtitle="Find registered users by name or username, or add a guest without an account."
         defaultExpanded={false}
       >
         <Text style={{ fontSize: 12, lineHeight: 17, color: tournamentColors.textMuted }}>
           {isRegistrationClosed
             ? 'Host override: search and add players even after registration is closed.'
-            : 'Search by name or email and approve them directly.'}
+            : 'Search by name or username and add them directly.'}
         </Text>
         <TextInput
           style={tournamentUi.input}
-          placeholder="Search name or email"
+          placeholder="Search name or username"
           value={searchQuery}
           onChangeText={onSearchQueryChange}
           autoCapitalize="none"
@@ -219,8 +221,12 @@ export function RegistrationsTab({
             return (
               <ListRowCard
                 key={user.id}
-                title={user.name || user.email || user.id}
-                subtitle={user.email || 'No email on file'}
+                title={user.name || user.username || user.email || user.id}
+                subtitle={
+                  user.username
+                    ? `@${user.username}${user.email ? ` · ${user.email}` : ''}`
+                    : user.email || 'No username on file'
+                }
               >
                 {isAlreadyApproved ? (
                   <View

@@ -15,6 +15,7 @@ import { useAuth } from '../context/AuthContext';
 import { HomeScreen } from '../screens/HomeScreen';
 import { SignInScreen } from '../screens/SignInScreen';
 import { SignUpScreen } from '../screens/SignUpScreen';
+import { ChooseUsernameScreen } from '../screens/ChooseUsernameScreen';
 import { ForgotPasswordScreen } from '../screens/ForgotPasswordScreen';
 import { CreateTournamentScreen } from '../screens/CreateTournamentScreen';
 import { CreateTournamentWalkthroughScreen } from '../screens/CreateTournamentWalkthroughScreen';
@@ -174,6 +175,7 @@ const ROUTE_TITLES = {
   DiscoverWalkthrough: 'Rack-N-Roll',
   SignIn: 'Sign In',
   SignUp: 'Create Account',
+  ChooseUsername: 'Choose Username',
   ForgotPassword: 'Forgot Password',
   Profile: 'My Profile',
   CreateTournamentWalkthrough: 'Create Tournament',
@@ -213,6 +215,7 @@ function RootStack() {
       />
       <Stack.Screen name="SignIn" component={SignInScreen} options={{ title: 'Sign In' }} />
       <Stack.Screen name="SignUp" component={SignUpScreen} options={{ title: 'Create Account' }} />
+      <Stack.Screen name="ChooseUsername" component={ChooseUsernameScreen} options={{ title: 'Choose Username' }} />
       <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} options={{ title: 'Forgot Password' }} />
       <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'My Profile' }} />
       <Stack.Screen

@@ -24,12 +24,14 @@ const {
 } = require('./shared');
 const ApiError = require('../../utils/ApiError');
 
+const GROUP_STAGE_ROUND_ROBIN_LEGS = 1;
+
 // ── Incremental game creation ──────────────────────────────────────────────
 
 const createIncrementalGroupStageGamesForTeam = async ({
   tournamentId, divisionId, newTeamId, opponentTeamIds, bestOf, existingGames,
 }) => {
-  const groupStageLegs = 2;
+  const groupStageLegs = GROUP_STAGE_ROUND_ROBIN_LEGS;
   let maxRoundNumber = existingGames.reduce(
     (max, game) => Math.max(max, Number(game.roundNumber || 0)),
     0
@@ -72,7 +74,7 @@ const createIncrementalGroupStageGamesForTeam = async ({
 const createIncrementalGroupStageGamesForPlayer = async ({
   tournamentId, divisionId, newPlayerId, opponentIds, bestOf, existingGames,
 }) => {
-  const groupStageLegs = 2;
+  const groupStageLegs = GROUP_STAGE_ROUND_ROBIN_LEGS;
   let maxRoundNumber = existingGames.reduce(
     (max, game) => Math.max(max, Number(game.roundNumber || 0)),
     0
@@ -357,7 +359,7 @@ const createRoundRobinTeamGamesForStage = async ({ tournamentId, divisionId, sta
 
   const rounds = buildRoundRobinRounds(
     participantIds.map((teamId) => ({ id: teamId })),
-    stage === 'groupStage' ? 2 : 1
+    stage === 'groupStage' ? GROUP_STAGE_ROUND_ROBIN_LEGS : 1
   );
 
   const gameDocuments = [];
@@ -404,7 +406,7 @@ const createRoundRobinGamesForStage = async ({ tournamentId, divisionId, stage, 
 
   const rounds = buildRoundRobinRounds(
     participantIds.map((playerId) => ({ id: playerId })),
-    stage === 'groupStage' ? 2 : 1
+    stage === 'groupStage' ? GROUP_STAGE_ROUND_ROBIN_LEGS : 1
   );
 
   const gameDocuments = [];

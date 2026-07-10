@@ -241,7 +241,10 @@ const listHostRegistrations = async (tournamentId, hostUserId, query = {}) => {
     tournamentId: tournament._id,
     status: 'active',
     userId: null,
-    pendingLinkEmail: { $type: 'string', $ne: null },
+    $or: [
+      { pendingLinkEmail: { $type: 'string', $ne: null } },
+      { pendingLinkUsername: { $type: 'string', $ne: null } },
+    ],
   })
     .sort({ createdAt: -1, _id: -1 })
     .lean();
@@ -268,12 +271,12 @@ const searchManualAddUsers = async (tournamentId, hostUserId, query = {}) => {
   const searchRegex = new RegExp(escapeRegex(searchTerm), 'i');
 
   const matchingUsers = await User.find({
-    $or: [{ name: searchRegex }, { email: searchRegex }],
+    $or: [{ name: searchRegex }, { email: searchRegex }, { username: searchRegex }],
     _id: { $ne: tournament.hostUserId },
   })
-    .sort({ name: 1, email: 1, _id: 1 })
+    .sort({ name: 1, username: 1, _id: 1 })
     .limit(limit)
-    .select({ _id: 1, name: 1, email: 1 })
+    .select({ _id: 1, name: 1, email: 1, username: 1 })
     .lean();
 
   const userIds = matchingUsers.map((user) => user._id);

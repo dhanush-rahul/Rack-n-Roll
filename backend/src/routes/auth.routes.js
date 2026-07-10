@@ -3,6 +3,7 @@ const {
 	signupController,
 	loginController,
 	googleSignInController,
+	checkUsernameController,
 	requestPasswordResetController,
 	validatePasswordResetPinController,
 	resetPasswordWithTokenController,
@@ -10,6 +11,8 @@ const {
 const { authRateLimiter, passwordResetRateLimiter } = require('../middleware/rateLimiters');
 
 const router = express.Router();
+
+router.get('/username/check', authRateLimiter, checkUsernameController);
 
 router.post('/signup', authRateLimiter, signupController);
 router.post('/login', authRateLimiter, loginController);

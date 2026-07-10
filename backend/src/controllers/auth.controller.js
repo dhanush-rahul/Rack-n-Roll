@@ -6,6 +6,7 @@ const {
   validatePasswordResetPin,
   resetPasswordWithToken,
 } = require('../services/auth.service');
+const { checkUsernameAvailability } = require('../services/username.service');
 
 const signupController = async (req, res, next) => {
   try {
@@ -79,10 +80,25 @@ const googleSignInController = async (req, res, next) => {
   }
 };
 
+const checkUsernameController = async (req, res, next) => {
+  try {
+    const purpose = String(req.query.purpose || 'signup').trim().toLowerCase() === 'guest' ? 'guest' : 'signup';
+    const result = await checkUsernameAvailability(req.query.username, purpose);
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 module.exports = {
   signupController,
   loginController,
   googleSignInController,
+  checkUsernameController,
   requestPasswordResetController,
   validatePasswordResetPinController,
   resetPasswordWithTokenController,

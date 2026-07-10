@@ -55,6 +55,13 @@ const playerSchema = new mongoose.Schema(
       default: null,
       maxlength: 254,
     },
+    pendingLinkUsername: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: null,
+      maxlength: 20,
+    },
     addedByHostUserId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -87,6 +94,7 @@ playerSchema.index(
     },
   }
 );
+playerSchema.index({ pendingLinkUsername: 1, status: 1 });
 
 const Player = mongoose.model('Player', playerSchema);
 

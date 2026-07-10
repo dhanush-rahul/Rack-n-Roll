@@ -2,6 +2,27 @@ const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema(
   {
+    username: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
+      minlength: 3,
+      maxlength: 20,
+    },
+    firstName: {
+      type: String,
+      trim: true,
+      maxlength: 50,
+      default: '',
+    },
+    lastName: {
+      type: String,
+      trim: true,
+      maxlength: 50,
+      default: '',
+    },
     name: {
       type: String,
       required: true,
@@ -11,10 +32,17 @@ const userSchema = new mongoose.Schema(
     },
     email: {
       type: String,
-      required: true,
       unique: true,
+      sparse: true,
       lowercase: true,
       trim: true,
+      default: null,
+    },
+    usernameChangeCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 2,
     },
     authProvider: {
       type: String,

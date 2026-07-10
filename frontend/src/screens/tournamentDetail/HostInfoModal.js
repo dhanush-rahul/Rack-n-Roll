@@ -322,7 +322,7 @@ export function HostInfoModal({
               <InfoRow label="Groups" value={String(detail?.competitionConfig?.groupCount ?? '—')} />
               <InfoRow
                 label="Group stage"
-                value={`Best of ${detail?.competitionConfig?.groupStageBestOf ?? 1} · double RR`}
+                value={`Best of ${detail?.competitionConfig?.groupStageBestOf ?? 1} · round robin`}
               />
               <InfoRow
                 label="Finale series"

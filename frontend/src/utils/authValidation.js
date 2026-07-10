@@ -1,3 +1,5 @@
+import { validateUsernameFormat, normalizeUsername } from './usernameUtils';
+
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CONTROL_CHAR_REGEX = /[\u0000-\u001F\u007F]/;
 
@@ -51,19 +53,19 @@ function validatePassword(password) {
   return '';
 }
 
-export function validateSignInInput({ email, password }) {
-  const normalizedEmail = normalizeEmail(email);
+export function validateSignInInput({ username, password }) {
+  const normalizedUsername = normalizeUsername(username);
   const normalizedPassword = normalizePassword(password);
 
   const errors = {
-    email: '',
+    username: '',
     password: '',
   };
 
-  if (!normalizedEmail) {
-    errors.email = 'Email is required.';
-  } else if (normalizedEmail.length > EMAIL_MAX_LENGTH || !EMAIL_REGEX.test(normalizedEmail)) {
-    errors.email = 'Enter a valid email address.';
+  if (!normalizedUsername) {
+    errors.username = 'Username is required.';
+  } else {
+    errors.username = validateUsernameFormat(normalizedUsername);
   }
 
   if (!normalizedPassword) {
@@ -75,38 +77,51 @@ export function validateSignInInput({ email, password }) {
   return {
     errors,
     sanitized: {
-      email: normalizedEmail,
+      username: normalizedUsername,
       password: normalizedPassword,
     },
   };
 }
 
-export function validateSignUpInput({ name, email, password, confirmPassword }) {
-  const normalizedName = normalizeName(name);
+export function validateSignUpInput({
+  firstName,
+  lastName,
+  username,
+  email,
+  password,
+  confirmPassword,
+}) {
+  const normalizedFirstName = normalizeName(firstName);
+  const normalizedLastName = normalizeName(lastName);
+  const normalizedUsername = normalizeUsername(username);
   const normalizedEmail = normalizeEmail(email);
   const normalizedPassword = normalizePassword(password);
   const normalizedConfirmPassword = normalizePassword(confirmPassword);
 
   const errors = {
-    name: '',
+    firstName: '',
+    lastName: '',
+    username: '',
     email: '',
     password: '',
     confirmPassword: '',
   };
 
-  if (!normalizedName) {
-    errors.name = 'Name is required.';
-  } else if (normalizedName.length < NAME_MIN_LENGTH) {
-    errors.name = 'Name must be at least 2 characters.';
-  } else if (normalizedName.length > NAME_MAX_LENGTH) {
-    errors.name = 'Name must be 80 characters or fewer.';
-  } else if (hasControlCharacters(normalizedName)) {
-    errors.name = 'Name contains invalid characters.';
+  if (!normalizedFirstName) {
+    errors.firstName = 'First name is required.';
+  } else if (normalizedFirstName.length < 1) {
+    errors.firstName = 'First name is required.';
+  } else if (hasControlCharacters(normalizedFirstName)) {
+    errors.firstName = 'First name contains invalid characters.';
   }
 
-  if (!normalizedEmail) {
-    errors.email = 'Email is required.';
-  } else if (normalizedEmail.length > EMAIL_MAX_LENGTH || !EMAIL_REGEX.test(normalizedEmail)) {
+  if (hasControlCharacters(normalizedLastName)) {
+    errors.lastName = 'Last name contains invalid characters.';
+  }
+
+  errors.username = validateUsernameFormat(normalizedUsername);
+
+  if (normalizedEmail && (normalizedEmail.length > EMAIL_MAX_LENGTH || !EMAIL_REGEX.test(normalizedEmail))) {
     errors.email = 'Enter a valid email address.';
   }
 
@@ -121,8 +136,10 @@ export function validateSignUpInput({ name, email, password, confirmPassword }) 
   return {
     errors,
     sanitized: {
-      name: normalizedName,
-      email: normalizedEmail,
+      firstName: normalizedFirstName,
+      lastName: normalizedLastName,
+      username: normalizedUsername,
+      email: normalizedEmail || undefined,
       password: normalizedPassword,
     },
   };

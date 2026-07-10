@@ -6,6 +6,15 @@ const ApiError = require('../utils/ApiError');
 const { sendPasswordResetPinEmail } = require('./email.service');
 const { linkPendingGuestPlayersForUser } = require('./tournament');
 const { verifyGoogleIdToken } = require('./googleAuth.service');
+const {
+  USERNAME_MAX_CHANGE_COUNT,
+  normalizeUsername,
+  normalizeNamePart,
+  buildDisplayName,
+  parseNameParts,
+  assertUsernameAvailableForSignup,
+  suggestMigrationUsername,
+} = require('./username.service');
 
 const SALT_ROUNDS = 10;
 const NAME_MIN_LENGTH = 2;
@@ -108,10 +117,17 @@ const isTestEnv = () => process.env.NODE_ENV === 'test';
 
 const sanitizeUser = (userDoc, { hasPassword } = {}) => ({
   id: String(userDoc._id),
+  username: userDoc.username,
+  firstName: userDoc.firstName || '',
+  lastName: userDoc.lastName || '',
   name: userDoc.name,
-  email: userDoc.email,
+  email: userDoc.email || null,
   authProvider: userDoc.authProvider || 'local',
   hasPassword: hasPassword ?? (userDoc.authProvider !== 'google'),
+  usernameChangesRemaining: Math.max(
+    USERNAME_MAX_CHANGE_COUNT - Number(userDoc.usernameChangeCount || 0),
+    0
+  ),
 });
 
 const validateEmail = (email) => {
@@ -148,30 +164,77 @@ const validateResetPin = (pin) => {
   return normalizedPin;
 };
 
-const validateSignupInput = ({ name, email, password }) => {
-  const normalizedName = normalizeName(name);
-
-  if (!normalizedName || normalizedName.length < NAME_MIN_LENGTH) {
-    throw new ApiError(400, 'INVALID_NAME', 'Name must be at least 2 characters long');
+const validateOptionalEmail = (email) => {
+  if (email === undefined || email === null || String(email).trim() === '') {
+    return null;
   }
 
-  if (normalizedName.length > NAME_MAX_LENGTH || controlCharacterRegex.test(normalizedName)) {
+  return validateEmail(email);
+};
+
+const validateSignupInput = async ({ firstName, lastName, username, name, email, password }) => {
+  const normalizedPassword = validatePassword(password);
+  const normalizedFirstName = normalizeNamePart(firstName);
+  const normalizedLastName = normalizeNamePart(lastName);
+  const legacyName = normalizeName(name);
+  const hasExplicitUsername = String(username || '').trim().length > 0;
+  const hasLegacyName = legacyName.length >= NAME_MIN_LENGTH;
+
+  if (!hasExplicitUsername && !hasLegacyName) {
+    throw new ApiError(400, 'INVALID_NAME', 'First and last name are required');
+  }
+
+  if (hasExplicitUsername) {
+    if (!normalizedFirstName || normalizedFirstName.length < 1) {
+      throw new ApiError(400, 'INVALID_NAME', 'First name is required');
+    }
+
+    const displayName = buildDisplayName(normalizedFirstName, normalizedLastName, legacyName);
+
+    if (displayName.length > NAME_MAX_LENGTH || controlCharacterRegex.test(displayName)) {
+      throw new ApiError(400, 'INVALID_NAME', 'Name contains unsupported characters');
+    }
+
+    const normalizedUsername = await assertUsernameAvailableForSignup(username);
+    const normalizedEmail = validateOptionalEmail(email);
+
+    return {
+      firstName: normalizedFirstName,
+      lastName: normalizedLastName,
+      name: displayName,
+      username: normalizedUsername,
+      email: normalizedEmail,
+      password: normalizedPassword,
+    };
+  }
+
+  if (!hasLegacyName || legacyName.length > NAME_MAX_LENGTH || controlCharacterRegex.test(legacyName)) {
     throw new ApiError(400, 'INVALID_NAME', 'Name contains unsupported characters');
   }
 
-  validateEmail(email);
-  validatePassword(password);
+  const normalizedEmail = validateEmail(email);
+  const parsed = parseNameParts(legacyName);
+  const allocatedUsername = await suggestMigrationUsername(legacyName, normalizedEmail);
+
+  return {
+    firstName: parsed.firstName,
+    lastName: parsed.lastName,
+    name: legacyName,
+    username: allocatedUsername,
+    email: normalizedEmail,
+    password: normalizedPassword,
+  };
 };
 
-const signup = async ({ name, email, password }) => {
-  validateSignupInput({ name, email, password });
-  const normalizedEmail = normalizeEmail(email);
-  const normalizedName = normalizeName(name);
-  const normalizedPassword = validatePassword(password);
+const signup = async (payload = {}) => {
+  const signupInput = await validateSignupInput(payload);
+  const passwordHash = await bcrypt.hash(signupInput.password, SALT_ROUNDS);
 
-  const existingUser = await User.findOne({ email: normalizedEmail }).lean();
+  const existingUser = signupInput.email
+    ? await User.findOne({ email: signupInput.email }).lean()
+    : null;
+
   if (existingUser) {
-    // Generic response avoids confirming whether the email is already registered.
     throw new ApiError(
       409,
       'SIGNUP_FAILED',
@@ -179,16 +242,17 @@ const signup = async ({ name, email, password }) => {
     );
   }
 
-  const passwordHash = await bcrypt.hash(normalizedPassword, SALT_ROUNDS);
-
   const createdUser = await User.create({
-    name: normalizedName,
-    email: normalizedEmail,
+    username: signupInput.username,
+    firstName: signupInput.firstName,
+    lastName: signupInput.lastName,
+    name: signupInput.name,
+    email: signupInput.email,
     passwordHash,
     authProvider: 'local',
   });
 
-  await linkPendingGuestPlayersForUser(createdUser._id, normalizedEmail);
+  await linkPendingGuestPlayersForUser(createdUser._id);
 
   const token = createToken(createdUser._id);
 
@@ -198,31 +262,54 @@ const signup = async ({ name, email, password }) => {
   };
 };
 
-const login = async ({ email, password }) => {
-  let normalizedEmail;
+const resolveLoginIdentifier = (username, legacyEmail) => {
+  const normalizedUsername = String(username || legacyEmail || '').trim();
+
+  if (!normalizedUsername) {
+    throw new ApiError(400, 'MISSING_CREDENTIALS', 'Username and password are required');
+  }
+
+  if (normalizedUsername.includes('@')) {
+    return { field: 'email', value: normalizeEmail(normalizedUsername) };
+  }
+
+  return { field: 'username', value: normalizeUsername(normalizedUsername) };
+};
+
+const login = async ({ username, email, password }) => {
+  let identifier;
 
   try {
-    normalizedEmail = validateEmail(email);
-  } catch {
-    throw new ApiError(401, 'INVALID_CREDENTIALS', 'Invalid email or password');
+    identifier = resolveLoginIdentifier(username, email);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+
+    throw new ApiError(401, 'INVALID_CREDENTIALS', 'Invalid username or password');
   }
 
   const normalizedPassword = normalizePassword(password);
 
-  if (!normalizedEmail || !normalizedPassword) {
-    throw new ApiError(400, 'MISSING_CREDENTIALS', 'Email and password are required');
+  if (!identifier.value || !normalizedPassword) {
+    throw new ApiError(400, 'MISSING_CREDENTIALS', 'Username and password are required');
   }
 
-  if (normalizedEmail.length > EMAIL_MAX_LENGTH || normalizedPassword.length > PASSWORD_MAX_LENGTH) {
-    throw new ApiError(401, 'INVALID_CREDENTIALS', 'Invalid email or password');
+  if (normalizedPassword.length > PASSWORD_MAX_LENGTH) {
+    throw new ApiError(401, 'INVALID_CREDENTIALS', 'Invalid username or password');
   }
 
-  const user = await User.findOne({ email: normalizedEmail }).select(
+  const lookupQuery =
+    identifier.field === 'email'
+      ? { email: identifier.value }
+      : { username: identifier.value };
+
+  const user = await User.findOne(lookupQuery).select(
     '+passwordHash +failedLoginAttempts +lockoutUntil'
   );
 
   if (!user) {
-    throw new ApiError(401, 'INVALID_CREDENTIALS', 'Invalid email or password');
+    throw new ApiError(401, 'INVALID_CREDENTIALS', 'Invalid username or password');
   }
 
   await assertLoginNotLocked(user);
@@ -235,7 +322,7 @@ const login = async ({ email, password }) => {
 
   if (!isPasswordValid) {
     await recordFailedLoginAttempt(user);
-    throw new ApiError(401, 'INVALID_CREDENTIALS', 'Invalid email or password');
+    throw new ApiError(401, 'INVALID_CREDENTIALS', 'Invalid username or password');
   }
 
   if (user.failedLoginAttempts || user.lockoutUntil) {
@@ -243,7 +330,7 @@ const login = async ({ email, password }) => {
     await user.save();
   }
 
-  await linkPendingGuestPlayersForUser(user._id, normalizedEmail);
+  await linkPendingGuestPlayersForUser(user._id);
 
   const token = createToken(user._id);
 
@@ -304,6 +391,7 @@ const signInWithGoogle = async ({ idToken }) => {
 
   const displayName = normalizeGoogleName(payload, normalizedEmail);
 
+  let isNewUser = false;
   let user = await User.findOne({ googleId }).select('+passwordHash +failedLoginAttempts +lockoutUntil');
 
   if (!user) {
@@ -325,13 +413,20 @@ const signInWithGoogle = async ({ idToken }) => {
       await user.save();
     }
   } else {
+    const parsedName = parseNameParts(displayName);
+    const allocatedUsername = await suggestMigrationUsername(displayName, normalizedEmail);
+
     user = await User.create({
+      username: allocatedUsername,
+      firstName: parsedName.firstName,
+      lastName: parsedName.lastName,
       name: displayName,
       email: normalizedEmail,
       googleId,
       authProvider: 'google',
       passwordHash: null,
     });
+    isNewUser = true;
   }
 
   if (user.failedLoginAttempts || user.lockoutUntil) {
@@ -339,13 +434,14 @@ const signInWithGoogle = async ({ idToken }) => {
     await user.save();
   }
 
-  await linkPendingGuestPlayersForUser(user._id, normalizedEmail);
+  await linkPendingGuestPlayersForUser(user._id);
 
   const token = createToken(user._id);
 
   return {
     token,
     user: sanitizeUser(user, { hasPassword: Boolean(user.passwordHash) }),
+    isNewUser,
   };
 };
 

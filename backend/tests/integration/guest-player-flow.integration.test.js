@@ -21,9 +21,8 @@ const buildTournamentPayload = (overrides = {}) => ({
 const extractTournamentId = (responseBody) =>
   responseBody?.data?.id || responseBody?.data?.tournamentId || responseBody?.data?._id || null;
 
-describe('Guest player add and email linking', () => {
+describe('Guest player add and username linking', () => {
   let app;
-  let consoleLogSpy;
 
   const signup = async (name, email) => {
     const response = await request(app).post('/api/auth/signup').send({
@@ -38,6 +37,7 @@ describe('Guest player add and email linking', () => {
     return {
       userId: response.body.data.user.id,
       token: response.body.data.token,
+      username: response.body.data.user.username,
     };
   };
 
@@ -63,12 +63,7 @@ describe('Guest player add and email linking', () => {
     app = createApp({ jwtSecret: process.env.JWT_SECRET });
   });
 
-  beforeEach(() => {
-    consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-  });
-
   afterEach(async () => {
-    consoleLogSpy?.mockRestore();
     const collections = mongoose.connection.collections;
     await Promise.all(Object.values(collections).map((collection) => collection.deleteMany({})));
   });
@@ -82,22 +77,23 @@ describe('Guest player add and email linking', () => {
     const unique = Date.now();
     const host = await signup('Guest Host', `guest.host.${unique}@example.com`);
     const tournamentId = await createTournamentAsHost(host.token);
+    const guestUsername = `walkin${String(unique).slice(-6)}`;
 
     const guestAddResponse = await request(app)
       .post(`/api/tournaments/${tournamentId}/participants/guest-add`)
       .set(authHeader(host.token))
       .send({
         name: 'Walk-in Player',
-        email: `walkin.${unique}@example.com`,
+        username: guestUsername,
       });
 
     expect(guestAddResponse.status).toBe(201);
     expect(guestAddResponse.body.success).toBe(true);
     expect(guestAddResponse.body.data.isGuest).toBe(true);
     expect(guestAddResponse.body.data.linkedImmediately).toBe(false);
-    expect(guestAddResponse.body.data.inviteEmailSent).toBe(true);
+    expect(guestAddResponse.body.data.inviteEmailSent).toBe(false);
 
-    const player = await Player.findOne({ tournamentId, pendingLinkEmail: `walkin.${unique}@example.com` }).lean();
+    const player = await Player.findOne({ tournamentId, pendingLinkUsername: guestUsername }).lean();
     expect(player).toBeTruthy();
     expect(player.userId).toBeNull();
     expect(player.displayName).toBe('Walk-in Player');
@@ -110,22 +106,16 @@ describe('Guest player add and email linking', () => {
     const guestItem = hostListResponse.body.data.items.find((item) => item.isGuest);
     expect(guestItem).toMatchObject({
       isGuest: true,
-      guestEmail: `walkin.${unique}@example.com`,
+      guestUsername,
       status: 'approved',
       user: {
         name: 'Walk-in Player',
-        email: `walkin.${unique}@example.com`,
+        username: guestUsername,
       },
     });
-
-    expect(
-      consoleLogSpy.mock.calls.some((call) =>
-        String(call[0]).includes(`walkin.${unique}@example.com`)
-      )
-    ).toBe(true);
   });
 
-  test('guest-add with existing user email auto-adds registered user', async () => {
+  test('guest-add with existing registered username returns 409', async () => {
     const unique = Date.now();
     const host = await signup('Auto Host', `auto.host.${unique}@example.com`);
     const existingPlayer = await signup('Existing Player', `existing.${unique}@example.com`);
@@ -136,74 +126,65 @@ describe('Guest player add and email linking', () => {
       .set(authHeader(host.token))
       .send({
         name: 'Should Not Matter',
-        email: `existing.${unique}@example.com`,
+        username: existingPlayer.username,
       });
 
-    expect(guestAddResponse.status).toBe(201);
-    expect(guestAddResponse.body.data.linkedImmediately).toBe(true);
-    expect(guestAddResponse.body.data.isGuest).toBe(false);
-
-    const registration = await TournamentRegistration.findOne({
-      tournamentId,
-      userId: existingPlayer.userId,
-      status: 'approved',
-    }).lean();
-
-    expect(registration).toBeTruthy();
-
-    const guestByEmail = await Player.findOne({
-      tournamentId,
-      pendingLinkEmail: `existing.${unique}@example.com`,
-    }).lean();
-
-    expect(guestByEmail).toBeNull();
+    expect(guestAddResponse.status).toBe(409);
+    expect(guestAddResponse.body.error.code).toBe('USERNAME_ALREADY_REGISTERED');
   });
 
-  test('duplicate guest email in same tournament returns 409', async () => {
+  test('duplicate guest username in same tournament returns 409', async () => {
     const unique = Date.now();
     const host = await signup('Dup Host', `dup.host.${unique}@example.com`);
     const tournamentId = await createTournamentAsHost(host.token);
-    const guestEmail = `dup.guest.${unique}@example.com`;
+    const guestUsername = `dupguest${String(unique).slice(-6)}`;
 
     const firstAdd = await request(app)
       .post(`/api/tournaments/${tournamentId}/participants/guest-add`)
       .set(authHeader(host.token))
-      .send({ name: 'Guest One', email: guestEmail });
+      .send({ name: 'Guest One', username: guestUsername });
 
     expect(firstAdd.status).toBe(201);
 
     const duplicateAdd = await request(app)
       .post(`/api/tournaments/${tournamentId}/participants/guest-add`)
       .set(authHeader(host.token))
-      .send({ name: 'Guest Two', email: guestEmail });
+      .send({ name: 'Guest Two', username: guestUsername });
 
     expect(duplicateAdd.status).toBe(409);
     expect(duplicateAdd.body.error.code).toBe('GUEST_ALREADY_ON_ROSTER');
   });
 
-  test('guest signup with matching email links player and shows approved registration on discover', async () => {
+  test('guest signup with matching username links player and shows approved registration on discover', async () => {
     const unique = Date.now();
     const host = await signup('Link Host', `link.host.${unique}@example.com`);
     const tournamentId = await createTournamentAsHost(host.token);
-    const guestEmail = `linked.guest.${unique}@example.com`;
+    const guestUsername = `linked${String(unique).slice(-6)}`;
 
     const guestAddResponse = await request(app)
       .post(`/api/tournaments/${tournamentId}/participants/guest-add`)
       .set(authHeader(host.token))
-      .send({ name: 'Future App User', email: guestEmail });
+      .send({ name: 'Future App User', username: guestUsername });
 
     expect(guestAddResponse.status).toBe(201);
     const guestPlayerId = guestAddResponse.body.data.playerId;
 
-    const guestSignup = await signup('Future App User', guestEmail);
+    const guestSignup = await request(app).post('/api/auth/signup').send({
+      firstName: 'Future',
+      lastName: 'App User',
+      username: guestUsername,
+      password: 'Password123!',
+    });
+
+    expect(guestSignup.status).toBe(201);
 
     const linkedPlayer = await Player.findById(guestPlayerId).lean();
-    expect(String(linkedPlayer.userId)).toBe(guestSignup.userId);
-    expect(linkedPlayer.pendingLinkEmail).toBeNull();
+    expect(String(linkedPlayer.userId)).toBe(guestSignup.body.data.user.id);
+    expect(linkedPlayer.pendingLinkUsername).toBeNull();
 
     const registration = await TournamentRegistration.findOne({
       tournamentId,
-      userId: guestSignup.userId,
+      userId: guestSignup.body.data.user.id,
       status: 'approved',
     }).lean();
 
@@ -211,7 +192,7 @@ describe('Guest player add and email linking', () => {
 
     const discoverResponse = await request(app)
       .get('/api/tournaments/discover?page=1&pageSize=20')
-      .set(authHeader(guestSignup.token));
+      .set(authHeader(guestSignup.body.data.token));
 
     expect(discoverResponse.status).toBe(200);
     const tournamentItem = discoverResponse.body.data.items.find((item) => item.id === tournamentId);
@@ -261,12 +242,14 @@ describe('Guest player add and email linking', () => {
 
     const gamesBeforeGuestAdd = await Game.countDocuments({ tournamentId, stage: 'groupStage' });
 
+    const guestUsername = `lateguest${String(unique).slice(-6)}`;
+
     const guestAddResponse = await request(app)
       .post(`/api/tournaments/${tournamentId}/participants/guest-add`)
       .set(authHeader(host.token))
       .send({
         name: 'Late Guest',
-        email: `lateguest.${unique}@example.com`,
+        username: guestUsername,
       });
 
     expect(guestAddResponse.status).toBe(201);
@@ -278,7 +261,7 @@ describe('Guest player add and email linking', () => {
 
     const guestPlayer = await Player.findOne({
       tournamentId,
-      pendingLinkEmail: `lateguest.${unique}@example.com`,
+      pendingLinkUsername: guestUsername,
     }).lean();
 
     const divisions = await Division.find({ tournamentId, name: { $ne: 'Final Stage' } }).lean();

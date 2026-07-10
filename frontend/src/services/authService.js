@@ -1,12 +1,33 @@
-import { apiPost, apiPostWithWakeRetry } from './api';
+import { apiGet, apiPostWithWakeRetry } from './api';
 
-export async function signupUser({ name, email, password }) {
-  const response = await apiPostWithWakeRetry('/api/auth/signup', { name, email, password });
+export async function checkUsernameAvailability(username, purpose = 'signup') {
+  const response = await apiGet('/api/auth/username/check', {
+    params: {
+      username,
+      purpose,
+    },
+  });
   return response.data;
 }
 
-export async function loginUser({ email, password }) {
-  const response = await apiPostWithWakeRetry('/api/auth/login', { email, password });
+export async function signupUser({ firstName, lastName, username, email, password }) {
+  const payload = {
+    firstName,
+    lastName,
+    username,
+    password,
+  };
+
+  if (email) {
+    payload.email = email;
+  }
+
+  const response = await apiPostWithWakeRetry('/api/auth/signup', payload);
+  return response.data;
+}
+
+export async function loginUser({ username, password }) {
+  const response = await apiPostWithWakeRetry('/api/auth/login', { username, password });
   return response.data;
 }
 

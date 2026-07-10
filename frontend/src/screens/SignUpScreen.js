@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { ScaledText as Text } from '../components/ui/ScaledText';
 import {
@@ -11,30 +11,65 @@ import {
   AuthSidePanel,
   AuthTextLink,
 } from '../components/auth/AuthChrome';
+import { AuthUsernameField } from '../components/auth/AuthUsernameField';
 import { LegalConsent, LegalFooter } from '../components/legal/LegalLinks';
 import { GoogleSignInSection } from '../components/auth/GoogleSignInSection';
 import { isGoogleSignInAvailable } from '../config/googleAuth';
 import { useAuth } from '../context/AuthContext';
+import { useUsernameAvailability } from '../hooks/useUsernameAvailability';
 import { tournamentColors } from '../styles/tournamentUi';
 import { getAuthErrorMessage } from '../utils/authErrors';
 import { hasValidationErrors, validateSignUpInput } from '../utils/authValidation';
 import { navigateAfterAuth } from '../utils/navigateAfterAuth';
+import { navigateAfterGoogleAuth } from '../utils/navigateAfterGoogleAuth';
+import { suggestUsernameFromFirstName } from '../utils/usernameUtils';
 
 export function SignUpScreen({ navigation, route }) {
   const { signUp, signInWithGoogle } = useAuth();
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [acceptedLegal, setAcceptedLegal] = useState(false);
   const [legalError, setLegalError] = useState('');
-  const [fieldErrors, setFieldErrors] = useState({ name: '', email: '', password: '', confirmPassword: '' });
+  const [fieldErrors, setFieldErrors] = useState({
+    firstName: '',
+    lastName: '',
+    username: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+  });
   const [errorText, setErrorText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
+  const usernameTouchedRef = useRef(false);
+
+  const { status, reason, isAvailable, isChecking } = useUsernameAvailability(username, {
+    purpose: 'signup',
+    enabled: Boolean(username),
+  });
+
+  useEffect(() => {
+    if (usernameTouchedRef.current) {
+      return;
+    }
+
+    const suggestion = suggestUsernameFromFirstName(firstName);
+    setUsername(suggestion);
+  }, [firstName]);
 
   const onSubmit = async () => {
-    const { errors, sanitized } = validateSignUpInput({ name, email, password, confirmPassword });
+    const { errors, sanitized } = validateSignUpInput({
+      firstName,
+      lastName,
+      username,
+      email,
+      password,
+      confirmPassword,
+    });
     setFieldErrors(errors);
 
     if (!acceptedLegal) {
@@ -45,6 +80,11 @@ export function SignUpScreen({ navigation, route }) {
 
     if (hasValidationErrors(errors)) {
       setErrorText('Please fix the highlighted fields.');
+      return;
+    }
+
+    if (!isAvailable) {
+      setErrorText('Choose an available username to continue.');
       return;
     }
 
@@ -64,8 +104,8 @@ export function SignUpScreen({ navigation, route }) {
     try {
       setIsGoogleSubmitting(true);
       setErrorText('');
-      await signInWithGoogle(idToken);
-      navigateAfterAuth(navigation, route.params?.returnTo);
+      const result = await signInWithGoogle(idToken);
+      navigateAfterGoogleAuth(navigation, route, result);
     } catch (error) {
       setErrorText(getAuthErrorMessage(error, 'Google sign-in failed. Please try again.'));
     } finally {
@@ -84,12 +124,12 @@ export function SignUpScreen({ navigation, route }) {
             {
               icon: 'registration',
               title: 'One profile',
-              description: 'Use the same account to join events and appear on rosters.',
+              description: 'Use your username to sign in and appear on rosters.',
             },
             {
               icon: 'secure',
               title: 'Your data stays yours',
-              description: 'We only use your name and email to run your Rack n Roll account.',
+              description: 'Email is optional and only used for account recovery when provided.',
             },
             {
               icon: 'celebrate',
@@ -100,26 +140,56 @@ export function SignUpScreen({ navigation, route }) {
         />
       }
     >
-      <AuthFormCard title="Create account" subtitle="You'll use these details to sign in and show up on tournament rosters.">
+      <AuthFormCard title="Create account" subtitle="Choose a username for sign-in and how you appear on tournament rosters.">
         <AuthErrorBanner message={errorText} />
 
         <AuthField
-          label="Display name"
-          placeholder="How others see you"
-          value={name}
+          label="First name"
+          placeholder="First name"
+          value={firstName}
           onChangeText={(value) => {
-            setName(value);
-            setFieldErrors((current) => ({ ...current, name: '' }));
+            setFirstName(value);
+            setFieldErrors((current) => ({ ...current, firstName: '' }));
             setErrorText('');
           }}
-          error={fieldErrors.name}
+          error={fieldErrors.firstName}
           autoCorrect={false}
-          maxLength={80}
+          maxLength={50}
         />
 
         <AuthField
-          label="Email"
-          placeholder="you@example.com"
+          label="Last name"
+          placeholder="Last name"
+          value={lastName}
+          onChangeText={(value) => {
+            setLastName(value);
+            setFieldErrors((current) => ({ ...current, lastName: '' }));
+            setErrorText('');
+          }}
+          error={fieldErrors.lastName}
+          autoCorrect={false}
+          maxLength={50}
+        />
+
+        <AuthUsernameField
+          label="Username"
+          placeholder="your_username"
+          value={username}
+          onChangeText={(value) => {
+            usernameTouchedRef.current = true;
+            setUsername(value);
+            setFieldErrors((current) => ({ ...current, username: '' }));
+            setErrorText('');
+          }}
+          error={fieldErrors.username}
+          availabilityStatus={status}
+          availabilityReason={reason}
+          helperText="Used to sign in. Lowercase letters, numbers, and underscores only."
+        />
+
+        <AuthField
+          label="Email (optional)"
+          placeholder="For password recovery"
           value={email}
           onChangeText={(value) => {
             setEmail(value);
@@ -198,7 +268,7 @@ export function SignUpScreen({ navigation, route }) {
         <AuthPrimaryButton
           label="Create account"
           onPress={onSubmit}
-          disabled={isSubmitting || isGoogleSubmitting}
+          disabled={isSubmitting || isGoogleSubmitting || isChecking}
           loading={isSubmitting}
         />
 

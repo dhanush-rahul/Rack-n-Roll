@@ -126,4 +126,34 @@ describe('User profile integration', () => {
     const response = await request(app).get('/api/users/me/profile');
     expect(response.status).toBe(401);
   });
+
+  test('PATCH /api/users/me/email sets recovery email for accounts without one', async () => {
+    const unique = Date.now();
+    const signupResponse = await request(app).post('/api/auth/signup').send({
+      firstName: 'No',
+      lastName: 'Email',
+      username: `noemail${String(unique).slice(-6)}`,
+      password: 'Password123!',
+    });
+
+    expect(signupResponse.status).toBe(201);
+    const token = signupResponse.body.data.token;
+    const recoveryEmail = `recovery.${unique}@example.com`;
+
+    const updateResponse = await request(app)
+      .patch('/api/users/me/email')
+      .set(authHeader(token))
+      .send({ email: recoveryEmail });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body.data.user.email).toBe(recoveryEmail);
+
+    const duplicateResponse = await request(app)
+      .patch('/api/users/me/email')
+      .set(authHeader(token))
+      .send({ email: `other.${unique}@example.com` });
+
+    expect(duplicateResponse.status).toBe(409);
+    expect(duplicateResponse.body.error.code).toBe('EMAIL_ALREADY_SET');
+  });
 });

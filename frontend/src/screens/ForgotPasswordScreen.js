@@ -196,7 +196,7 @@ export function ForgotPasswordScreen({ navigation }) {
         <AuthHero
           eyebrow="ACCOUNT RECOVERY"
           title="Reset password"
-          subtitle="We'll email a 6-digit PIN. Verify it, then set a new password."
+          subtitle="We'll email a 6-digit PIN to the address on your account. Sign in with your username after resetting."
         />
       }
     >
@@ -211,6 +211,20 @@ export function ForgotPasswordScreen({ navigation }) {
             <Text style={authUi.formSubtitle}>
               Enter the email linked to your account. If it exists, we'll send a reset PIN.
             </Text>
+            <View
+              style={{
+                padding: 12,
+                borderRadius: 12,
+                backgroundColor: '#f8fafc',
+                borderWidth: 1,
+                borderColor: '#e5e7eb',
+                marginBottom: 14,
+              }}
+            >
+              <Text style={{ fontSize: 12, lineHeight: 18, color: '#64748b' }}>
+                Password reset requires an email on file. If you signed up without one, sign in with your username and add a recovery email in Profile first.
+              </Text>
+            </View>
             <AuthField
               label="Email"
               placeholder="you@example.com"
@@ -341,6 +355,11 @@ export function ForgotPasswordScreen({ navigation }) {
       </AuthFormCard>
 
       <AuthTextLink prompt="Remembered it?" actionLabel="Back to sign in" onPress={() => navigation.navigate('SignIn')} />
+      <AuthTextLink
+        prompt="No email on your account?"
+        actionLabel="Sign in and add one in Profile"
+        onPress={() => navigation.navigate('SignIn')}
+      />
       <LegalFooter style={{ marginTop: 4 }} />
     </AuthScreenShell>
   );

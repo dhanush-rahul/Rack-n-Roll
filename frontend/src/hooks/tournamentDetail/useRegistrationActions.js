@@ -161,35 +161,22 @@ export function useRegistrationActions({
   }, []);
 
   const onSubmitGuestPlayer = useCallback(
-    async ({ name, email }) => {
+    async ({ name, username }) => {
       try {
         clearAll();
         setIsAddingGuestPlayer(true);
-        const result = await addGuestTournamentParticipant(tournamentId, { name, email });
+        const result = await addGuestTournamentParticipant(tournamentId, { name, username });
         const groupSync = result?.groupSync;
 
-        if (result?.linkedImmediately) {
-          if (groupSync?.gamesCreated > 0) {
-            showSuccess(
-              `Existing user added to ${groupSync.divisionName || 'a group'} with ${groupSync.gamesCreated} new fixtures.`
-            );
-            gamesTabLoadStartedRef.current = false;
-            groupsTabLoadStartedRef.current = false;
-            await Promise.all([onLoadGroupFixtures(), onLoadGroupsTab()]);
-          } else {
-            showSuccess('Existing user added to the roster.');
-          }
-        } else if (groupSync?.gamesCreated > 0) {
+        if (groupSync?.gamesCreated > 0) {
           showSuccess(
-            `Added ${name}. Invite email sent. Placed in ${groupSync.divisionName || 'a group'} with ${groupSync.gamesCreated} new fixtures.`
+            `Added ${name} (@${username}). Placed in ${groupSync.divisionName || 'a group'} with ${groupSync.gamesCreated} new fixtures. Tell them to sign up as @${username}.`
           );
           gamesTabLoadStartedRef.current = false;
           groupsTabLoadStartedRef.current = false;
           await Promise.all([onLoadGroupFixtures(), onLoadGroupsTab()]);
-        } else if (result?.inviteEmailSent || result?.inviteEmailQueued) {
-          showSuccess(`Added ${name}. Invite email is on its way.`);
         } else {
-          showSuccess(`Added ${name} to the roster. Invite email could not be sent right now.`);
+          showSuccess(`Added ${name} (@${username}). Tell them to sign up with that username to link their account.`);
         }
 
         setIsGuestAddFormVisible(false);
