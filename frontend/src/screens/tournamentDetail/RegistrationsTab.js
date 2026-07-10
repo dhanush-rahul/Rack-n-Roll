@@ -1,8 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Pressable, View } from 'react-native';
+import React from 'react';
+import { View } from 'react-native';
 import { ScaledText as Text } from '../../components/ui/ScaledText';
 import { ScaledTextInput as TextInput } from '../../components/ui/ScaledTextInput';
-import { AppIcon } from '../../components/ui/AppIcon';
 import {
   ActionButton,
   CollapsibleSectionCard,
@@ -11,113 +10,8 @@ import {
   SectionCard,
 } from '../../components/tournament/TournamentChrome';
 import { tournamentColors, tournamentUi } from '../../styles/tournamentUi';
-import {
-  formatPendingRowSubtitle,
-  formatPendingRowTitle,
-  formatRosterRowSubtitle,
-  formatRosterRowTitle,
-  formatSearchUserSubtitle,
-} from '../../utils/rosterDisplay';
 import { ProctorsSection } from './ProctorsSection';
 import { TeamsSection } from './TeamsSection';
-
-function ReplaceBanner({ replaceTarget, onCancelReplace }) {
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(-8)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 280,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 280,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [fadeAnim, slideAnim]);
-
-  return (
-    <Animated.View
-      style={{
-        opacity: fadeAnim,
-        transform: [{ translateY: slideAnim }],
-        padding: 14,
-        borderRadius: 12,
-        backgroundColor: '#eff6ff',
-        borderWidth: 1,
-        borderColor: '#93c5fd',
-        gap: 8,
-      }}
-    >
-      <Text style={{ fontWeight: '800', color: '#1e40af', fontSize: 15 }}>
-        Replacing {formatRosterRowTitle(replaceTarget)}
-      </Text>
-      <Text style={{ color: '#1d4ed8', fontSize: 13, lineHeight: 18 }}>
-        Use Search & add players below to find a registered user or add a guest. Scheduled group matches will carry
-        over to the replacement.
-      </Text>
-      {onCancelReplace ? (
-        <ActionButton label="Cancel replace" onPress={onCancelReplace} variant="ghost" fullWidth />
-      ) : null}
-    </Animated.View>
-  );
-}
-
-function ApprovedRosterRow({ item, onRequestRemoveParticipant, removeDisabled }) {
-  return (
-    <View
-      style={{
-        borderWidth: 1,
-        borderColor: tournamentColors.borderLight,
-        borderRadius: 12,
-        padding: 12,
-        backgroundColor: '#fafbfc',
-      }}
-    >
-      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
-        <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
-          <Text style={{ fontWeight: '700', fontSize: 15, color: tournamentColors.text }}>
-            {formatRosterRowTitle(item)}
-          </Text>
-          <Text style={{ fontSize: 13, color: tournamentColors.textMuted }}>{formatRosterRowSubtitle(item)}</Text>
-          {item.isGuest ? (
-            <View
-              style={{
-                alignSelf: 'flex-start',
-                marginTop: 4,
-                paddingHorizontal: 8,
-                paddingVertical: 3,
-                borderRadius: 999,
-                backgroundColor: '#fef3c7',
-              }}
-            >
-              <Text style={{ fontSize: 11, fontWeight: '700', color: '#92400e' }}>No account yet</Text>
-            </View>
-          ) : null}
-        </View>
-        {onRequestRemoveParticipant ? (
-          <Pressable
-            onPress={() => onRequestRemoveParticipant(item)}
-            disabled={removeDisabled}
-            accessibilityRole="button"
-            accessibilityLabel={`Remove ${formatRosterRowTitle(item)}`}
-            style={({ pressed }) => ({
-              padding: 6,
-              borderRadius: 8,
-              opacity: removeDisabled ? 0.35 : pressed ? 0.7 : 1,
-            })}
-          >
-            <AppIcon name="trash" size={20} color={tournamentColors.error} />
-          </Pressable>
-        ) : null}
-      </View>
-    </View>
-  );
-}
 
 export function RegistrationsTab({
   searchQuery,
@@ -152,57 +46,9 @@ export function RegistrationsTab({
   currentUserId = null,
   onTeamsChanged,
   onTeamsError,
-  onRequestRemoveParticipant,
-  replaceTarget = null,
-  onCancelReplace,
-  scrollRef = null,
 }) {
-  const [searchSectionExpanded, setSearchSectionExpanded] = useState(false);
-  const searchSectionRef = useRef(null);
-  const isReplaceMode = Boolean(replaceTarget);
-
-  useEffect(() => {
-    if (!isReplaceMode || !scrollRef?.current) {
-      return;
-    }
-
-    setSearchSectionExpanded(true);
-
-    const scrollTimer = setTimeout(() => {
-      searchSectionRef.current?.measure((_x, _y, _width, _height, _pageX, pageY) => {
-        scrollRef.current?.scrollTo?.({ y: Math.max(0, pageY - 96), animated: true });
-      });
-    }, 320);
-
-    return () => clearTimeout(scrollTimer);
-  }, [isReplaceMode, replaceTarget?.id, scrollRef]);
-
   return (
     <View style={{ gap: 14 }}>
-      {replaceTarget ? (
-        <View
-          style={{
-            padding: 14,
-            borderRadius: 12,
-            backgroundColor: '#eff6ff',
-            borderWidth: 1,
-            borderColor: '#bfdbfe',
-          }}
-        >
-          <Text style={{ fontWeight: '800', color: '#1e40af', fontSize: 15 }}>
-            Replacing {formatRosterRowTitle(replaceTarget)}
-          </Text>
-          <Text style={{ color: '#1d4ed8', fontSize: 13, lineHeight: 18, marginTop: 4 }}>
-            Search for a registered player or add a guest below. Scheduled group matches will carry over to the
-            replacement.
-          </Text>
-          {onCancelReplace ? (
-            <View style={{ marginTop: 10 }}>
-              <ActionButton label="Cancel replace" onPress={onCancelReplace} variant="ghost" fullWidth />
-            </View>
-          ) : null}
-        </View>
-      ) : null}
       {isRegistrationClosed && (
         <View
           style={{
@@ -236,8 +82,8 @@ export function RegistrationsTab({
           {pendingItems.map((item) => (
             <ListRowCard
               key={item.id}
-              title={formatPendingRowTitle(item)}
-              subtitle={formatPendingRowSubtitle(item)}
+              title={item.user?.name || item.user?.email || item.userId}
+              subtitle={item.user?.email || item.userId}
             >
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <View style={{ flex: 1 }}>
@@ -297,73 +143,77 @@ export function RegistrationsTab({
             message="Approve requests or add players manually to build the roster."
           />
         )}
-        <View style={{ gap: 8 }}>
-          {approvedItems.map((item) => (
-            <ApprovedRosterRow
-              key={item.id}
-              item={item}
-              onRequestRemoveParticipant={onRequestRemoveParticipant}
-              removeDisabled={isReplaceMode}
-            />
-          ))}
-        </View>
+        {approvedItems.map((item) => (
+          <ListRowCard
+            key={item.id}
+            title={item.user?.name || item.user?.email || item.userId || item.displayName}
+            subtitle={
+              item.isGuest
+                ? `@${item.guestUsername || item.user?.username || 'guest'} · No account yet`
+                : item.user?.username
+                  ? `@${item.user.username}${item.user?.email ? ` · ${item.user.email}` : ''}`
+                  : item.user?.email || item.userId
+            }
+          >
+            {item.isGuest && (
+              <View
+                style={{
+                  alignSelf: 'flex-start',
+                  marginTop: 4,
+                  paddingHorizontal: 8,
+                  paddingVertical: 3,
+                  borderRadius: 999,
+                  backgroundColor: '#fef3c7',
+                }}
+              >
+                <Text style={{ fontSize: 11, fontWeight: '700', color: '#92400e' }}>No account yet</Text>
+              </View>
+            )}
+          </ListRowCard>
+        ))}
       </CollapsibleSectionCard>
 
-      {isReplaceMode ? <ReplaceBanner replaceTarget={replaceTarget} onCancelReplace={onCancelReplace} /> : null}
-
-      <View ref={searchSectionRef}>
-        <CollapsibleSectionCard
-          title="Search & add players"
-          subtitle={
-            isReplaceMode
-              ? 'Search for a registered player or add a guest to complete the replacement.'
-              : 'Find registered users by name or username, or add a guest without an account.'
-          }
-          expanded={isReplaceMode ? true : searchSectionExpanded}
-          onExpandedChange={setSearchSectionExpanded}
-          highlighted={isReplaceMode}
-          defaultExpanded={false}
-        >
-          <Text style={{ fontSize: 12, lineHeight: 17, color: tournamentColors.textMuted }}>
-            {isRegistrationClosed
-              ? 'Host override: search and add players even after registration is closed.'
-              : 'Search by name or username and add them directly.'}
-          </Text>
-          <TextInput
-            style={tournamentUi.input}
-            placeholder="Search name or username"
-            value={searchQuery}
-            onChangeText={onSearchQueryChange}
-            autoCapitalize="none"
-          />
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <View style={{ flex: 1 }}>
-              <ActionButton
-                label={isSearchingUsers ? 'Searching…' : 'Search users'}
-                onPress={onSearchUsers}
-                disabled={isSearchingUsers}
-                fullWidth
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <ActionButton
-                label={isReplaceMode ? 'Add replacement guest' : 'Add guest'}
-                onPress={onOpenAddGuestPlayer}
-                variant="secondary"
-                fullWidth
-              />
-            </View>
+      <CollapsibleSectionCard
+        title="Search & add players"
+        subtitle="Find registered users by name or username, or add a guest without an account."
+        defaultExpanded={false}
+      >
+        <Text style={{ fontSize: 12, lineHeight: 17, color: tournamentColors.textMuted }}>
+          {isRegistrationClosed
+            ? 'Host override: search and add players even after registration is closed.'
+            : 'Search by name or username and add them directly.'}
+        </Text>
+        <TextInput
+          style={tournamentUi.input}
+          placeholder="Search name or username"
+          value={searchQuery}
+          onChangeText={onSearchQueryChange}
+          autoCapitalize="none"
+        />
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <View style={{ flex: 1 }}>
+            <ActionButton
+              label={isSearchingUsers ? 'Searching…' : 'Search users'}
+              onPress={onSearchUsers}
+              disabled={isSearchingUsers}
+              fullWidth
+            />
           </View>
-        </CollapsibleSectionCard>
-      </View>
+          <View style={{ flex: 1 }}>
+            <ActionButton label="Add guest" onPress={onOpenAddGuestPlayer} variant="secondary" fullWidth />
+          </View>
+        </View>
+      </CollapsibleSectionCard>
 
       {userSearchResults.length > 0 && (
         <CollapsibleSectionCard
           title={`Search results (${userSearchResults.length})`}
-          subtitle="Results from your latest search."
+          subtitle="Tap close when you want to review roster details above."
           defaultExpanded
-          highlighted={isReplaceMode}
         >
+          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 4 }}>
+            <ActionButton label="Close search" onPress={onClearUserSearch} variant="ghost" />
+          </View>
           {userSearchResults.map((user) => {
             const isAlreadyApproved = user.registrationStatus === 'approved';
             const isAdding = busyManualAddUserId === user.id;
@@ -371,8 +221,12 @@ export function RegistrationsTab({
             return (
               <ListRowCard
                 key={user.id}
-                title={user.name || user.username || 'Player'}
-                subtitle={formatSearchUserSubtitle(user)}
+                title={user.name || user.username || user.email || user.id}
+                subtitle={
+                  user.username
+                    ? `@${user.username}${user.email ? ` · ${user.email}` : ''}`
+                    : user.email || 'No username on file'
+                }
               >
                 {isAlreadyApproved ? (
                   <View
@@ -389,15 +243,7 @@ export function RegistrationsTab({
                   </View>
                 ) : (
                   <ActionButton
-                    label={
-                      isAdding
-                        ? isReplaceMode
-                          ? 'Replacing…'
-                          : 'Adding…'
-                        : isReplaceMode
-                          ? 'Use as replacement'
-                          : 'Add to roster'
-                    }
+                    label={isAdding ? 'Adding…' : 'Add to roster'}
                     onPress={() => onManualAddParticipant(user.id)}
                     disabled={isAdding}
                     variant="secondary"

@@ -226,23 +226,6 @@ const validateSignupInput = async ({ firstName, lastName, username, name, email,
   };
 };
 
-const buildLocalUserCreatePayload = ({ username, firstName, lastName, name, email, passwordHash }) => {
-  const payload = {
-    username,
-    firstName,
-    lastName,
-    name,
-    passwordHash,
-    authProvider: 'local',
-  };
-
-  if (email) {
-    payload.email = email;
-  }
-
-  return payload;
-};
-
 const signup = async (payload = {}) => {
   const signupInput = await validateSignupInput(payload);
   const passwordHash = await bcrypt.hash(signupInput.password, SALT_ROUNDS);
@@ -259,16 +242,15 @@ const signup = async (payload = {}) => {
     );
   }
 
-  const createdUser = await User.create(
-    buildLocalUserCreatePayload({
-      username: signupInput.username,
-      firstName: signupInput.firstName,
-      lastName: signupInput.lastName,
-      name: signupInput.name,
-      email: signupInput.email,
-      passwordHash,
-    })
-  );
+  const createdUser = await User.create({
+    username: signupInput.username,
+    firstName: signupInput.firstName,
+    lastName: signupInput.lastName,
+    name: signupInput.name,
+    email: signupInput.email,
+    passwordHash,
+    authProvider: 'local',
+  });
 
   await linkPendingGuestPlayersForUser(createdUser._id);
 

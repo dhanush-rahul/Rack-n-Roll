@@ -94,7 +94,7 @@ export function SignInScreen({ navigation, route }) {
 
         <AuthField
           label="Username"
-          placeholder="Enter username"
+          placeholder="your_username"
           value={username}
           onChangeText={(value) => {
             setUsername(value);

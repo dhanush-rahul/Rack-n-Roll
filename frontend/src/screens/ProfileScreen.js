@@ -327,7 +327,7 @@ export function ProfileScreen({ navigation }) {
 
                     <AuthUsernameField
                       label="Username"
-                      placeholder="Enter username"
+                      placeholder="your_username"
                       value={usernameInput}
                       onChangeText={(value) => {
                         setUsernameInput(value);

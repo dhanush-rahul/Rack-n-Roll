@@ -20,7 +20,6 @@ export function AuthUsernameField({
   availabilityStatus = 'idle',
   availabilityReason,
   helperText,
-  placeholder = 'Enter username',
   ...textInputProps
 }) {
   const showAvailable = availabilityStatus === 'available' && !error;
@@ -46,7 +45,6 @@ export function AuthUsernameField({
           autoCapitalize="none"
           autoCorrect={false}
           maxLength={20}
-          placeholder={placeholder}
           {...textInputProps}
         />
         <View

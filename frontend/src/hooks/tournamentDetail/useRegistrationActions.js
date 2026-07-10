@@ -6,15 +6,11 @@ import {
   closeTournamentRegistration,
   manuallyAddTournamentParticipant,
   rejectTournamentRegistrationRequest,
-  removeApprovedTournamentParticipant,
-  removeGuestTournamentParticipant,
-  replaceTournamentParticipant,
   searchTournamentManualAddUsers,
   updateHostTournamentSettings,
 } from '../../services/tournamentService';
 import { formatApiError } from '../useScreenFeedback';
 import { useInvalidateTournamentTeamsData } from '../queries/useTournamentTeamsData';
-import { formatRosterRowTitle, getRosterOutgoingPlayerId } from '../../utils/rosterDisplay';
 
 export function useRegistrationActions({
   tournamentId,
@@ -49,10 +45,6 @@ export function useRegistrationActions({
   const [pairTeamsRandomInput, setPairTeamsRandomInput] = useState(true);
   const [maxParticipantsInput, setMaxParticipantsInput] = useState('');
   const [isSavingMaxParticipants, setIsSavingMaxParticipants] = useState(false);
-  const [removeTarget, setRemoveTarget] = useState(null);
-  const [isRemoveConfirmVisible, setIsRemoveConfirmVisible] = useState(false);
-  const [isRemovingParticipant, setIsRemovingParticipant] = useState(false);
-  const [replaceTarget, setReplaceTarget] = useState(null);
 
   useEffect(() => {
     if (!detail || initializedForTournamentRef.current === tournamentId) {
@@ -68,64 +60,6 @@ export function useRegistrationActions({
       await invalidateTeamsData(tournamentId);
     }
   }, [invalidateTeamsData, isDoubles, loadDetail, loadRegistrations, tournamentId]);
-
-  const refreshRosterAndFixtures = useCallback(async () => {
-    gamesTabLoadStartedRef.current = false;
-    groupsTabLoadStartedRef.current = false;
-    await Promise.all([refreshRoster(), onLoadGroupFixtures(), onLoadGroupsTab()]);
-  }, [gamesTabLoadStartedRef, groupsTabLoadStartedRef, onLoadGroupFixtures, onLoadGroupsTab, refreshRoster]);
-
-  const onRequestRemoveParticipant = useCallback((item) => {
-    clearAll();
-    setRemoveTarget(item);
-    setIsRemoveConfirmVisible(true);
-  }, [clearAll]);
-
-  const onCancelRemoveParticipant = useCallback(() => {
-    if (isRemovingParticipant) {
-      return;
-    }
-    setIsRemoveConfirmVisible(false);
-    setRemoveTarget(null);
-  }, [isRemovingParticipant]);
-
-  const onChooseReplaceInstead = useCallback(() => {
-    setReplaceTarget(removeTarget);
-    setIsRemoveConfirmVisible(false);
-    setRemoveTarget(null);
-  }, [removeTarget]);
-
-  const onCancelReplace = useCallback(() => {
-    setReplaceTarget(null);
-  }, []);
-
-  const onConfirmRemoveParticipant = useCallback(async () => {
-    const item = removeTarget;
-
-    if (!item) {
-      return;
-    }
-
-    try {
-      clearAll();
-      setIsRemovingParticipant(true);
-
-      if (item.isGuest) {
-        await removeGuestTournamentParticipant(tournamentId, item.playerId || item.id);
-      } else {
-        await removeApprovedTournamentParticipant(tournamentId, item.userId);
-      }
-
-      showSuccess(`${formatRosterRowTitle(item)} was removed from the roster.`);
-      setIsRemoveConfirmVisible(false);
-      setRemoveTarget(null);
-      await refreshRosterAndFixtures();
-    } catch (error) {
-      showError(formatApiError(error, 'Unable to remove participant'));
-    } finally {
-      setIsRemovingParticipant(false);
-    }
-  }, [clearAll, refreshRosterAndFixtures, removeTarget, showError, showSuccess, tournamentId]);
 
   const onReviewRegistration = useCallback(
     async (registrationId, nextStatus) => {
@@ -179,29 +113,6 @@ export function useRegistrationActions({
       try {
         clearAll();
         setBusyManualAddUserId(userId);
-
-        if (replaceTarget) {
-          const outgoingPlayerId = getRosterOutgoingPlayerId(replaceTarget);
-
-          if (!outgoingPlayerId) {
-            showError('Unable to replace this participant because the player record is missing.');
-            return;
-          }
-
-          const result = await replaceTournamentParticipant(tournamentId, {
-            outgoingPlayerId,
-            replacement: { type: 'user', userId },
-          });
-
-          showSuccess(
-            `Replaced ${formatRosterRowTitle(replaceTarget)}. ${result?.gamesUpdated || 0} scheduled match(es) updated.`
-          );
-          setReplaceTarget(null);
-          await refreshRosterAndFixtures();
-          setUserSearchResults([]);
-          return;
-        }
-
         const result = await manuallyAddTournamentParticipant(tournamentId, userId);
         const groupSync = result?.groupSync;
 
@@ -233,8 +144,6 @@ export function useRegistrationActions({
       onLoadGroupFixtures,
       onLoadGroupsTab,
       refreshRoster,
-      refreshRosterAndFixtures,
-      replaceTarget,
       showError,
       showSuccess,
       tournamentId,
@@ -243,12 +152,8 @@ export function useRegistrationActions({
 
   const onOpenAddGuestPlayer = useCallback(() => {
     clearAll();
-    if (replaceTarget) {
-      setIsGuestAddFormVisible(true);
-      return;
-    }
     setIsGuestAddConfirmVisible(true);
-  }, [clearAll, replaceTarget]);
+  }, [clearAll]);
 
   const onConfirmGuestAddIntro = useCallback(() => {
     setIsGuestAddConfirmVisible(false);
@@ -260,29 +165,6 @@ export function useRegistrationActions({
       try {
         clearAll();
         setIsAddingGuestPlayer(true);
-
-        if (replaceTarget) {
-          const outgoingPlayerId = getRosterOutgoingPlayerId(replaceTarget);
-
-          if (!outgoingPlayerId) {
-            showError('Unable to replace this participant because the player record is missing.');
-            return;
-          }
-
-          const result = await replaceTournamentParticipant(tournamentId, {
-            outgoingPlayerId,
-            replacement: { type: 'guest', rosterName: name, username },
-          });
-
-          showSuccess(
-            `Replaced ${formatRosterRowTitle(replaceTarget)} with ${name} (@${username}). ${result?.gamesUpdated || 0} scheduled match(es) updated.`
-          );
-          setReplaceTarget(null);
-          setIsGuestAddFormVisible(false);
-          await refreshRosterAndFixtures();
-          return;
-        }
-
         const result = await addGuestTournamentParticipant(tournamentId, { name, username });
         const groupSync = result?.groupSync;
 
@@ -309,11 +191,11 @@ export function useRegistrationActions({
       clearAll,
       gamesTabLoadStartedRef,
       groupsTabLoadStartedRef,
+      loadDetail,
+      loadRegistrations,
+      refreshRoster,
       onLoadGroupFixtures,
       onLoadGroupsTab,
-      refreshRoster,
-      refreshRosterAndFixtures,
-      replaceTarget,
       showError,
       showSuccess,
       tournamentId,
@@ -422,16 +304,6 @@ export function useRegistrationActions({
     maxParticipantsInput,
     setMaxParticipantsInput,
     isSavingMaxParticipants,
-    removeTarget,
-    isRemoveConfirmVisible,
-    isRemovingParticipant,
-    replaceTarget,
-    setReplaceTarget,
-    onRequestRemoveParticipant,
-    onCancelRemoveParticipant,
-    onConfirmRemoveParticipant,
-    onChooseReplaceInstead,
-    onCancelReplace,
     onReviewRegistration,
     onSearchUsers,
     onClearUserSearch,

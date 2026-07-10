@@ -10,14 +10,7 @@ import { tournamentColors, tournamentUi } from '../styles/tournamentUi';
 import { getWebModalStyles } from '../utils/modalStyles';
 import { suggestUsernameFromFirstName, validateUsernameFormat } from '../utils/usernameUtils';
 
-export function AddGuestPlayerModal({
-  visible,
-  onCancel,
-  onSubmit,
-  isLoading = false,
-  title = 'Add guest player',
-  subtitle,
-}) {
+export function AddGuestPlayerModal({ visible, onCancel, onSubmit, isLoading = false }) {
   const { width } = useTypography();
   const webModal = getWebModalStyles(width);
   const [rosterName, setRosterName] = useState('');
@@ -79,10 +72,10 @@ export function AddGuestPlayerModal({
             bounces={false}
           >
             <View style={[tournamentUi.modalCard, webModal?.card, { gap: 12 }]}>
-              <Text style={[tournamentUi.modalTitle, webModal?.title]}>{title}</Text>
+              <Text style={[tournamentUi.modalTitle, webModal?.title]}>Add guest player</Text>
               <Text style={[tournamentUi.modalMessage, webModal?.message, { textAlign: 'left' }]}>
-                {subtitle ||
-                  'Add someone who does not have a Rack n Roll account yet. Enter the username they will use when they sign up — their roster entry links automatically.'}
+                Add someone who does not have a Rack n Roll account yet. Enter the username they will use when they sign
+                up — their roster entry links automatically.
               </Text>
 
               <Text style={{ fontSize: 12, fontWeight: '700', color: tournamentColors.textMuted }}>Roster name</Text>
@@ -98,7 +91,7 @@ export function AddGuestPlayerModal({
 
               <AuthUsernameField
                 label="Username for sign-up"
-                placeholder="Enter username"
+                placeholder="username_they_will_use"
                 value={username}
                 onChangeText={(value) => {
                   usernameTouchedRef.current = true;
@@ -133,7 +126,7 @@ export function AddGuestPlayerModal({
                 </View>
                 <View style={{ flex: 1 }}>
                   <ActionButton
-                    label={isLoading ? (title.toLowerCase().includes('replace') ? 'Replacing…' : 'Adding…') : title.toLowerCase().includes('replace') ? 'Replace' : 'Add guest'}
+                    label={isLoading ? 'Adding…' : 'Add guest'}
                     onPress={handleSubmit}
                     disabled={!canSubmit}
                     fullWidth

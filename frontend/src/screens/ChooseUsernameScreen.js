@@ -97,7 +97,7 @@ export function ChooseUsernameScreen({ navigation, route }) {
 
         <AuthUsernameField
           label="Username"
-          placeholder="Enter username"
+          placeholder="your_username"
           value={username}
           onChangeText={(value) => {
             setUsername(value);

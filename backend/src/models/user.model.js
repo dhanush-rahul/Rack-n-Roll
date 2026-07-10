@@ -36,6 +36,13 @@ const userSchema = new mongoose.Schema(
       sparse: true,
       lowercase: true,
       trim: true,
+      default: null,
+    },
+    usernameChangeCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 2,
     },
     usernameChangeCount: {
       type: Number,
