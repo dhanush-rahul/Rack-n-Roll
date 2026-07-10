@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { Button, Pressable, View } from 'react-native';
+import { Button, Platform, Pressable, View } from 'react-native';
 import { ScaledText as Text } from './ui/ScaledText';
 import { ScaledTextInput as TextInput } from './ui/ScaledTextInput';
 import { AppIcon } from './ui/AppIcon';
@@ -102,6 +102,32 @@ export function MatchCard({
     });
   }, [expectedEntriesCount, game.id, game.playerA, game.playerAId, game.playerB, game.playerBId, onSaveScores, roundNumber, scoreStateKey]);
 
+  const scoreInputStyle = {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    backgroundColor: '#fff',
+    flex: 1,
+    minWidth: 0,
+    maxWidth: Platform.OS === 'web' ? 72 : undefined,
+    ...(Platform.OS === 'web' ? { boxSizing: 'border-box' } : null),
+  };
+
+  const ScoreInputCell = ({ value, onChangeText }) => (
+    <View style={{ flex: 1, minWidth: 0 }}>
+      <TextInput
+        style={scoreInputStyle}
+        placeholder="0"
+        value={value}
+        onChangeText={onChangeText}
+        keyboardType="numeric"
+        editable={editable}
+      />
+    </View>
+  );
+
   return (
     <View
       style={{
@@ -163,37 +189,13 @@ export function MatchCard({
               <Text style={{ width: 48, color: '#111827', fontWeight: '600', fontSize: 12 }}>
                 G{entryIndex + 1}
               </Text>
-              <TextInput
-                style={{
-                  borderWidth: 1,
-                  borderColor: '#d1d5db',
-                  borderRadius: 8,
-                  paddingVertical: 6,
-                  paddingHorizontal: 8,
-                  backgroundColor: '#fff',
-                  flex: 1,
-                }}
-                placeholder="0"
+              <ScoreInputCell
                 value={entry.playerAScore}
                 onChangeText={(value) => handleChangeScore(entryIndex, 'playerAScore', value)}
-                keyboardType="numeric"
-                editable={editable}
               />
-              <TextInput
-                style={{
-                  borderWidth: 1,
-                  borderColor: '#d1d5db',
-                  borderRadius: 8,
-                  paddingVertical: 6,
-                  paddingHorizontal: 8,
-                  backgroundColor: '#fff',
-                  flex: 1,
-                }}
-                placeholder="0"
+              <ScoreInputCell
                 value={entry.playerBScore}
                 onChangeText={(value) => handleChangeScore(entryIndex, 'playerBScore', value)}
-                keyboardType="numeric"
-                editable={editable}
               />
             </View>
           );

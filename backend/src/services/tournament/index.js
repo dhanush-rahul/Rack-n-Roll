@@ -1,6 +1,6 @@
 const { createTournament, listDiscoverTournaments, listMyRegisteredDiscoverTournaments, getHostTournamentDetail, validateInviteCodeForTournament, updateHostTournamentSettings, closeTournamentRegistration } = require('./discovery.service');
 const { submitRegistrationRequest, listPendingRegistrationRequests, listHostRegistrations, approveRegistrationRequest, rejectRegistrationRequest, searchManualAddUsers, getRoundRobinPlayingPattern } = require('./registration.service');
-const { manuallyAddParticipant, manuallyRemoveParticipant, addGuestParticipant, linkPendingGuestPlayersForUser, removeGuestParticipant, assignScoreEditor, removeScoreEditor, requestProctorTransfer, acceptProctorTransfer, declineProctorTransfer } = require('./participants.service');
+const { manuallyAddParticipant, manuallyRemoveParticipant, addGuestParticipant, linkPendingGuestPlayersForUser, removeGuestParticipant, replaceApprovedParticipant, assignScoreEditor, removeScoreEditor, requestProctorTransfer, acceptProctorTransfer, declineProctorTransfer } = require('./participants.service');
 const { isStageProctored, canUserEditGameScores } = require('./shared');
 const { canUserEditTournamentScores, assertCanEditTournamentScores, assertCanEditGameScores, assertUserCanScheduleMatch } = require('./permissions');
 const { listTournamentScoresheet, updateGameScores, updateGameSchedule, upsertAndScoreGroupStageGame } = require('./scoring.service');
@@ -26,6 +26,7 @@ module.exports = {
   linkPendingGuestPlayersForUser,
   manuallyRemoveParticipant,
   removeGuestParticipant,
+  replaceApprovedParticipant,
   assignScoreEditor,
   removeScoreEditor,
   requestProctorTransfer,

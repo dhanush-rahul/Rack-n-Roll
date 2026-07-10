@@ -30,8 +30,12 @@ const resolvePathParam = (req, key) => {
     return pathParts[4];
   }
 
-  if (key === 'userId' && pathParts[3] === 'participants') {
+  if (key === 'userId' && pathParts[3] === 'participants' && pathParts[4] !== 'guest') {
     return pathParts[4];
+  }
+
+  if (key === 'playerId' && pathParts[3] === 'participants' && pathParts[4] === 'guest') {
+    return pathParts[5];
   }
 
   if (key === 'editorUserId' && pathParts[3] === 'score-editors') {
@@ -266,6 +270,38 @@ const validateManualRemoveParticipant = (req) => {
   ensureObjectIdParam(req, 'userId');
 };
 
+const validateReplaceParticipant = (req) => {
+  ensureObjectIdParam(req, 'tournamentId');
+  const body = parseBody(req);
+  const outgoingPlayerId = String(body.outgoingPlayerId || '').trim();
+  const replacement = body.replacement || {};
+
+  if (!isObjectId(outgoingPlayerId) || !mongoose.Types.ObjectId.isValid(outgoingPlayerId)) {
+    throw new ApiError(400, 'INVALID_ID', 'outgoingPlayerId must be a valid ObjectId');
+  }
+
+  if (replacement.type === 'user') {
+    const userId = String(replacement.userId || '').trim();
+
+    if (!isObjectId(userId) || !mongoose.Types.ObjectId.isValid(userId)) {
+      throw new ApiError(400, 'INVALID_ID', 'replacement.userId must be a valid ObjectId');
+    }
+  } else if (replacement.type === 'guest') {
+    const name = String(replacement.rosterName || replacement.name || '').trim();
+    const username = String(replacement.username || '').trim();
+
+    if (name.length < 2) {
+      throw new ApiError(400, 'INVALID_NAME', 'replacement.rosterName must be at least 2 characters');
+    }
+
+    if (!username) {
+      throw new ApiError(400, 'INVALID_USERNAME', 'replacement.username is required');
+    }
+  } else {
+    throw new ApiError(400, 'INVALID_REPLACEMENT', 'replacement.type must be user or guest');
+  }
+};
+
 const validateAssignScoreEditor = (req) => {
   ensureObjectIdParam(req, 'tournamentId');
   const editorUserId = parseBody(req).editorUserId;
@@ -419,13 +455,18 @@ const routeValidators = [
   },
   {
     method: 'POST',
-    regex: /^\/api\/tournaments\/[^/]+\/participants\/[^/]+\/remove$/,
-    validate: validateManualRemoveParticipant,
+    regex: /^\/api\/tournaments\/[^/]+\/participants\/guest\/[^/]+\/remove$/,
+    validate: validateRemoveGuestParticipant,
   },
   {
     method: 'POST',
-    regex: /^\/api\/tournaments\/[^/]+\/participants\/guest\/[^/]+\/remove$/,
-    validate: validateRemoveGuestParticipant,
+    regex: /^\/api\/tournaments\/[^/]+\/participants\/replace$/,
+    validate: validateReplaceParticipant,
+  },
+  {
+    method: 'POST',
+    regex: /^\/api\/tournaments\/[^/]+\/participants\/[^/]+\/remove$/,
+    validate: validateManualRemoveParticipant,
   },
   { method: 'POST', regex: /^\/api\/tournaments\/[^/]+\/score-editors$/, validate: validateAssignScoreEditor },
   {

@@ -10,7 +10,14 @@ import { tournamentColors, tournamentUi } from '../styles/tournamentUi';
 import { getWebModalStyles } from '../utils/modalStyles';
 import { suggestUsernameFromFirstName, validateUsernameFormat } from '../utils/usernameUtils';
 
-export function AddGuestPlayerModal({ visible, onCancel, onSubmit, isLoading = false }) {
+export function AddGuestPlayerModal({
+  visible,
+  onCancel,
+  onSubmit,
+  isLoading = false,
+  title = 'Add guest player',
+  subtitle,
+}) {
   const { width } = useTypography();
   const webModal = getWebModalStyles(width);
   const [rosterName, setRosterName] = useState('');
@@ -72,10 +79,10 @@ export function AddGuestPlayerModal({ visible, onCancel, onSubmit, isLoading = f
             bounces={false}
           >
             <View style={[tournamentUi.modalCard, webModal?.card, { gap: 12 }]}>
-              <Text style={[tournamentUi.modalTitle, webModal?.title]}>Add guest player</Text>
+              <Text style={[tournamentUi.modalTitle, webModal?.title]}>{title}</Text>
               <Text style={[tournamentUi.modalMessage, webModal?.message, { textAlign: 'left' }]}>
-                Add someone who does not have a Rack n Roll account yet. Enter the username they will use when they sign
-                up — their roster entry links automatically.
+                {subtitle ||
+                  'Add someone who does not have a Rack n Roll account yet. Enter the username they will use when they sign up — their roster entry links automatically.'}
               </Text>
 
               <Text style={{ fontSize: 12, fontWeight: '700', color: tournamentColors.textMuted }}>Roster name</Text>
@@ -126,7 +133,7 @@ export function AddGuestPlayerModal({ visible, onCancel, onSubmit, isLoading = f
                 </View>
                 <View style={{ flex: 1 }}>
                   <ActionButton
-                    label={isLoading ? 'Adding…' : 'Add guest'}
+                    label={isLoading ? (title.toLowerCase().includes('replace') ? 'Replacing…' : 'Adding…') : title.toLowerCase().includes('replace') ? 'Replace' : 'Add guest'}
                     onPress={handleSubmit}
                     disabled={!canSubmit}
                     fullWidth
