@@ -179,6 +179,30 @@ export function RegistrationsTab({
 
   return (
     <View style={{ gap: 14 }}>
+      {replaceTarget ? (
+        <View
+          style={{
+            padding: 14,
+            borderRadius: 12,
+            backgroundColor: '#eff6ff',
+            borderWidth: 1,
+            borderColor: '#bfdbfe',
+          }}
+        >
+          <Text style={{ fontWeight: '800', color: '#1e40af', fontSize: 15 }}>
+            Replacing {formatRosterRowTitle(replaceTarget)}
+          </Text>
+          <Text style={{ color: '#1d4ed8', fontSize: 13, lineHeight: 18, marginTop: 4 }}>
+            Search for a registered player or add a guest below. Scheduled group matches will carry over to the
+            replacement.
+          </Text>
+          {onCancelReplace ? (
+            <View style={{ marginTop: 10 }}>
+              <ActionButton label="Cancel replace" onPress={onCancelReplace} variant="ghost" fullWidth />
+            </View>
+          ) : null}
+        </View>
+      ) : null}
       {isRegistrationClosed && (
         <View
           style={{
