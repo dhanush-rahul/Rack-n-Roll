@@ -1,6 +1,8 @@
 const appJson = require('./app.json');
 const packageJson = require('./package.json');
 
+const easProjectId = appJson.expo?.extra?.eas?.projectId;
+
 function toGoogleIosUrlScheme(clientId) {
   const normalized = String(clientId || '').trim();
   const match = normalized.match(/^([\w-]+)\.apps\.googleusercontent\.com$/);
@@ -37,10 +39,25 @@ if (iosUrlScheme) {
   ]);
 }
 
+plugins.push('expo-updates');
+
 module.exports = {
   expo: {
     ...appJson.expo,
     version: packageJson.version,
+    runtimeVersion: packageJson.version,
+    updates: easProjectId
+      ? {
+          enabled: true,
+          url: `https://u.expo.dev/${easProjectId}`,
+          checkAutomatically: 'ON_LOAD',
+          fallbackToCacheTimeout: 0,
+        }
+      : undefined,
     plugins,
+    extra: {
+      ...appJson.expo.extra,
+      appVersion: packageJson.version,
+    },
   },
 };
