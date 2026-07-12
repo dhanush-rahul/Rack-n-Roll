@@ -312,12 +312,15 @@ const mapUserSummary = (user) =>
       }
     : null;
 
-const mapRegistrationSummaryWithUser = (registration, userSummaryById) => {
+const mapRegistrationSummaryWithUser = (registration, userSummaryById, rosterNameByUserId = null, playerIdByUserId = null) => {
   const summary = mapRegistrationSummary(registration);
+  const userId = summary.userId;
 
   return {
     ...summary,
-    user: userSummaryById.get(summary.userId) || null,
+    rosterName: rosterNameByUserId?.get(userId) || null,
+    playerId: playerIdByUserId?.get(userId) || null,
+    user: userSummaryById.get(userId) || null,
   };
 };
 
