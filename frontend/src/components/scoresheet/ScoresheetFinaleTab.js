@@ -3,7 +3,7 @@ import { Pressable, View } from 'react-native';
 import { ScaledText as Text } from '../ui/ScaledText';
 import { AppIcon } from '../ui/AppIcon';
 import { EmptyStateCard, SectionCard, TabStatsRow, ToolbarIconButton } from '../tournament/TournamentChrome';
-import { ScoresheetMatchCard } from './ScoresheetMatchCard';
+import { LoadingPlaceholder } from '../ui/LoadingPlaceholder';
 
 export function ScoresheetFinaleTab({
   groupedFinaleRounds,
@@ -33,6 +33,10 @@ export function ScoresheetFinaleTab({
         </View>
       }
     >
+      {isLoadingFinaleTab && groupedFinaleRounds.length === 0 && (
+        <LoadingPlaceholder message="Loading finale matches…" compact />
+      )}
+
       {groupedFinaleRounds.length === 0 && !isLoadingFinaleTab && (
         <EmptyStateCard
           icon="trophy"

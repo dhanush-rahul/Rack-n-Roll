@@ -28,6 +28,7 @@ import { useResponsiveLayout, centeredContentStyle } from '../utils/responsive';
 import { useDiscoverFilters } from '../hooks/useDiscoverFilters';
 import { useHomeBackHandler } from '../hooks/useHomeBackHandler';
 import { DiscoverHero } from '../components/discover/DiscoverHero';
+import { WebInstallPrompt } from '../components/layout/WebInstallPrompt';
 import { DiscoverRegisteredSection } from '../components/discover/DiscoverRegisteredSection';
 import { DiscoverFiltersPanel } from '../components/discover/DiscoverFiltersPanel';
 import { DiscoverTournamentsHeader } from '../components/discover/DiscoverTournamentsHeader';
@@ -38,31 +39,9 @@ import {
   isDiscoverWalkthroughCompleted,
   WALKTHROUGH_FORCE_EVERY_VISIT,
 } from '../utils/onboardingStore';
+import { DiscoverSkeleton } from '../components/ui/DiscoverSkeleton';
 
 const HIGHLIGHT_BLINK_DURATION_MS = 6000;
-
-function SkeletonCard({ pulse }) {
-  return (
-    <Animated.View
-      style={{
-        height: 132,
-        borderRadius: 16,
-        backgroundColor: '#e2e8f0',
-        opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.45, 0.75] }),
-      }}
-    />
-  );
-}
-
-function LoadingPlaceholder({ pulse }) {
-  return (
-    <View style={{ gap: 12 }}>
-      {[0, 1, 2].map((key) => (
-        <SkeletonCard key={key} pulse={pulse} />
-      ))}
-    </View>
-  );
-}
 
 function EmptyDiscoverState({ onCreate, filterId, searchQuery }) {
   const trimmedSearch = searchQuery.trim();
@@ -505,7 +484,7 @@ export function HomeScreen({ navigation, route }) {
   );
 
   const tournamentCards = isLoadingDiscovery && discoveryItems.length === 0 ? (
-    <LoadingPlaceholder pulse={skeletonPulse} />
+    <DiscoverSkeleton pulse={skeletonPulse} />
   ) : filteredItems.length === 0 ? (
     <EmptyDiscoverState onCreate={onCreateTournament} filterId={filterId} searchQuery={searchQuery} />
   ) : (
@@ -593,6 +572,8 @@ export function HomeScreen({ navigation, route }) {
             onCreate={onCreateTournament}
           />
         </View>
+
+        <WebInstallPrompt />
 
         {Boolean(discoveryError) && (
           <View

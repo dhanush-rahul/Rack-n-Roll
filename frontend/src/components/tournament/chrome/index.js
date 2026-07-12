@@ -17,6 +17,7 @@ export const formatProgressionLabel = (state) => {
     registration: 'Registration',
     groupSetup: 'Group setup',
     groupStage: 'Group stage',
+    stageActive: 'Stage active',
     finalStage: 'Finale',
     completed: 'Completed',
   };

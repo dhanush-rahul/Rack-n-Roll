@@ -177,12 +177,27 @@ export const dedupeRoundMatches = (matches = []) => {
   });
 };
 
+export const isKnockoutByeGame = (game = {}) => {
+  if (game.isBye) {
+    return true;
+  }
+
+  const playerAId = String(game.playerAId || game.playerA?.id || game.teamAId || game.teamA?.id || '').trim();
+  const playerBId = String(game.playerBId || game.playerB?.id || game.teamBId || game.teamB?.id || '').trim();
+
+  return Boolean(playerAId) !== Boolean(playerBId);
+};
+
 const resolveMatchDisplayStatus = (game) => {
   const bestOf = Math.max(Number(game.bestOf || 1), 1);
   const winsRequired = Math.floor(bestOf / 2) + 1;
   const winsA = Number(game.playerASeriesWins || 0);
   const winsB = Number(game.playerBSeriesWins || 0);
   const storedStatus = game.status || 'scheduled';
+
+  if (isKnockoutByeGame(game)) {
+    return 'bye';
+  }
 
   if (game.winnerPlayerId || game.winnerTeamId || winsA >= winsRequired || winsB >= winsRequired) {
     return 'completed';
@@ -229,10 +244,14 @@ export const mapGameToDisplayMatch = (game, { groupStageBestOf = 1, isPlayedScor
 
   return {
     matchNumber: Number(game.matchNumber || 0),
+    id: game.id,
     gameId: game.id,
+    stageId: game.stageId ? String(game.stageId) : null,
+    stage: game.stage || null,
     tournamentId: game.tournamentId ? String(game.tournamentId) : null,
     bestOf,
     status: resolveMatchDisplayStatus(game),
+    isBye: isKnockoutByeGame(game),
     playerASeriesWins: Number(game.playerASeriesWins || 0),
     playerBSeriesWins: Number(game.playerBSeriesWins || 0),
     completedGamesCount: Math.min(playedEntryCount, bestOf),
@@ -241,6 +260,9 @@ export const mapGameToDisplayMatch = (game, { groupStageBestOf = 1, isPlayedScor
     isTeamMatch,
     teamAId: game.teamAId ? String(game.teamAId) : null,
     teamBId: game.teamBId ? String(game.teamBId) : null,
+    playerAId: game.playerAId ? String(game.playerAId) : null,
+    playerBId: game.playerBId ? String(game.playerBId) : null,
+    scoreEntries: Array.isArray(game.scoreEntries) ? game.scoreEntries : [],
     canEditMatch: Boolean(game.canEditMatch),
     canScheduleMatch: Boolean(game.canScheduleMatch),
     scheduledStartAt: game.scheduledStartAt || null,
@@ -501,4 +523,164 @@ export const buildPlayerGameStatsFromGames = (games = []) => {
   });
 
   return gameStatsByPlayerId;
+};
+
+const resolveSideParticipant = (game, side, isDoubles) => {
+  if (isDoubles) {
+    const team = side === 'A' ? game.teamA : game.teamB;
+    const teamId = String(side === 'A' ? game.teamAId : game.teamBId || '').trim();
+    const id = String(team?.id || teamId || '').trim();
+
+    if (!id) {
+      return null;
+    }
+
+    return {
+      id,
+      label: team?.displayName || team?.customDisplayName || id,
+    };
+  }
+
+  const player = side === 'A' ? game.playerA : game.playerB;
+  const playerId = String(side === 'A' ? game.playerAId : game.playerBId || '').trim();
+  const id = String(player?.id || playerId || '').trim();
+
+  if (!id) {
+    return null;
+  }
+
+  return {
+    id,
+    label: player?.displayName || player?.username || id,
+  };
+};
+
+export const buildKnockoutStandingsFromGames = (games = [], isDoubles = false) => {
+  const statsById = new Map();
+
+  const ensureStats = (participant) => {
+    if (!participant?.id) {
+      return null;
+    }
+
+    if (!statsById.has(participant.id)) {
+      statsById.set(participant.id, {
+        id: participant.id,
+        label: participant.label,
+        wins: 0,
+        losses: 0,
+        points: 0,
+      });
+    }
+
+    return statsById.get(participant.id);
+  };
+
+  games.forEach((game) => {
+    const sideA = resolveSideParticipant(game, 'A', isDoubles);
+    const sideB = resolveSideParticipant(game, 'B', isDoubles);
+
+    if (isKnockoutByeGame(game)) {
+      const byeParticipant = sideA || sideB;
+      ensureStats(byeParticipant);
+      return;
+    }
+
+    if (!sideA || !sideB) {
+      return;
+    }
+
+    ensureStats(sideA);
+    ensureStats(sideB);
+
+    const playerASeriesWins = Number(game.playerASeriesWins || 0);
+    const playerBSeriesWins = Number(game.playerBSeriesWins || 0);
+    const winnerId = String(
+      (isDoubles ? game.winnerTeamId : game.winnerPlayerId) ||
+        (playerASeriesWins > playerBSeriesWins ? sideA.id : playerBSeriesWins > playerASeriesWins ? sideB.id : '')
+    ).trim();
+
+    if (!winnerId || game.status !== 'completed') {
+      return;
+    }
+
+    const aStats = statsById.get(sideA.id);
+    const bStats = statsById.get(sideB.id);
+
+    if (winnerId === sideA.id) {
+      aStats.wins += 1;
+      aStats.points += 2;
+      bStats.losses += 1;
+      return;
+    }
+
+    if (winnerId === sideB.id) {
+      bStats.wins += 1;
+      bStats.points += 2;
+      aStats.losses += 1;
+    }
+  });
+
+  return [...statsById.values()]
+    .sort((left, right) => {
+      if (right.points !== left.points) {
+        return right.points - left.points;
+      }
+
+      if (right.wins !== left.wins) {
+        return right.wins - left.wins;
+      }
+
+      return left.label.localeCompare(right.label);
+    })
+    .map((entry, index) => {
+      if (isDoubles) {
+        return {
+          rank: index + 1,
+          teamId: entry.id,
+          displayName: entry.label,
+          team: { id: entry.id, displayName: entry.label },
+          wins: entry.wins,
+          losses: entry.losses,
+          points: entry.points,
+        };
+      }
+
+      return {
+        rank: index + 1,
+        playerId: entry.id,
+        displayName: entry.label,
+        player: { displayName: entry.label },
+        playerName: entry.label,
+        wins: entry.wins,
+        losses: entry.losses,
+        points: entry.points,
+      };
+    });
+};
+
+export const buildProgressionStandingsSections = ({
+  stages = [],
+  stageGamesById = {},
+  isDoubles = false,
+} = {}) => {
+  const sortedStages = [...stages].sort(
+    (left, right) => Number(right.order || 0) - Number(left.order || 0)
+  );
+
+  return sortedStages
+    .filter((stage) => stage.status === 'active' || stage.status === 'completed')
+    .map((stage) => {
+      const games = stageGamesById[stage.stageId] || [];
+      const standings = buildKnockoutStandingsFromGames(games, isDoubles);
+
+      return {
+        stageId: stage.stageId,
+        stageName: stage.name,
+        stageOrder: Number(stage.order || 0),
+        standings: isDoubles ? [] : standings,
+        teamStandings: isDoubles ? standings : [],
+      };
+    })
+    .filter((section) => section.standings.length > 0 || section.teamStandings.length > 0);
 };

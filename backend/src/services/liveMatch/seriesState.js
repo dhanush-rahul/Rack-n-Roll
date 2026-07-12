@@ -307,7 +307,7 @@ const assertLiveScoringEnabled = async (tournamentId, game) => {
     throw new ApiError(404, 'TOURNAMENT_NOT_FOUND', 'Tournament not found');
   }
 
-  if (!isStageProctored(tournament.competitionConfig || {}, game.stage || 'groupStage')) {
+  if (!isStageProctored(tournament.competitionConfig || {}, game.stageId || game.stage || 'groupStage', tournament)) {
     throw new ApiError(
       403,
       'LIVE_SCORING_DISABLED',

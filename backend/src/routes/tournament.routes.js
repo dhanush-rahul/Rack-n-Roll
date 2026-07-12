@@ -46,6 +46,15 @@ const {
 	startFinalStageFromGroupsController,
 	finalizeTournamentWithoutFinalStageController,
 	finalizeTournamentWithFinalStageController,
+	updateProgressionPlanController,
+	appendProgressionStageController,
+	abandonPendingProgressionStageController,
+	getGroupAdvancementPreviewController,
+	getStageCandidatesController,
+	startProgressionStageController,
+	regenerateProgressionStageFixturesController,
+	completeProgressionStageController,
+	finalizeTournamentAfterGroupsController,
 	exportTournamentXlsxController,
 	emailTournamentExportController,
 } = require('../controllers/tournament.controller');
@@ -118,6 +127,15 @@ router.post('/:tournamentId/teams/:teamId/break', requireAuth, breakTeamControll
 router.patch('/:tournamentId/teams/:teamId/display-name', requireAuth, updateTeamDisplayNameController);
 router.post('/:tournamentId/groups/regenerate', requireAuth, regenerateGroupStageFixturesController);
 router.get('/:tournamentId/groups/standings', listGroupStandingsForHostController);
+router.put('/:tournamentId/progression-plan', requireAuth, updateProgressionPlanController);
+router.post('/:tournamentId/progression/stages', requireAuth, appendProgressionStageController);
+router.delete('/:tournamentId/progression/stages/:stageId', requireAuth, abandonPendingProgressionStageController);
+router.post('/:tournamentId/progression/advancement-preview', requireAuth, getGroupAdvancementPreviewController);
+router.get('/:tournamentId/progression/stages/:stageId/candidates', requireAuth, getStageCandidatesController);
+router.post('/:tournamentId/progression/stages/:stageId/start', requireAuth, startProgressionStageController);
+router.post('/:tournamentId/progression/stages/:stageId/regenerate-fixtures', requireAuth, regenerateProgressionStageFixturesController);
+router.post('/:tournamentId/progression/stages/:stageId/complete', requireAuth, completeProgressionStageController);
+router.post('/:tournamentId/progression/complete-after-groups', requireAuth, finalizeTournamentAfterGroupsController);
 router.post('/:tournamentId/final-stage/start', requireAuth, startFinalStageFromGroupsController);
 router.post('/:tournamentId/final-stage/skip-and-complete', requireAuth, finalizeTournamentWithoutFinalStageController);
 router.post('/:tournamentId/final-stage/complete', requireAuth, finalizeTournamentWithFinalStageController);

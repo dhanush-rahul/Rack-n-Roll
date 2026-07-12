@@ -24,51 +24,62 @@ export function useScoreInputs({ groupStageBestOf = 1, finalStageBestOf = 3 } = 
   const configuredFinalStageBestOf = Math.max(Number(finalStageBestOf || 3), 1);
 
   const hydrateScoreInputState = useCallback(
-    (games) => {
-      const nextState = {};
+    (games, { merge = false } = {}) => {
+      setScoreInputsByGameId((previousState) => {
+        const nextState = merge ? { ...previousState } : {};
 
-      (games || []).forEach((game) => {
-        const existingEntriesByGameNumber = new Map(
-          (game.scoreEntries || []).map((entry) => [
-            Number(entry.gameNumber),
-            {
-              gameNumber: Number(entry.gameNumber),
-              playerAScore: String(entry.playerAScore ?? 0),
-              playerBScore: String(entry.playerBScore ?? 0),
-            },
-          ])
-        );
-
-        const savedEntries = [...existingEntriesByGameNumber.values()].sort(
-          (left, right) => left.gameNumber - right.gameNumber
-        );
-
-        const seriesMaxGames = Math.max(
-          Number(game.bestOf || 1),
-          game.stage === 'groupStage' ? configuredGroupStageBestOf : configuredFinalStageBestOf,
-          savedEntries.length,
-          1
-        );
-
-        const entries = Array.from({ length: seriesMaxGames }, (_, index) => {
-          const gameNumber = index + 1;
-          return (
-            existingEntriesByGameNumber.get(gameNumber) || {
-              gameNumber,
-              playerAScore: '',
-              playerBScore: '',
-            }
+        (games || []).forEach((game) => {
+          const existingEntriesByGameNumber = new Map(
+            (game.scoreEntries || []).map((entry) => [
+              Number(entry.gameNumber),
+              {
+                gameNumber: Number(entry.gameNumber),
+                playerAScore: String(entry.playerAScore ?? 0),
+                playerBScore: String(entry.playerBScore ?? 0),
+              },
+            ])
           );
+
+          const savedEntries = [...existingEntriesByGameNumber.values()].sort(
+            (left, right) => left.gameNumber - right.gameNumber
+          );
+
+          const stageKey = String(game.stageId || game.stage || 'groupStage');
+          const isGroupStage = stageKey === 'groupStage';
+          const isFinalStage = stageKey === 'finalStage';
+          const configuredBestOf = isGroupStage
+            ? configuredGroupStageBestOf
+            : isFinalStage
+              ? configuredFinalStageBestOf
+              : Math.max(Number(game.bestOf || 1), 1);
+
+          const seriesMaxGames = Math.max(
+            Number(game.bestOf || 1),
+            configuredBestOf,
+            savedEntries.length,
+            1
+          );
+
+          const entries = Array.from({ length: seriesMaxGames }, (_, index) => {
+            const gameNumber = index + 1;
+            return (
+              existingEntriesByGameNumber.get(gameNumber) || {
+                gameNumber,
+                playerAScore: '',
+                playerBScore: '',
+              }
+            );
+          });
+
+          nextState[game.id] = {
+            status: game.status || 'scheduled',
+            entries,
+            seriesMaxGames,
+          };
         });
 
-        nextState[game.id] = {
-          status: game.status || 'scheduled',
-          entries,
-          seriesMaxGames,
-        };
+        return nextState;
       });
-
-      setScoreInputsByGameId(nextState);
     },
     [configuredFinalStageBestOf, configuredGroupStageBestOf]
   );
@@ -159,6 +170,7 @@ export function useScoreInputs({ groupStageBestOf = 1, finalStageBestOf = 3 } = 
       bestOf,
       groupStageGames = [],
       finalStageGames = [],
+      stageGames = [],
       onSuccess,
     }) => {
       try {
@@ -168,11 +180,22 @@ export function useScoreInputs({ groupStageBestOf = 1, finalStageBestOf = 3 } = 
         const scoreInputs = scoreInputsByGameId[inputStateKey] || { entries: [], seriesMaxGames: 1 };
         const savedGame =
           groupStageGames.find((game) => String(game.id) === String(gameId)) ||
-          finalStageGames.find((game) => String(game.id) === String(gameId));
-        const isFinalStageGame = savedGame?.stage === 'finalStage';
+          finalStageGames.find((game) => String(game.id) === String(gameId)) ||
+          stageGames.find((game) => String(game.id) === String(gameId));
+        const stageKey = String(savedGame?.stageId || savedGame?.stage || 'groupStage');
+        const isFinalStageGame = stageKey === 'finalStage';
+        const isGroupStageGame = stageKey === 'groupStage';
         const configuredSeriesBestOf = isFinalStageGame
           ? configuredFinalStageBestOf
-          : configuredGroupStageBestOf;
+          : isGroupStageGame
+            ? configuredGroupStageBestOf
+            : Math.max(Number(savedGame?.bestOf || bestOf || 1), 1);
+        const progressionStageId =
+          !isFinalStageGame && !isGroupStageGame && savedGame?.stageId
+            ? String(savedGame.stageId)
+            : !isFinalStageGame && !isGroupStageGame && savedGame?.stage
+              ? String(savedGame.stage)
+              : null;
         const seriesMaxGames = Math.max(
           Number(scoreInputs.seriesMaxGames || 0),
           Number(bestOf || 1),
@@ -246,10 +269,10 @@ export function useScoreInputs({ groupStageBestOf = 1, finalStageBestOf = 3 } = 
         }
 
         if (onSuccess) {
-          await onSuccess({ isFinalStageGame });
+          await onSuccess({ isFinalStageGame, stageId: progressionStageId });
         }
 
-        return { isFinalStageGame };
+        return { isFinalStageGame, stageId: progressionStageId };
       } finally {
         setSavingGameId(null);
       }

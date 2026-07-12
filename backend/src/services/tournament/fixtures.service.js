@@ -23,6 +23,7 @@ const {
   buildRoundRobinRounds,
 } = require('./shared');
 const ApiError = require('../../utils/ApiError');
+const { GROUP_STAGE_ID } = require('./progressionPlan.utils');
 
 const GROUP_STAGE_ROUND_ROBIN_LEGS = 1;
 
@@ -48,7 +49,7 @@ const createIncrementalGroupStageGamesForTeam = async ({
       gameDocuments.push({
         tournamentId,
         divisionId: normalizeDivisionScopeValue(divisionId),
-        stage: 'groupStage',
+        stageId: GROUP_STAGE_ID,
         roundNumber: maxRoundNumber,
         bestOf: parseBestOf(bestOf, 1),
         teamAId: swapSides ? opponentTeamId : newTeamId,
@@ -91,7 +92,7 @@ const createIncrementalGroupStageGamesForPlayer = async ({
       gameDocuments.push({
         tournamentId,
         divisionId: normalizeDivisionScopeValue(divisionId),
-        stage: 'groupStage',
+        stageId: GROUP_STAGE_ID,
         roundNumber: maxRoundNumber,
         bestOf: parseBestOf(bestOf, 1),
         playerAId: swapSides ? opponentId : newPlayerId,
@@ -198,7 +199,7 @@ const syncDoublesApprovedPlayerToGroupsByPlayerId = async (tournamentId, playerI
   const existingGames = await Game.find({
     tournamentId,
     divisionId: targetDivision._id,
-    stage: 'groupStage',
+    stageId: GROUP_STAGE_ID,
   }).lean();
 
   const bestOf = parseBestOf(tournament?.competitionConfig?.groupStageBestOf, 1);
@@ -274,7 +275,7 @@ const syncSinglesApprovedPlayerToGroupsByPlayerId = async (tournamentId, playerI
   const existingGames = await Game.find({
     tournamentId,
     divisionId: targetDivision._id,
-    stage: 'groupStage',
+    stageId: GROUP_STAGE_ID,
   }).lean();
 
   const bestOf = parseBestOf(tournament?.competitionConfig?.groupStageBestOf, 1);
@@ -350,7 +351,7 @@ const syncApprovedPlayerToGroups = async (tournamentId, userId) => {
 
 // ── Round-robin game creation ──────────────────────────────────────────────
 
-const createRoundRobinTeamGamesForStage = async ({ tournamentId, divisionId, stage, teamIds, bestOf }) => {
+const createRoundRobinTeamGamesForStage = async ({ tournamentId, divisionId, stageId, teamIds, bestOf }) => {
   const participantIds = [...teamIds];
 
   if (participantIds.length < 2) {
@@ -359,7 +360,7 @@ const createRoundRobinTeamGamesForStage = async ({ tournamentId, divisionId, sta
 
   const rounds = buildRoundRobinRounds(
     participantIds.map((teamId) => ({ id: teamId })),
-    stage === 'groupStage' ? GROUP_STAGE_ROUND_ROBIN_LEGS : 1
+    stageId === GROUP_STAGE_ID ? GROUP_STAGE_ROUND_ROBIN_LEGS : 1
   );
 
   const gameDocuments = [];
@@ -369,7 +370,7 @@ const createRoundRobinTeamGamesForStage = async ({ tournamentId, divisionId, sta
       gameDocuments.push({
         tournamentId,
         divisionId: normalizeDivisionScopeValue(divisionId),
-        stage,
+        stageId: stageId || GROUP_STAGE_ID,
         roundNumber: round.roundNumber,
         bestOf: parseBestOf(bestOf, 1),
         teamAId: match.playerA.id,
@@ -397,7 +398,7 @@ const createRoundRobinTeamGamesForStage = async ({ tournamentId, divisionId, sta
   );
 };
 
-const createRoundRobinGamesForStage = async ({ tournamentId, divisionId, stage, playerIds, bestOf }) => {
+const createRoundRobinGamesForStage = async ({ tournamentId, divisionId, stageId, playerIds, bestOf }) => {
   const participantIds = [...playerIds];
 
   if (participantIds.length < 2) {
@@ -406,7 +407,7 @@ const createRoundRobinGamesForStage = async ({ tournamentId, divisionId, stage, 
 
   const rounds = buildRoundRobinRounds(
     participantIds.map((playerId) => ({ id: playerId })),
-    stage === 'groupStage' ? GROUP_STAGE_ROUND_ROBIN_LEGS : 1
+    stageId === GROUP_STAGE_ID ? GROUP_STAGE_ROUND_ROBIN_LEGS : 1
   );
 
   const gameDocuments = [];
@@ -416,7 +417,7 @@ const createRoundRobinGamesForStage = async ({ tournamentId, divisionId, stage, 
       gameDocuments.push({
         tournamentId,
         divisionId: normalizeDivisionScopeValue(divisionId),
-        stage,
+        stageId: stageId || GROUP_STAGE_ID,
         roundNumber: round.roundNumber,
         bestOf: parseBestOf(bestOf, 1),
         playerAId: match.playerA.id,
@@ -467,7 +468,7 @@ const assignRandomGroupsDoubles = async (tournamentId, hostUserId, payload = {},
   const randomTeams = shuffleArray(teams);
 
   await Division.deleteMany({ tournamentId });
-  await Game.deleteMany({ tournamentId, stage: 'groupStage' });
+  await Game.deleteMany({ tournamentId, stageId: GROUP_STAGE_ID });
   await Leaderboard.deleteMany({ tournamentId });
   await Team.updateMany({ tournamentId, status: 'active' }, { $set: { divisionId: null } });
 
@@ -506,7 +507,7 @@ const assignRandomGroupsDoubles = async (tournamentId, hostUserId, payload = {},
     const createdGames = await createRoundRobinTeamGamesForStage({
       tournamentId,
       divisionId: String(division._id),
-      stage: 'groupStage',
+      stageId: GROUP_STAGE_ID,
       teamIds: divisionTeamIds,
       bestOf: groupStageBestOf,
     });
@@ -579,7 +580,7 @@ const assignRandomGroups = async (tournamentId, hostUserId, payload = {}) => {
   const randomPlayers = shuffleArray(players);
 
   await Division.deleteMany({ tournamentId });
-  await Game.deleteMany({ tournamentId, stage: 'groupStage' });
+  await Game.deleteMany({ tournamentId, stageId: GROUP_STAGE_ID });
   await Leaderboard.deleteMany({ tournamentId });
 
   const groups = Array.from({ length: groupCount }, (_, groupIndex) => ({
@@ -608,7 +609,7 @@ const assignRandomGroups = async (tournamentId, hostUserId, payload = {}) => {
     const createdGames = await createRoundRobinGamesForStage({
       tournamentId,
       divisionId: String(division._id),
-      stage: 'groupStage',
+      stageId: GROUP_STAGE_ID,
       playerIds: divisionPlayerIds,
       bestOf: groupStageBestOf,
     });
@@ -663,7 +664,7 @@ const regenerateGroupStageFixtures = async (tournamentId, hostUserId) => {
 
   const groupStageBestOf = parseBestOf(tournament.competitionConfig?.groupStageBestOf, 1);
 
-  await Game.deleteMany({ tournamentId, stage: 'groupStage' });
+  await Game.deleteMany({ tournamentId, stageId: GROUP_STAGE_ID });
   await Leaderboard.deleteMany({ tournamentId });
 
   const createdGamesByDivision = [];
@@ -683,7 +684,7 @@ const regenerateGroupStageFixtures = async (tournamentId, hostUserId) => {
     const createdGames = await createRoundRobinGamesForStage({
       tournamentId,
       divisionId: String(division._id),
-      stage: 'groupStage',
+      stageId: GROUP_STAGE_ID,
       playerIds: divisionPlayerIds,
       bestOf: groupStageBestOf,
     });

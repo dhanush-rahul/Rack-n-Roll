@@ -2,10 +2,13 @@ const Tournament = require('../../models/tournament.model');
 const TournamentRegistration = require('../../models/tournamentRegistration.model');
 const Player = require('../../models/player.model');
 const User = require('../../models/user.model');
+const Division = require('../../models/division.model');
+const Game = require('../../models/game.model');
 const ApiError = require('../../utils/ApiError');
 const { normalizeUsername } = require('../username.service');
 const { materializeApprovedPlayerForUser } = require('./roster.service');
 const { syncApprovedPlayerToGroups, syncApprovedPlayerToGroupsByPlayerId } = require('./fixtures.service');
+const { recomputeLeaderboardForScope } = require('./leaderboard.service');
 const {
   assertHostAccess,
   mapRegistrationSummary,
@@ -19,9 +22,179 @@ const {
   releaseApprovalCapacitySlot,
 } = require('./shared');
 
+const findOutgoingPlayerMembership = async (tournamentId, playerId) => {
+  const division = await Division.findOne({
+    tournamentId,
+    name: { $ne: 'Final Stage' },
+    playerIds: playerId,
+  }).lean();
+
+  if (!division) {
+    return { division: null, slotIndex: -1 };
+  }
+
+  const playerIds = (division.playerIds || []).map(String);
+  return {
+    division,
+    slotIndex: playerIds.indexOf(String(playerId)),
+  };
+};
+
+const pullPlayerFromDivisions = async (tournamentId, playerId) => {
+  await Division.updateMany(
+    { tournamentId, name: { $ne: 'Final Stage' } },
+    { $pull: { playerIds: playerId } }
+  );
+};
+
+const cancelIncompleteGroupGamesForPlayer = async (tournamentId, playerId) => {
+  const result = await Game.deleteMany({
+    tournamentId,
+    stageId: 'groupStage',
+    status: { $in: ['scheduled', 'inProgress'] },
+    $or: [{ playerAId: playerId }, { playerBId: playerId }],
+  });
+
+  return result.deletedCount || 0;
+};
+
+const swapPlayerInIncompleteGroupGames = async (tournamentId, outgoingPlayerId, incomingPlayerId) => {
+  const games = await Game.find({
+    tournamentId,
+    stageId: 'groupStage',
+    status: { $in: ['scheduled', 'inProgress'] },
+    $or: [{ playerAId: outgoingPlayerId }, { playerBId: outgoingPlayerId }],
+  }).lean();
+
+  let gamesUpdated = 0;
+
+  for (const game of games) {
+    const updates = {};
+
+    if (String(game.playerAId) === String(outgoingPlayerId)) {
+      updates.playerAId = incomingPlayerId;
+    }
+
+    if (String(game.playerBId) === String(outgoingPlayerId)) {
+      updates.playerBId = incomingPlayerId;
+    }
+
+    if (Object.keys(updates).length > 0) {
+      await Game.updateOne({ _id: game._id }, { $set: updates });
+      gamesUpdated += 1;
+    }
+  }
+
+  return gamesUpdated;
+};
+
+const assignPlayerToDivisionSlot = async (divisionId, playerId, slotIndex = -1) => {
+  const division = await Division.findById(divisionId).lean();
+
+  if (!division) {
+    return;
+  }
+
+  const currentIds = (division.playerIds || []).map(String).filter(Boolean);
+  const normalizedPlayerId = String(playerId);
+  const withoutPlayer = currentIds.filter((id) => id !== normalizedPlayerId);
+
+  if (slotIndex >= 0 && slotIndex <= withoutPlayer.length) {
+    withoutPlayer.splice(slotIndex, 0, normalizedPlayerId);
+  } else {
+    withoutPlayer.push(normalizedPlayerId);
+  }
+
+  await Division.updateOne({ _id: divisionId }, { $set: { playerIds: withoutPlayer } });
+};
+
+const removeOutgoingPlayerInternal = async (
+  tournamentId,
+  hostUserId,
+  outgoingPlayer,
+  { cancelIncompleteGames = true } = {}
+) => {
+  const playerId = String(outgoingPlayer._id);
+
+  await ensureApprovedParticipantsCountInitialized(tournamentId);
+
+  const reservedRemovalCapacity = await Tournament.findOneAndUpdate(
+    { _id: tournamentId, approvedParticipantsCount: { $gt: 0 } },
+    { $inc: { approvedParticipantsCount: -1 } },
+    { new: false }
+  ).lean();
+
+  if (!reservedRemovalCapacity) {
+    throw new ApiError(404, 'APPROVED_PARTICIPANT_NOT_FOUND', 'Approved participant not found for removal');
+  }
+
+  const reviewedAt = new Date();
+  let removedSummary = null;
+
+  if (outgoingPlayer.userId) {
+    const removedRegistration = await TournamentRegistration.findOneAndUpdate(
+      { tournamentId, userId: outgoingPlayer.userId, status: 'approved' },
+      { $set: { status: 'removed', reviewedByUserId: hostUserId, reviewedAt } },
+      { new: true }
+    ).lean();
+
+    if (!removedRegistration) {
+      await Tournament.updateOne({ _id: tournamentId }, { $inc: { approvedParticipantsCount: 1 } });
+      throw new ApiError(404, 'APPROVED_PARTICIPANT_NOT_FOUND', 'Approved participant not found for removal');
+    }
+
+    removedSummary = mapRegistrationSummary(removedRegistration);
+    await Player.updateOne(
+      { _id: playerId, tournamentId, status: 'active' },
+      { $set: { status: 'removed' } }
+    );
+  } else {
+    const removedGuest = await Player.findOneAndUpdate(
+      {
+        _id: playerId,
+        tournamentId,
+        status: 'active',
+        userId: null,
+        $or: [
+          { pendingLinkEmail: { $type: 'string', $ne: null } },
+          { pendingLinkUsername: { $type: 'string', $ne: null } },
+        ],
+      },
+      { $set: { status: 'removed', pendingLinkEmail: null, pendingLinkUsername: null } },
+      { new: true }
+    ).lean();
+
+    if (!removedGuest) {
+      await Tournament.updateOne({ _id: tournamentId }, { $inc: { approvedParticipantsCount: 1 } });
+      throw new ApiError(404, 'GUEST_PARTICIPANT_NOT_FOUND', 'Guest participant not found for removal');
+    }
+
+    removedSummary = mapGuestPlayerRosterItem(removedGuest);
+  }
+
+  const { division } = await findOutgoingPlayerMembership(tournamentId, playerId);
+  await pullPlayerFromDivisions(tournamentId, playerId);
+
+  let gamesCancelled = 0;
+
+  if (cancelIncompleteGames) {
+    gamesCancelled = await cancelIncompleteGroupGamesForPlayer(tournamentId, playerId);
+  }
+
+  if (division?._id) {
+    await recomputeLeaderboardForScope(tournamentId, division._id);
+  }
+
+  return {
+    removedSummary,
+    divisionId: division?._id ? String(division._id) : null,
+    gamesCancelled,
+  };
+};
+
 // ── Manual participant add/remove ──────────────────────────────────────────
 
-const manuallyAddParticipant = async (tournamentId, hostUserId, targetUserId) => {
+const manuallyAddParticipant = async (tournamentId, hostUserId, targetUserId, options = {}) => {
   const tournament = await assertHostAccess(tournamentId, hostUserId);
   const normalizedTargetUserId = String(targetUserId || '').trim();
 
@@ -62,7 +235,9 @@ const manuallyAddParticipant = async (tournamentId, hostUserId, targetUserId) =>
       }
 
       await materializeApprovedPlayerForUser(tournamentId, normalizedTargetUserId);
-      const groupSync = await syncApprovedPlayerToGroups(tournamentId, normalizedTargetUserId);
+      const groupSync = options.skipGroupSync
+        ? null
+        : await syncApprovedPlayerToGroups(tournamentId, normalizedTargetUserId);
 
       return { ...mapRegistrationSummary(updatedRegistration), groupSync };
     }
@@ -76,7 +251,9 @@ const manuallyAddParticipant = async (tournamentId, hostUserId, targetUserId) =>
     });
 
     await materializeApprovedPlayerForUser(tournamentId, normalizedTargetUserId);
-    const groupSync = await syncApprovedPlayerToGroups(tournamentId, normalizedTargetUserId);
+    const groupSync = options.skipGroupSync
+      ? null
+      : await syncApprovedPlayerToGroups(tournamentId, normalizedTargetUserId);
 
     return { ...mapRegistrationSummary(createdRegistration.toObject()), groupSync };
   } catch (error) {
@@ -99,40 +276,26 @@ const manuallyRemoveParticipant = async (tournamentId, hostUserId, targetUserId)
     throw new ApiError(400, 'TARGET_USER_REQUIRED', 'Target userId is required for manual remove');
   }
 
-  await ensureApprovedParticipantsCountInitialized(tournamentId);
+  const outgoingPlayer = await Player.findOne({
+    tournamentId,
+    userId: normalizedTargetUserId,
+    status: 'active',
+  }).lean();
 
-  const reservedRemovalCapacity = await Tournament.findOneAndUpdate(
-    { _id: tournamentId, approvedParticipantsCount: { $gt: 0 } },
-    { $inc: { approvedParticipantsCount: -1 } },
-    { new: false }
-  ).lean();
-
-  if (!reservedRemovalCapacity) {
+  if (!outgoingPlayer) {
     throw new ApiError(404, 'APPROVED_PARTICIPANT_NOT_FOUND', 'Approved participant not found for removal');
   }
 
-  const reviewedAt = new Date();
-  const removedRegistration = await TournamentRegistration.findOneAndUpdate(
-    { tournamentId, userId: normalizedTargetUserId, status: 'approved' },
-    { $set: { status: 'removed', reviewedByUserId: hostUserId, reviewedAt } },
-    { new: true }
-  ).lean();
+  const result = await removeOutgoingPlayerInternal(tournamentId, hostUserId, outgoingPlayer, {
+    cancelIncompleteGames: true,
+  });
 
-  if (!removedRegistration) {
-    await Tournament.updateOne(
-      { _id: tournamentId },
-      { $inc: { approvedParticipantsCount: 1 } }
-    );
-
-    throw new ApiError(404, 'APPROVED_PARTICIPANT_NOT_FOUND', 'Approved participant not found for removal');
-  }
-
-  return mapRegistrationSummary(removedRegistration);
+  return result.removedSummary;
 };
 
 // ── Guest participant add/remove ───────────────────────────────────────────
 
-const addGuestParticipant = async (tournamentId, hostUserId, payload = {}) => {
+const addGuestParticipant = async (tournamentId, hostUserId, payload = {}, options = {}) => {
   const tournament = await assertHostAccess(tournamentId, hostUserId);
   const { normalizedName, normalizedUsername } = validateGuestParticipantInput(payload);
   const hostUser = await User.findById(tournament.hostUserId).select({ name: 1, username: 1 }).lean();
@@ -198,7 +361,9 @@ const addGuestParticipant = async (tournamentId, hostUserId, payload = {}) => {
     throw error;
   }
 
-  const groupSync = await syncApprovedPlayerToGroupsByPlayerId(tournamentId, String(createdPlayer._id));
+  const groupSync = options.skipGroupSync
+    ? null
+    : await syncApprovedPlayerToGroupsByPlayerId(tournamentId, String(createdPlayer._id));
 
   return {
     ...mapGuestPlayerRosterItem(createdPlayer.toObject()),
@@ -304,43 +469,107 @@ const removeGuestParticipant = async (tournamentId, hostUserId, playerId) => {
     throw new ApiError(400, 'PLAYER_ID_REQUIRED', 'playerId is required for guest remove');
   }
 
-  await ensureApprovedParticipantsCountInitialized(tournamentId);
+  const outgoingPlayer = await Player.findOne({
+    _id: normalizedPlayerId,
+    tournamentId,
+    status: 'active',
+    userId: null,
+  }).lean();
 
-  const reservedRemovalCapacity = await Tournament.findOneAndUpdate(
-    { _id: tournamentId, approvedParticipantsCount: { $gt: 0 } },
-    { $inc: { approvedParticipantsCount: -1 } },
-    { new: false }
-  ).lean();
-
-  if (!reservedRemovalCapacity) {
-    throw new ApiError(404, 'APPROVED_PARTICIPANT_NOT_FOUND', 'Approved participant not found for removal');
-  }
-
-  const removedPlayer = await Player.findOneAndUpdate(
-    {
-      _id: normalizedPlayerId,
-      tournamentId,
-      status: 'active',
-      userId: null,
-      $or: [
-        { pendingLinkEmail: { $type: 'string', $ne: null } },
-        { pendingLinkUsername: { $type: 'string', $ne: null } },
-      ],
-    },
-    { $set: { status: 'removed', pendingLinkEmail: null, pendingLinkUsername: null } },
-    { new: true }
-  ).lean();
-
-  if (!removedPlayer) {
-    await Tournament.updateOne(
-      { _id: tournamentId },
-      { $inc: { approvedParticipantsCount: 1 } }
-    );
-
+  if (!outgoingPlayer) {
     throw new ApiError(404, 'GUEST_PARTICIPANT_NOT_FOUND', 'Guest participant not found for removal');
   }
 
-  return mapGuestPlayerRosterItem(removedPlayer);
+  const result = await removeOutgoingPlayerInternal(tournamentId, hostUserId, outgoingPlayer, {
+    cancelIncompleteGames: true,
+  });
+
+  return result.removedSummary;
+};
+
+const replaceApprovedParticipant = async (tournamentId, hostUserId, payload = {}) => {
+  await assertHostAccess(tournamentId, hostUserId);
+
+  const outgoingPlayerId = String(payload.outgoingPlayerId || '').trim();
+  const replacement = payload.replacement || {};
+
+  if (!outgoingPlayerId) {
+    throw new ApiError(400, 'PLAYER_ID_REQUIRED', 'outgoingPlayerId is required');
+  }
+
+  const outgoingPlayer = await Player.findOne({
+    _id: outgoingPlayerId,
+    tournamentId,
+    status: 'active',
+  }).lean();
+
+  if (!outgoingPlayer) {
+    throw new ApiError(404, 'APPROVED_PARTICIPANT_NOT_FOUND', 'Outgoing participant not found');
+  }
+
+  const { division, slotIndex } = await findOutgoingPlayerMembership(tournamentId, outgoingPlayerId);
+  const divisionId = division?._id ? String(division._id) : null;
+
+  const removalResult = await removeOutgoingPlayerInternal(tournamentId, hostUserId, outgoingPlayer, {
+    cancelIncompleteGames: false,
+  });
+
+  let addedParticipant = null;
+  let incomingPlayerId = null;
+
+  if (replacement.type === 'user') {
+    const normalizedUserId = String(replacement.userId || '').trim();
+
+    if (!normalizedUserId) {
+      throw new ApiError(400, 'TARGET_USER_REQUIRED', 'replacement.userId is required');
+    }
+
+    addedParticipant = await manuallyAddParticipant(tournamentId, hostUserId, normalizedUserId, {
+      skipGroupSync: Boolean(divisionId),
+    });
+
+    const incomingPlayer = await Player.findOne({
+      tournamentId,
+      userId: normalizedUserId,
+      status: 'active',
+    }).lean();
+
+    incomingPlayerId = incomingPlayer ? String(incomingPlayer._id) : null;
+  } else if (replacement.type === 'guest') {
+    addedParticipant = await addGuestParticipant(
+      tournamentId,
+      hostUserId,
+      {
+        name: replacement.rosterName || replacement.name,
+        username: replacement.username,
+      },
+      { skipGroupSync: Boolean(divisionId) }
+    );
+
+    incomingPlayerId = String(addedParticipant.playerId || addedParticipant.id || '');
+  } else {
+    throw new ApiError(400, 'INVALID_REPLACEMENT', 'replacement.type must be user or guest');
+  }
+
+  if (!incomingPlayerId) {
+    throw new ApiError(500, 'REPLACEMENT_PLAYER_NOT_FOUND', 'Unable to resolve replacement player');
+  }
+
+  let gamesUpdated = 0;
+
+  if (divisionId) {
+    await assignPlayerToDivisionSlot(divisionId, incomingPlayerId, slotIndex);
+    gamesUpdated = await swapPlayerInIncompleteGroupGames(tournamentId, outgoingPlayerId, incomingPlayerId);
+    await recomputeLeaderboardForScope(tournamentId, divisionId);
+  }
+
+  return {
+    removed: removalResult.removedSummary,
+    added: addedParticipant,
+    incomingPlayerId,
+    divisionId,
+    gamesUpdated,
+  };
 };
 
 // ── Score editors ──────────────────────────────────────────────────────────
@@ -538,6 +767,7 @@ module.exports = {
   addGuestParticipant,
   linkPendingGuestPlayersForUser,
   removeGuestParticipant,
+  replaceApprovedParticipant,
   assignScoreEditor,
   removeScoreEditor,
   requestProctorTransfer,

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, View } from 'react-native';
+import { Platform, RefreshControl, ScrollView, View } from 'react-native';
+import { LoadingPlaceholder } from '../components/ui/LoadingPlaceholder';
 import { ScaledText as Text } from '../components/ui/ScaledText';
 import { ScaledTextInput as TextInput } from '../components/ui/ScaledTextInput';
 import { useFocusEffect } from '@react-navigation/native';
@@ -20,6 +21,7 @@ import { getAuthErrorMessage } from '../utils/authErrors';
 import { resetCreateTournamentWalkthrough, resetDiscoverWalkthrough } from '../utils/onboardingStore';
 import { AuthField, AuthPasswordMatchHint } from '../components/auth/AuthChrome';
 import { AuthUsernameField } from '../components/auth/AuthUsernameField';
+import { WebInstallPrompt } from '../components/layout/WebInstallPrompt';
 import { useUsernameAvailability } from '../hooks/useUsernameAvailability';
 import {
   hasValidationErrors,
@@ -234,11 +236,27 @@ export function ProfileScreen({ navigation }) {
           </View>
         </View>
 
-        {isLoading && (
-          <View style={{ paddingVertical: 24, alignItems: 'center' }}>
-            <ActivityIndicator color={tournamentColors.primary} />
+        {showAddEmail ? (
+          <View
+            style={{
+              marginBottom: 14,
+              padding: 14,
+              borderRadius: 12,
+              backgroundColor: '#fffbeb',
+              borderWidth: 1,
+              borderColor: '#fde68a',
+            }}
+          >
+            <Text style={{ color: '#92400e', fontSize: 13, lineHeight: 18, fontWeight: '700' }}>
+              Add a recovery email
+            </Text>
+            <Text style={{ color: '#b45309', fontSize: 13, lineHeight: 18, marginTop: 4 }}>
+              Save an email below to use forgot-password PIN recovery if you ever lose access to your account.
+            </Text>
           </View>
-        )}
+        ) : null}
+
+        {isLoading && <LoadingPlaceholder message="Loading profile…" />}
 
         {Boolean(errorText) && !isLoading && (
           <View
@@ -674,6 +692,7 @@ export function ProfileScreen({ navigation }) {
 
                 <SectionCard title="Help" subtitle="Learn how to use the app">
                   <View style={{ gap: 10 }}>
+                    {Platform.OS === 'web' ? <WebInstallPrompt /> : null}
                     <ActionButton
                       label="Replay discover tour"
                       onPress={async () => {

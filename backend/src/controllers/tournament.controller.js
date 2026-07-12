@@ -36,6 +36,15 @@ const {
   startFinalStageFromGroups,
   finalizeTournamentWithoutFinalStage,
   finalizeTournamentWithFinalStage,
+  updateProgressionPlan,
+  appendProgressionStage,
+  abandonPendingProgressionStage,
+  getGroupAdvancementPreview,
+  getStageCandidates,
+  startProgressionStage,
+  regenerateProgressionStageFixtures,
+  completeProgressionStage,
+  finalizeTournamentAfterGroups,
   listGroupStandings,
 } = require('../services/tournament');
 const {
@@ -225,6 +234,59 @@ const finalizeTournamentWithFinalStageController = asyncHandler(async (req, res)
   return res.status(200).json({ success: true, data: result });
 });
 
+const updateProgressionPlanController = asyncHandler(async (req, res) => {
+  const result = await updateProgressionPlan(req.params.tournamentId, req.auth?.userId, req.body);
+  return res.status(200).json({ success: true, data: result });
+});
+
+const appendProgressionStageController = asyncHandler(async (req, res) => {
+  const result = await appendProgressionStage(req.params.tournamentId, req.auth?.userId, req.body);
+  return res.status(200).json({ success: true, data: result });
+});
+
+const abandonPendingProgressionStageController = asyncHandler(async (req, res) => {
+  const result = await abandonPendingProgressionStage(
+    req.params.tournamentId,
+    req.auth?.userId,
+    req.params.stageId
+  );
+  return res.status(200).json({ success: true, data: result });
+});
+
+const getGroupAdvancementPreviewController = asyncHandler(async (req, res) => {
+  const result = await getGroupAdvancementPreview(req.params.tournamentId, req.auth?.userId, req.body);
+  return res.status(200).json({ success: true, data: result });
+});
+
+const getStageCandidatesController = asyncHandler(async (req, res) => {
+  const result = await getStageCandidates(req.params.tournamentId, req.auth?.userId, req.params.stageId);
+  return res.status(200).json({ success: true, data: result });
+});
+
+const startProgressionStageController = asyncHandler(async (req, res) => {
+  const result = await startProgressionStage(req.params.tournamentId, req.auth?.userId, req.params.stageId, req.body);
+  return res.status(200).json({ success: true, data: result });
+});
+
+const regenerateProgressionStageFixturesController = asyncHandler(async (req, res) => {
+  const result = await regenerateProgressionStageFixtures(
+    req.params.tournamentId,
+    req.auth?.userId,
+    req.params.stageId
+  );
+  return res.status(200).json({ success: true, data: result });
+});
+
+const completeProgressionStageController = asyncHandler(async (req, res) => {
+  const result = await completeProgressionStage(req.params.tournamentId, req.auth?.userId, req.params.stageId);
+  return res.status(200).json({ success: true, data: result });
+});
+
+const finalizeTournamentAfterGroupsController = asyncHandler(async (req, res) => {
+  const result = await finalizeTournamentAfterGroups(req.params.tournamentId, req.auth?.userId, req.body);
+  return res.status(200).json({ success: true, data: result });
+});
+
 const updateGameScoresController = asyncHandler(async (req, res) => {
   const result = await updateGameScores(req.params.tournamentId, req.params.gameId, req.auth?.userId, req.body);
   return res.status(200).json({ success: true, data: result });
@@ -391,6 +453,15 @@ module.exports = {
   startFinalStageFromGroupsController,
   finalizeTournamentWithoutFinalStageController,
   finalizeTournamentWithFinalStageController,
+  updateProgressionPlanController,
+  appendProgressionStageController,
+  abandonPendingProgressionStageController,
+  getGroupAdvancementPreviewController,
+  getStageCandidatesController,
+  startProgressionStageController,
+  regenerateProgressionStageFixturesController,
+  completeProgressionStageController,
+  finalizeTournamentAfterGroupsController,
   startGameSessionController,
   getLiveMatchStateController,
   requestLiveMatchTakeoverController,

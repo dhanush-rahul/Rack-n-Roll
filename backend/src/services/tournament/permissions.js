@@ -20,8 +20,8 @@ const canUserEditGameScores = (tournament, userId, game, playerSummaryById = new
   const isAssignedEditor = (tournament.scoreEditorUserIds || []).some(
     (editorUserId) => String(editorUserId) === normalizedUserId
   );
-  const stage = game.stage || 'groupStage';
-  const proctored = isStageProctored(tournament.competitionConfig || {}, stage);
+  const stageId = game.stageId || game.stage || 'groupStage';
+  const proctored = isStageProctored(tournament.competitionConfig || {}, stageId, tournament);
 
   if (proctored) {
     return isHost || isAssignedEditor;
@@ -185,6 +185,15 @@ const assertCanEditTournamentScores = async (tournamentId, userId) => {
 // ── Game display helpers ───────────────────────────────────────────────────
 
 const resolveGameDisplayStatus = (game) => {
+  const playerAId = game.playerAId || game.teamAId;
+  const playerBId = game.playerBId || game.teamBId;
+  const isByeGame =
+    Boolean(game.isBye) || (Boolean(playerAId) !== Boolean(playerBId) && (playerAId || playerBId));
+
+  if (isByeGame) {
+    return 'bye';
+  }
+
   const scoreEntries = game.scoreEntries || [];
   const seriesOutcome = computeSeriesOutcome(game, scoreEntries);
   const storedStatus = game.status || 'scheduled';
@@ -224,7 +233,8 @@ const mapGameForScoresheet = (
     tournamentId: String(game.tournamentId),
     divisionId: game.divisionId ? String(game.divisionId) : null,
     divisionName: game.divisionId ? divisionNameById.get(String(game.divisionId)) || null : null,
-    stage: game.stage || 'groupStage',
+    stageId: game.stageId || game.stage || 'groupStage',
+    stage: game.stageId || game.stage || 'groupStage',
     roundNumber: Number(game.roundNumber || 1),
     bestOf: parseBestOf(game.bestOf, 1),
     playerAId: game.playerAId ? String(game.playerAId) : null,
@@ -248,6 +258,9 @@ const mapGameForScoresheet = (
         ? String(game.winnerTeamId)
         : null,
     status: resolveGameDisplayStatus(game),
+    isBye: Boolean(game.isBye) ||
+      (Boolean(game.playerAId || game.teamAId) !== Boolean(game.playerBId || game.teamBId) &&
+        Boolean(game.playerAId || game.teamAId || game.playerBId || game.teamBId)),
     canEditMatch,
     canScheduleMatch: resolvedCanScheduleMatch,
     scheduledStartAt: game.scheduledStartAt ? new Date(game.scheduledStartAt).toISOString() : null,

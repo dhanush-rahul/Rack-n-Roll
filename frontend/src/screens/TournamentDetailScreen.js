@@ -8,10 +8,12 @@ import { FeedbackModal } from '../components/FeedbackModal';
 import { MatchScheduleModal } from '../components/tournament/MatchScheduleModal';
 import { useAuth } from '../context/AuthContext';
 import { useGroupStageFixtures } from '../hooks/useGroupStageFixtures';
+import { useStageFixtures } from '../hooks/useStageFixtures';
 import { useGroupStandings } from '../hooks/useGroupStandings';
 import { formatApiError, useScreenFeedback } from '../hooks/useScreenFeedback';
 import { logApiError } from '../utils/errorLogger';
 import { ScreenScrollShell } from '../components/layout/ScreenScrollShell';
+import { ScreenSkeleton } from '../components/ui/ScreenSkeleton';
 import { HostTournamentTabLayout } from '../components/layout/TournamentTabLayout';
 import { useHostTournamentDetail } from '../hooks/queries/useHostTournamentDetail';
 import { useHostTournamentRegistrations } from '../hooks/queries/useHostTournamentRegistrations';
@@ -20,23 +22,26 @@ import { invalidateTournamentCache } from '../hooks/queries/invalidateTournament
 import { useFetchScoresheetPages } from '../hooks/queries/useScoresheetPages';
 import { useTournamentTeamsData } from '../hooks/queries/useTournamentTeamsData';
 import { useScoreInputs } from '../hooks/useScoreInputs';
-import { updateTournamentGameSchedule } from '../services/tournamentService';
+import { updateTournamentGameSchedule, regenerateProgressionStageFixtures } from '../services/tournamentService';
 import {
   useExportActions,
-  useFinaleActions,
+  useProgressionActions,
+  useProgressionPlan,
   useProctorActions,
   useRegistrationActions,
 } from '../hooks/tournamentDetail';
 import { tournamentUi } from '../styles/tournamentUi';
 import {
   buildFixtureSectionsFromGames,
+  buildKnockoutStandingsFromGames,
+  buildProgressionStandingsSections,
   buildPlayerGameStatsFromGames,
   countFixtureMatches,
   findActiveFixtureRoundKey,
   findActiveFixtureRoundKeyForSection,
 } from '../utils/fixtureDisplay';
-import { FinalePlayerModal } from './tournamentDetail/FinalePlayerModal';
-import { FinaleTab } from './tournamentDetail/FinaleTab';
+import { StageStartModal } from './tournamentDetail/StageStartModal';
+import { StageTabView } from './tournamentDetail/StageTabView';
 import { GamesTab } from './tournamentDetail/GamesTab';
 import { GroupsTab } from './tournamentDetail/GroupsTab';
 import { HostInfoModal } from './tournamentDetail/HostInfoModal';
@@ -46,7 +51,8 @@ import {
   SuccessBanner,
   TournamentScreenHero,
 } from '../components/tournament/TournamentChrome';
-import { formatRosterRowTitle } from '../utils/rosterDisplay';
+import { formatRosterRowTitle, getRosterOutgoingPlayerId } from '../utils/rosterDisplay';
+import { getStageInputCountFromDetail, countUniqueStageParticipants, isLegacyKnockoutBracket } from '../utils/progressionPlanUtils';
 
 const isPlayedScoreEntry = (entry) => {
   const playerAScore = Number(entry?.playerAScore);
@@ -119,6 +125,8 @@ export function TournamentDetailScreen({ route, navigation }) {
   } = useScreenFeedback();
   const [isHostInfoModalVisible, setIsHostInfoModalVisible] = useState(false);
   const [finalStageGames, setFinalStageGames] = useState([]);
+  const [stageGamesById, setStageGamesById] = useState({});
+  const [loadingStageId, setLoadingStageId] = useState(null);
   const [canEditFinalScores, setCanEditFinalScores] = useState(false);
   const [expandedRoundKey, setExpandedRoundKey] = useState(null);
   const [expandedSectionId, setExpandedSectionId] = useState(null);
@@ -126,6 +134,8 @@ export function TournamentDetailScreen({ route, navigation }) {
   const gamesTabLoadStartedRef = useRef(false);
   const groupsPrefetchStartedRef = useRef(false);
   const finaleTabLoadStartedRef = useRef(false);
+  const stageTabLoadStartedRef = useRef(null);
+  const stageFixturesRepairRef = useRef(new Set());
   const finaleExpandInitializedRef = useRef(false);
   const toggleHostInfoRef = useRef(() => {});
   const [scheduleTarget, setScheduleTarget] = useState(null);
@@ -209,10 +219,76 @@ export function TournamentDetailScreen({ route, navigation }) {
     [registrations]
   );
 
+  const participantNameById = useMemo(() => {
+    const map = new Map();
+
+    approvedItems.forEach((item) => {
+      const playerId = getRosterOutgoingPlayerId(item);
+      if (playerId) {
+        map.set(String(playerId), formatRosterRowTitle(item));
+      }
+    });
+
+    return map;
+  }, [approvedItems]);
+
   const isCloseDisabled = Number(approvedItems.length || 0) < 2;
 
-  const shouldShowFinaleTab =
-    canShowFinalStageStep || hasFinalStageStarted || finalStageGames.length > 0;
+  const progression = useProgressionPlan(detail);
+  const { stageTabs, hasPostGroupStages, hasStartedPostGroupStages, hasPendingStage, nextReadyStage } =
+    progression;
+
+  const activeProgressionStageId = useMemo(() => {
+    if (!activeTab.startsWith('stage:')) {
+      return null;
+    }
+
+    const stageId = activeTab.replace('stage:', '');
+    if (!stageId || stageId.startsWith('bypass:')) {
+      return null;
+    }
+
+    return stageId;
+  }, [activeTab]);
+
+  const activeProgressionStageMeta = useMemo(
+    () =>
+      stageTabs.find((entry) => String(entry.stageId) === String(activeProgressionStageId)) || null,
+    [activeProgressionStageId, stageTabs]
+  );
+
+  const activeStageTabReady = Boolean(
+    activeProgressionStageMeta &&
+      activeProgressionStageMeta.status !== 'locked' &&
+      activeProgressionStageMeta.status !== 'ready' &&
+      activeProgressionStageMeta.status !== 'preview' &&
+      !activeProgressionStageMeta.isBypassPreview
+  );
+
+  const stageFixtures = useStageFixtures(tournamentId, {
+    stageId: activeProgressionStageId,
+    stageName: activeProgressionStageMeta?.name || 'Stage',
+    bestOf: Math.max(
+      Number(activeProgressionStageMeta?.bestOf || configuredFinalStageBestOfFromDetail || 3),
+      1
+    ),
+    groupsTabItems,
+    enabled: activeStageTabReady,
+    isGroupStage: false,
+  });
+  const {
+    loadAll: loadActiveStageFixtures,
+    applyFilter: applyActiveStageFixturesFilter,
+    refresh: refreshActiveStageFixtures,
+  } = stageFixtures;
+
+  const isProgressionDeferred = Boolean(detail?.progressionPlan?.deferred);
+  const showProgressionConfigurator =
+    canShowFinalStageStep &&
+    !isTournamentCompleted &&
+    (!hasStartedPostGroupStages || hasPendingStage || isProgressionDeferred);
+
+  const shouldShowFinaleTab = hasPostGroupStages;
 
   const liveGroupPlayerGameStats = useMemo(
     () => buildPlayerGameStatsFromGames(groupStageGames),
@@ -237,21 +313,38 @@ export function TournamentDetailScreen({ route, navigation }) {
     [groupPlayerGameStatsById, liveGroupPlayerGameStats]
   );
 
-  const loadFinalStageScores = useCallback(
-    async ({ hydrateInputs = false } = {}) => {
-      const response = await fetchScoresheetPages(tournamentId, { stage: 'finalStage' });
-      const items = response.items || [];
-
-      setCanEditFinalScores(Boolean(response.canEdit));
-      setFinalStageGames(items);
-
-      if (hydrateInputs) {
-        hydrateScoreInputState(items);
+  const loadStageScores = useCallback(
+    async (stageId, { hydrateInputs = false, forceRefresh = false } = {}) => {
+      if (forceRefresh) {
+        await queryClient.invalidateQueries({
+          queryKey: ['tournament', tournamentId, 'scoresheet'],
+        });
       }
 
+      const response = await fetchScoresheetPages(tournamentId, { stageId });
+      const items = response.items || [];
+      setStageGamesById((current) => ({ ...current, [stageId]: items }));
+      setCanEditFinalScores(Boolean(response.canEdit));
+      if (stageId === 'finalStage' || !stageId) {
+        setFinalStageGames(items);
+      }
+      if (hydrateInputs) {
+        hydrateScoreInputState(items, { merge: true });
+      }
       return items;
     },
-    [fetchScoresheetPages, hydrateScoreInputState, tournamentId]
+    [fetchScoresheetPages, hydrateScoreInputState, queryClient, tournamentId]
+  );
+
+  const loadFinalStageScores = useCallback(
+    async (options = {}) => {
+      const activeStage = detail?.activeStageId;
+      if (activeStage) {
+        return loadStageScores(activeStage, options);
+      }
+      return loadStageScores('finalStage', options);
+    },
+    [detail?.activeStageId, loadStageScores]
   );
 
   const loadDetail = useCallback(async () => {
@@ -275,8 +368,10 @@ export function TournamentDetailScreen({ route, navigation }) {
     setActiveTab(
       detail?.progressionState === 'groupStage'
         ? 'games'
-        : detail?.progressionState === 'finalStage'
-          ? 'finale'
+        : detail?.progressionState === 'finalStage' || detail?.progressionState === 'stageActive'
+          ? detail?.activeStageId
+            ? `stage:${detail.activeStageId}`
+            : 'groups'
           : detail?.registrationStatus === 'closed'
             ? 'groups'
             : 'registrations'
@@ -355,6 +450,41 @@ export function TournamentDetailScreen({ route, navigation }) {
 
   const firstFinalSectionId = finalDisplaySections[0]?.sectionId ?? null;
 
+  const stageDisplaySectionsById = useMemo(() => {
+    const sectionsById = {};
+    const planStages = detail?.progressionPlan?.stages || [];
+
+    Object.entries(stageGamesById).forEach(([stageId, games]) => {
+      const stageMeta =
+        stageTabs.find((stage) => stage.stageId === stageId) ||
+        planStages.find((stage) => String(stage.stageId) === String(stageId));
+      const divisionNameById = new Map();
+
+      if (stageMeta?.name) {
+        divisionNameById.set(String(stageId), stageMeta.name);
+        divisionNameById.set('__ungrouped', stageMeta.name);
+      }
+
+      (games || []).forEach((game) => {
+        const divisionId = String(game.divisionId || stageId).trim() || stageId;
+        const divisionName = String(game.divisionName || stageMeta?.name || 'Stage').trim();
+
+        if (divisionId && divisionName) {
+          divisionNameById.set(divisionId, divisionName);
+        }
+      });
+
+      const stageBestOf = Math.max(Number(stageMeta?.bestOf || resolvedFinalStageBestOf), 1);
+      sectionsById[stageId] = buildFixtureSectionsFromGames(games || [], {
+        divisionNameById,
+        groupStageBestOf: stageBestOf,
+        isPlayedScoreEntry,
+      });
+    });
+
+    return sectionsById;
+  }, [detail?.progressionPlan?.stages, resolvedFinalStageBestOf, stageGamesById, stageTabs]);
+
   const finalStagePlayers = useMemo(() => {
     const statsByPlayerId = new Map();
 
@@ -431,6 +561,16 @@ export function TournamentDetailScreen({ route, navigation }) {
       }));
   }, [finalStageGames]);
 
+  const progressionStandingsSections = useMemo(
+    () =>
+      buildProgressionStandingsSections({
+        stages: detail?.progressionPlan?.stages || [],
+        stageGamesById,
+        isDoubles,
+      }),
+    [detail?.progressionPlan?.stages, isDoubles, stageGamesById]
+  );
+
   const onRefreshDetail = useCallback(async () => {
     try {
       clearError();
@@ -453,6 +593,7 @@ export function TournamentDetailScreen({ route, navigation }) {
     gamesTabLoadStartedRef.current = false;
     groupsPrefetchStartedRef.current = false;
     finaleTabLoadStartedRef.current = false;
+    stageTabLoadStartedRef.current = null;
     finaleExpandInitializedRef.current = false;
   }, [tournamentId]);
 
@@ -478,13 +619,20 @@ export function TournamentDetailScreen({ route, navigation }) {
     try {
       dispatchLoading({ type: 'set', key: 'groups', value: true });
       clearError();
-      await Promise.all([loadGroupsTab(), loadFinalStageScores()]);
+      const startedStages = (detail?.progressionPlan?.stages || []).filter(
+        (stage) => stage.status === 'active' || stage.status === 'completed'
+      );
+      await Promise.all([
+        loadGroupsTab(),
+        loadFinalStageScores(),
+        ...startedStages.map((stage) => loadStageScores(stage.stageId)),
+      ]);
     } catch (error) {
       showError(formatApiError(error, 'Unable to load groups'));
     } finally {
       dispatchLoading({ type: 'set', key: 'groups', value: false });
     }
-  }, [clearError, loadFinalStageScores, loadGroupsTab, showError]);
+  }, [clearError, detail?.progressionPlan?.stages, loadFinalStageScores, loadGroupsTab, loadStageScores, showError]);
 
   const onLoadFinaleTab = useCallback(async () => {
     try {
@@ -575,49 +723,55 @@ export function TournamentDetailScreen({ route, navigation }) {
 
   const {
     groupStandings,
-    suggestedFinalistIds,
-    selectedFinalistIds,
-    selectedFinalistCount,
-    isFinaleModalVisible,
-    setIsFinaleModalVisible,
-    finaleActionConfirm,
-    setFinaleActionConfirm,
+    suggestedParticipantIds: suggestedFinalistIds,
+    bypassParticipantIds,
+    selectedParticipantIds: selectedFinalistIds,
+    selectedParticipantCount: selectedFinalistCount,
+    isStageModalVisible: isFinaleModalVisible,
+    setIsStageModalVisible: setIsFinaleModalVisible,
     tournamentCompleteMessage,
     setTournamentCompleteMessage,
-    isFinaleLaunchConfirmVisible,
-    setIsFinaleLaunchConfirmVisible,
-    isLoadingFinaleCandidates,
-    finalBestOfInput,
-    setFinalBestOfInput,
-    finalStageProctoredInput,
-    setFinalStageProctoredInput,
-    onToggleFinalist,
-    onStartFinalStage,
-    onOpenFinaleModal,
-    onCompleteWithoutFinals,
-    onConfirmFinaleAction,
-    onCompleteWithFinale,
-  } = useFinaleActions({
+    isLoadingStageCandidates: isLoadingFinaleCandidates,
+    advancementPreview,
+    isLoadingAdvancementPreview,
+    onToggleParticipant: onToggleFinalist,
+    onCloseStageModal,
+    onPreviewGroupAdvancement,
+    onPrepareStageFromGroups,
+    onPrepareStageFromPrevious,
+    onResumePendingStage,
+    onStartStage: onStartFinalStage,
+    onCompleteAfterGroups: onCompleteWithoutFinals,
+    onAdvanceStage,
+    activeStageMeta,
+    stageModalBackLabel,
+  } = useProgressionActions({
     tournamentId,
     isDoubles,
     loadDetail,
-    loadFinalStageScores,
+    loadStageScores,
     onLoadGroupsTab,
-    onLoadFinaleTab,
+    onLoadFinaleTab: async () => {
+      const activeStage = detail?.activeStageId || stageTabs[0]?.stageId;
+      if (activeStage) await loadStageScores(activeStage, { hydrateInputs: true });
+    },
     clearAll,
     showError,
     showSuccess,
     dispatchLoading,
     setActiveTab,
+    progressionStages: detail?.progressionPlan?.stages || [],
+    progressionBypass: progression.progressionBypass || [],
+    participantNameById,
   });
 
   const configuredFinalStageBestOf = Math.max(
-    Number(configuredFinalStageBestOfFromDetail ?? finalBestOfInput ?? 3),
+    Number(configuredFinalStageBestOfFromDetail ?? activeStageMeta?.bestOf ?? 3),
     1
   );
 
-  const canStartFinale = !loading.progressing && !isLoadingFinaleCandidates && selectedFinalistCount >= 2;
-
+  const canStartFinale =
+    !loading.progressing && !isLoadingFinaleCandidates && selectedFinalistCount >= 2;
 
   const onApplyGamesFilter = useCallback(async () => {
     try {
@@ -630,10 +784,63 @@ export function TournamentDetailScreen({ route, navigation }) {
     } finally {
       dispatchLoading({ type: 'set', key: 'games', value: false });
     }
-  }, [applyGroupFixturesFilter, clearError, hydrateScoreInputState, showError]);
+  }, [applyGroupFixturesFilter, clearError, dispatchLoading, hydrateScoreInputState, showError]);
+
+  const onApplyStageFilter = useCallback(async () => {
+    try {
+      clearError();
+      setLoadingStageId(activeProgressionStageId);
+      const matches = await applyActiveStageFixturesFilter();
+      hydrateScoreInputState(matches, { merge: true });
+    } catch (error) {
+      showError(formatApiError(error, 'Unable to filter matches'));
+    } finally {
+      setLoadingStageId((current) => (current === activeProgressionStageId ? null : current));
+    }
+  }, [
+    activeProgressionStageId,
+    applyActiveStageFixturesFilter,
+    clearError,
+    hydrateScoreInputState,
+    showError,
+  ]);
+
+  const onRefreshStageFixtures = useCallback(async () => {
+    if (!activeProgressionStageId) {
+      return;
+    }
+
+    try {
+      clearError();
+      setLoadingStageId(activeProgressionStageId);
+      const items = await refreshActiveStageFixtures({ preserveFilter: true });
+      hydrateScoreInputState(items, { merge: true });
+      setStageGamesById((current) => ({ ...current, [activeProgressionStageId]: items }));
+    } catch (error) {
+      showError(formatApiError(error, 'Unable to refresh fixtures'));
+    } finally {
+      setLoadingStageId((current) => (current === activeProgressionStageId ? null : current));
+    }
+  }, [
+    activeProgressionStageId,
+    clearError,
+    hydrateScoreInputState,
+    refreshActiveStageFixtures,
+    showError,
+  ]);
+
+  const allLoadedStageGames = useMemo(
+    () => Object.values(stageGamesById).flat(),
+    [stageGamesById]
+  );
 
   const onSaveMatchScores = useCallback(
     async (payload) => {
+      const activeStageIdFromTab =
+        activeTab.startsWith('stage:') && !activeTab.replace('stage:', '').startsWith('bypass:')
+          ? activeTab.replace('stage:', '')
+          : null;
+
       try {
         clearError();
         clearSuccess();
@@ -643,7 +850,8 @@ export function TournamentDetailScreen({ route, navigation }) {
           ...payload,
           groupStageGames: groupStageGames,
           finalStageGames,
-          onSuccess: async ({ isFinalStageGame }) => {
+          stageGames: allLoadedStageGames,
+          onSuccess: async ({ isFinalStageGame, stageId }) => {
             showSuccess('Match scores saved.');
 
             if (isFinalStageGame) {
@@ -651,8 +859,24 @@ export function TournamentDetailScreen({ route, navigation }) {
               return;
             }
 
+            const resolvedStageId = stageId || activeStageIdFromTab;
+            if (resolvedStageId) {
+              if (resolvedStageId === activeProgressionStageId) {
+                const refreshed = await refreshActiveStageFixtures({ preserveFilter: true });
+                hydrateScoreInputState(refreshed, { merge: true });
+                setStageGamesById((current) => ({ ...current, [resolvedStageId]: refreshed }));
+              } else {
+                await loadStageScores(resolvedStageId, { hydrateInputs: true, forceRefresh: true });
+              }
+              await invalidateTournamentQueries();
+              return;
+            }
+
+            await queryClient.invalidateQueries({
+              queryKey: ['tournament', tournamentId, 'scoresheet'],
+            });
             const refreshed = await refreshGroupFixtures({ preserveFilter: true });
-            hydrateScoreInputState(refreshed);
+            hydrateScoreInputState(refreshed, { merge: true });
             await refreshGroupsTabData();
             await invalidateTournamentQueries();
           },
@@ -674,18 +898,25 @@ export function TournamentDetailScreen({ route, navigation }) {
       }
     },
     [
+      activeProgressionStageId,
+      activeTab,
       clearError,
       clearSuccess,
       finalStageGames,
       groupStageGames,
       hydrateScoreInputState,
+      allLoadedStageGames,
+      loadStageScores,
       onLoadFinaleTab,
+      queryClient,
+      refreshActiveStageFixtures,
       refreshGroupFixtures,
       refreshGroupsTabData,
       saveMatchScoresFromInputs,
       showError,
       showSuccess,
       tournamentId,
+      invalidateTournamentQueries,
     ]
   );
 
@@ -705,24 +936,24 @@ export function TournamentDetailScreen({ route, navigation }) {
   }, [activeTab, onLoadGroupsTab]);
 
   useEffect(() => {
-    if (activeTab !== 'games') {
+    if (activeTab !== 'groups' || groupsTabItems.length > 0 || groupsPrefetchStartedRef.current) {
       return;
     }
 
-    if (groupsTabItems.length === 0 && !groupsPrefetchStartedRef.current) {
-      groupsPrefetchStartedRef.current = true;
-      refreshGroupsTabData().catch((error) => {
-        logApiError(error, { screen: 'TournamentDetail', action: 'prefetchGroupsTab' });
-      });
-    }
+    groupsPrefetchStartedRef.current = true;
+    refreshGroupsTabData().catch((error) => {
+      logApiError(error, { screen: 'TournamentDetail', action: 'prefetchGroupsTab' });
+    });
+  }, [activeTab, groupsTabItems.length, refreshGroupsTabData]);
 
-    if (gamesTabLoadStartedRef.current) {
+  useEffect(() => {
+    if (activeTab !== 'games' || gamesTabLoadStartedRef.current) {
       return;
     }
 
     gamesTabLoadStartedRef.current = true;
     onLoadGroupFixtures();
-  }, [activeTab, groupsTabItems.length, onLoadGroupFixtures, refreshGroupsTabData]);
+  }, [activeTab, onLoadGroupFixtures]);
 
   useFocusEffect(
     useCallback(() => {
@@ -750,13 +981,65 @@ export function TournamentDetailScreen({ route, navigation }) {
   );
 
   useEffect(() => {
-    if (activeTab !== 'finale' || finaleTabLoadStartedRef.current) {
+    stageFixturesRepairRef.current = new Set();
+  }, [tournamentId]);
+
+  useEffect(() => {
+    if (!activeProgressionStageId || !activeStageTabReady) {
       return;
     }
 
-    finaleTabLoadStartedRef.current = true;
-    onLoadFinaleTab();
-  }, [activeTab, onLoadFinaleTab]);
+    const stageId = activeProgressionStageId;
+    const stageMeta = activeProgressionStageMeta;
+
+    let cancelled = false;
+
+    (async () => {
+      setLoadingStageId(stageId);
+      try {
+        let items = await loadActiveStageFixtures();
+        if (!cancelled) {
+          hydrateScoreInputState(items, { merge: true });
+          setStageGamesById((current) => ({ ...current, [stageId]: items }));
+        }
+
+        if (
+          !cancelled &&
+          stageMeta?.format === 'knockout' &&
+          isLegacyKnockoutBracket(items) &&
+          !stageFixturesRepairRef.current.has(stageId)
+        ) {
+          stageFixturesRepairRef.current.add(stageId);
+          await regenerateProgressionStageFixtures(tournamentId, stageId);
+          items = await refreshActiveStageFixtures({ preserveFilter: false });
+          if (!cancelled) {
+            hydrateScoreInputState(items, { merge: true });
+            setStageGamesById((current) => ({ ...current, [stageId]: items }));
+          }
+        }
+      } catch (error) {
+        if (!cancelled) {
+          logApiError(error, { screen: 'TournamentDetail', action: 'loadOrRepairStageFixtures', stageId });
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingStageId((current) => (current === stageId ? null : current));
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeProgressionStageId,
+    activeProgressionStageMeta,
+    activeStageTabReady,
+    hydrateScoreInputState,
+    loadActiveStageFixtures,
+    refreshActiveStageFixtures,
+    tournamentId,
+  ]);
 
   useEffect(() => {
     if (activeTab !== 'finale' || !firstFinalSectionId || finaleExpandInitializedRef.current) {
@@ -780,13 +1063,20 @@ export function TournamentDetailScreen({ route, navigation }) {
           return null;
         }
 
-        const sections = activeTab === 'finale' ? finalDisplaySections : groupDisplaySections;
+        const sections =
+          activeTab === 'finale'
+            ? finalDisplaySections
+            : activeTab === 'games'
+              ? groupDisplaySections
+              : activeTab.startsWith('stage:')
+                ? stageFixtures.displaySections
+                : groupDisplaySections;
         const section = sections.find((item) => item.sectionId === sectionId);
         setExpandedRoundKey(findActiveFixtureRoundKeyForSection(section));
         return sectionId;
       });
     },
-    [activeTab, finalDisplaySections, groupDisplaySections]
+    [activeTab, finalDisplaySections, groupDisplaySections, stageFixtures.displaySections]
   );
 
   const isLoadingGames = loading.games || groupFixtures.isLoading;
@@ -812,10 +1102,17 @@ export function TournamentDetailScreen({ route, navigation }) {
         const updated = await updateTournamentGameSchedule(tournamentId, scheduleTarget.gameId, {
           scheduledStartAt,
         });
-        groupFixtures.patchGame(updated.id, {
-          scheduledStartAt: updated.scheduledStartAt,
-          canScheduleMatch: updated.canScheduleMatch,
-        });
+        if (activeProgressionStageId) {
+          stageFixtures.patchGame(updated.id, {
+            scheduledStartAt: updated.scheduledStartAt,
+            canScheduleMatch: updated.canScheduleMatch,
+          });
+        } else {
+          groupFixtures.patchGame(updated.id, {
+            scheduledStartAt: updated.scheduledStartAt,
+            canScheduleMatch: updated.canScheduleMatch,
+          });
+        }
         setScheduleTarget(null);
       } catch (error) {
         showError(formatApiError(error, 'Unable to save match schedule'));
@@ -825,6 +1122,10 @@ export function TournamentDetailScreen({ route, navigation }) {
     },
     [clearAll, groupFixtures, scheduleTarget, showError, tournamentId]
   );
+
+  if (isDetailQueryLoading && !detail) {
+    return <ScreenSkeleton />;
+  }
 
   return (
     <ScreenScrollShell ref={scrollRef} contentContainerStyle={{ gap: 16 }}>
@@ -864,7 +1165,8 @@ export function TournamentDetailScreen({ route, navigation }) {
       <HostTournamentTabLayout
         activeTab={activeTab}
         onSelectTab={setActiveTab}
-        shouldShowFinaleTab={shouldShowFinaleTab}
+        stageTabs={stageTabs}
+        showGamesTab={hasGroupFixtures}
       >
         <SuccessBanner message={successMessage} />
 
@@ -939,10 +1241,11 @@ export function TournamentDetailScreen({ route, navigation }) {
           }
           finaleStandings={finaleStandings}
           handicapEnabled={handicapEnabled}
+          progressionStandingsSections={progressionStandingsSections}
         />
       )}
 
-      {activeTab === 'games' && (
+      {activeTab === 'games' && hasGroupFixtures && (
         <GamesTab
           isRegistrationClosed={isRegistrationClosed}
           hasGroupFixtures={hasGroupFixtures}
@@ -970,11 +1273,25 @@ export function TournamentDetailScreen({ route, navigation }) {
           onSaveMatchScores={onSaveMatchScores}
           canEditGamesScores={groupFixtures.canEdit}
           activeRoundKey={groupFixtures.activeRoundKey}
-          canShowFinalStageStep={canShowFinalStageStep && !isTournamentCompleted}
+          canShowFinalStageStep={canShowFinalStageStep && !isTournamentCompleted && hasPostGroupStages}
+          showProgressionConfigurator={showProgressionConfigurator}
+          groupCount={Number(detail?.competitionConfig?.groupCount || groupsTabItems.length || 0)}
+          groupLabels={groupsTabItems.map((group) => group.divisionName).filter(Boolean)}
+          isDoubles={isDoubles}
+          progressionPreview={advancementPreview}
+          isLoadingProgressionPreview={isLoadingAdvancementPreview}
+          onPreviewProgression={onPreviewGroupAdvancement}
+          onConfigureProgression={async (draft) => {
+            if (nextReadyStage) {
+              await onResumePendingStage(nextReadyStage);
+              return;
+            }
+            await onPrepareStageFromGroups(draft);
+          }}
+          onEndAfterGroups={onCompleteWithoutFinals}
+          nextStageName={nextReadyStage?.name || null}
           isProgressing={loading.progressing}
           isLoadingFinaleCandidates={isLoadingFinaleCandidates}
-          onRequestStartFinale={() => setFinaleActionConfirm('start')}
-          onRequestSkipFinale={() => setFinaleActionConfirm('skip')}
           onAddSeriesGame={scoreInputs.onAddSeriesGame}
           onStartGame={({ gameId }) =>
             navigation.navigate('LiveMatchSession', { tournamentId, gameId, autoStart: true })
@@ -984,32 +1301,98 @@ export function TournamentDetailScreen({ route, navigation }) {
         />
       )}
 
-      {activeTab === 'finale' && (
-        <FinaleTab
-          canEditFinalScores={canEditFinalScores}
-          isLoadingFinaleTab={loading.finale}
-          onLoadFinaleTab={onLoadFinaleTab}
-          finalDisplaySections={finalDisplaySections}
-          finalFixtureSummaryText={finalFixtureSummaryText}
-          expandedSectionId={expandedSectionId}
-          onToggleSection={onToggleSection}
-          expandedRoundKey={expandedRoundKey}
-          onToggleRound={onToggleRound}
-          scoreInputsByGameId={scoreInputs.scoreInputsByGameId}
-          onChangeScoreInput={scoreInputs.onChangeScoreInput}
-          configuredFinalStageBestOf={configuredFinalStageBestOf}
-          savingGameId={scoreInputs.savingGameId}
-          onSaveMatchScores={onSaveMatchScores}
-          activeFinalRoundKey={activeFinalRoundKey}
-          isProgressing={loading.progressing}
-          hasFinalStageStarted={hasFinalStageStarted}
-          onCompleteWithFinale={onCompleteWithFinale}
-          onStartGame={({ gameId }) =>
-            navigation.navigate('LiveMatchSession', { tournamentId, gameId, autoStart: true })
-          }
-          finalStageProctored={finalStageProctored}
-        />
-      )}
+      {stageTabs.map((stage) => {
+        const planStage = (detail?.progressionPlan?.stages || []).find(
+          (entry) => String(entry.stageId) === String(stage.stageId)
+        );
+        const isStageStarted =
+          stage.status === 'active' ||
+          stage.status === 'complete' ||
+          planStage?.status === 'active' ||
+          planStage?.status === 'completed' ||
+          String(detail?.activeStageId || '') === String(stage.stageId);
+
+        const isActivePlanningStage =
+          stage.status === 'active' ||
+          planStage?.status === 'active' ||
+          String(detail?.activeStageId || '') === String(stage.stageId);
+
+        const hasLaterStageStarted = (detail?.progressionPlan?.stages || []).some(
+          (planEntry) =>
+            Number(planEntry.order || 0) > Number(stage.order || 0) &&
+            (planEntry.status === 'active' || planEntry.status === 'completed')
+        );
+
+        return activeTab === `stage:${stage.stageId}` ? (
+          <StageTabView
+            key={stage.stageId}
+            stage={stage}
+            isLoading={loadingStageId === stage.stageId || stageFixtures.isLoading}
+            games={stageFixtures.games}
+            displaySections={stageFixtures.displaySections}
+            scoreInputsByGameId={scoreInputs.scoreInputsByGameId}
+            onChangeScoreInput={scoreInputs.onChangeScoreInput}
+            savingGameId={scoreInputs.savingGameId}
+            onSaveMatchScores={onSaveMatchScores}
+            canEdit={stageFixtures.canEdit}
+            expandedSectionId={expandedSectionId}
+            onToggleSection={onToggleSection}
+            expandedRoundKey={expandedRoundKey}
+            onToggleRound={onToggleRound}
+            defaultSeriesMaxGames={Math.max(Number(stage.bestOf || resolvedFinalStageBestOf), 1)}
+            participantNameById={participantNameById}
+            expectedCount={getStageInputCountFromDetail(detail, stage)}
+            isFilterExpanded={stageFixtures.isFilterExpanded}
+            onToggleFilter={stageFixtures.toggleFilterExpanded}
+            onRefresh={onRefreshStageFixtures}
+            playerFilterInput={stageFixtures.playerFilterInput}
+            onPlayerFilterInputChange={stageFixtures.setPlayerFilterInput}
+            opponentFilterInput={stageFixtures.opponentFilterInput}
+            onOpponentFilterInputChange={stageFixtures.setOpponentFilterInput}
+            onClearFilter={stageFixtures.clearFilter}
+            onApplyFilter={onApplyStageFilter}
+            hasActiveFilter={stageFixtures.hasActiveGamesFilter}
+            fixtureSummaryText={stageFixtures.fixtureSummaryText}
+            activeRoundKey={stageFixtures.activeRoundKey}
+            useLiveSessionScoring={Boolean(stage.proctored)}
+            showSaveButton={!stage.proctored}
+            onStartGame={({ gameId }) =>
+              navigation.navigate('LiveMatchSession', { tournamentId, gameId, autoStart: true })
+            }
+            onScheduleMatch={onScheduleMatch}
+            showStageProgressionPanel={
+              !isTournamentCompleted &&
+              !stage.isBypassPreview &&
+              isStageStarted &&
+              isActivePlanningStage &&
+              !hasLaterStageStarted
+            }
+            stageParticipantCount={(() => {
+              const configuredInput = getStageInputCountFromDetail(detail, stage);
+              const uniqueFromGames = countUniqueStageParticipants(stageFixtures.games, isDoubles);
+
+              return Math.max(configuredInput, uniqueFromGames);
+            })()}
+            onContinueToNextStage={async (draft) => {
+              if (nextReadyStage) {
+                await onResumePendingStage(nextReadyStage);
+                return;
+              }
+              await onPrepareStageFromPrevious(draft, stage);
+            }}
+            onEndTournament={() => onAdvanceStage(stage.stageId, stage.name, true)}
+            nextStageName={nextReadyStage?.name || null}
+            isLastConfiguredStage={
+              (detail?.progressionPlan?.stages || []).findIndex(
+                (entry) => String(entry.stageId) === String(stage.stageId)
+              ) ===
+              (detail?.progressionPlan?.stages || []).length - 1
+            }
+            isProgressing={loading.progressing}
+          />
+        ) : null;
+      })}
+
       </HostTournamentTabLayout>
 
       <FeedbackModal visible={Boolean(errorMessage)} message={errorMessage} onDismiss={clearError} />
@@ -1083,46 +1466,6 @@ export function TournamentDetailScreen({ route, navigation }) {
         confirmVariant="danger"
       />
 
-      <ConfirmModal
-        visible={finaleActionConfirm === 'start'}
-        icon="trophy"
-        title="Start finale?"
-        message="You will choose finalists from group standings and create knockout matches. Group-stage fixtures stay as they are."
-        confirmLabel="Continue"
-        cancelLabel="Not yet"
-        onConfirm={onConfirmFinaleAction}
-        onCancel={() => setFinaleActionConfirm(null)}
-        isLoading={loading.progressing || isLoadingFinaleCandidates}
-      />
-
-      <ConfirmModal
-        visible={isFinaleLaunchConfirmVisible}
-        icon="trophy"
-        title="Launch finale bracket?"
-        message={`Create knockout matches for ${selectedFinalistCount} selected ${isDoubles ? 'team' : 'player'}${selectedFinalistCount === 1 ? '' : 's'}. This cannot be undone from the Games tab.`}
-        confirmLabel="Launch finale"
-        cancelLabel="Go back"
-        onConfirm={async () => {
-          setIsFinaleLaunchConfirmVisible(false);
-          await onStartFinalStage();
-        }}
-        onCancel={() => setIsFinaleLaunchConfirmVisible(false)}
-        isLoading={loading.progressing}
-      />
-
-      <ConfirmModal
-        visible={finaleActionConfirm === 'skip'}
-        icon="warning"
-        title="End tournament without finale?"
-        message="This ends the tournament now. There will be no knockout bracket. Top 3 players in each group will be medalled in standings based on group-stage results."
-        confirmLabel="End tournament"
-        cancelLabel="Go back"
-        confirmVariant="danger"
-        onConfirm={onConfirmFinaleAction}
-        onCancel={() => setFinaleActionConfirm(null)}
-        isLoading={loading.progressing}
-      />
-
       <HostInfoModal
         visible={isHostInfoModalVisible}
         detail={detail}
@@ -1137,23 +1480,22 @@ export function TournamentDetailScreen({ route, navigation }) {
         onEmailExport={onEmailExportWorkbook}
       />
 
-      <FinalePlayerModal
+      <StageStartModal
         visible={isFinaleModalVisible}
-        onClose={() => setIsFinaleModalVisible(false)}
+        onClose={onCloseStageModal}
+        stage={activeStageMeta || nextReadyStage}
         groupStandings={groupStandings}
-        isLoadingFinaleCandidates={isLoadingFinaleCandidates}
-        selectedFinalistIds={selectedFinalistIds}
-        suggestedFinalistIds={suggestedFinalistIds}
-        onToggleFinalist={onToggleFinalist}
-        selectedFinalistCount={selectedFinalistCount}
-        canStartFinale={canStartFinale}
+        participantNameById={participantNameById}
+        backButtonLabel={stageModalBackLabel}
+        isLoadingStageCandidates={isLoadingFinaleCandidates}
+        selectedParticipantIds={selectedFinalistIds}
+        suggestedParticipantIds={suggestedFinalistIds}
+        bypassParticipantIds={bypassParticipantIds}
+        onToggleParticipant={onToggleFinalist}
+        canStartStage={canStartFinale}
         isProgressing={loading.progressing}
         isDoubles={isDoubles}
-        onStartFinalStage={() => setIsFinaleLaunchConfirmVisible(true)}
-        finalBestOfInput={finalBestOfInput}
-        onFinalBestOfChange={setFinalBestOfInput}
-        finalStageProctored={finalStageProctoredInput}
-        onFinalStageProctoredChange={setFinalStageProctoredInput}
+        onStartStage={onStartFinalStage}
       />
     </ScreenScrollShell>
   );

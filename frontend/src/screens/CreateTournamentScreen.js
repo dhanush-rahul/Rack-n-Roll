@@ -14,6 +14,8 @@ import { tournamentColors, tournamentUi } from '../styles/tournamentUi';
 import { useResponsiveLayout, centeredContentStyle } from '../utils/responsive';
 import { WebFormColumns } from '../components/layout/WebTwoColumnLayout';
 import { WebScheduleInputs } from '../components/scheduling/WebScheduleInputs';
+import { ProgressionPlanEditor, validateProgressionPlan } from '../components/tournament/ProgressionPlanEditor';
+import { buildDefaultProgressionState, serializeProgressionPlan } from '../utils/progressionPlanUtils';
 
 const PLAYER_PRESETS = [8, 16, 32, 64];
 
@@ -134,6 +136,7 @@ export function CreateTournamentScreen({ navigation, route }) {
   const [pairFormationMode, setPairFormationMode] = useState('playerPicksPartner');
   const [handicapEnabled, setHandicapEnabled] = useState(false);
   const [groupStageProctored, setGroupStageProctored] = useState(false);
+  const [progressionState, setProgressionState] = useState(() => buildDefaultProgressionState());
   const [fieldErrors, setFieldErrors] = useState({});
   const [errorText, setErrorText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -198,6 +201,11 @@ export function CreateTournamentScreen({ navigation, route }) {
       nextErrors.inviteCode = 'Invite-only tournaments need a code of at least 4 characters.';
     }
 
+    const progressionValidation = validateProgressionPlan(progressionState);
+    if (!progressionValidation.valid) {
+      nextErrors.progression = progressionValidation.errors[0] || 'Fix progression plan errors.';
+    }
+
     setFieldErrors(nextErrors);
     return Object.keys(nextErrors).length === 0 ? { trimmedName, parsedPlayers, trimmedVenue, startsAt } : null;
   };
@@ -228,9 +236,13 @@ export function CreateTournamentScreen({ navigation, route }) {
           format: competitionFormat,
           pairFormationMode: competitionFormat === 'doubles' ? pairFormationMode : undefined,
           groupStageBestOf: Number(groupStageBestOf),
+          groupCount: progressionState.enabled ? Number(progressionState.plannedGroupCount) : undefined,
           handicapEnabled: competitionFormat === 'doubles' ? false : handicapEnabled,
           groupStageProctored: competitionFormat === 'doubles' ? false : groupStageProctored,
         },
+        progressionPlan: progressionState.enabled
+          ? serializeProgressionPlan(progressionState)
+          : { stages: [], deferred: Boolean(progressionState.deferAfterGroups) },
       };
 
       const createdTournament = await createTournament(payload);
@@ -471,6 +483,18 @@ export function CreateTournamentScreen({ navigation, route }) {
           </View>
         </View>
         )}
+      </SectionCard>
+
+      <SectionCard
+        title="After groups"
+        subtitle="Name your own stages, pick knockout or round-robin, and chain advancement rules."
+      >
+        <ProgressionPlanEditor
+          value={progressionState}
+          onChange={setProgressionState}
+          competitionFormat={competitionFormat}
+          fieldError={fieldErrors.progression}
+        />
       </SectionCard>
           </>
         }

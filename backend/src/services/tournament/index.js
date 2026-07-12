@@ -6,7 +6,7 @@ const { canUserEditTournamentScores, assertCanEditTournamentScores, assertCanEdi
 const { listTournamentScoresheet, updateGameScores, updateGameSchedule, upsertAndScoreGroupStageGame } = require('./scoring.service');
 const { recomputeLeaderboardForScope, listTournamentLeaderboard, listGroupStandings, listGroupStandingsForHost } = require('./leaderboard.service');
 const { assignRandomGroups, regenerateGroupStageFixtures } = require('./fixtures.service');
-const { startFinalStageFromGroups, finalizeTournamentWithoutFinalStage, finalizeTournamentWithFinalStage } = require('./finalStage.service');
+const { startFinalStageFromGroups, finalizeTournamentWithoutFinalStage, finalizeTournamentWithFinalStage, updateProgressionPlan, appendProgressionStage, abandonPendingProgressionStage, getGroupAdvancementPreview, getStageCandidates, startProgressionStage, regenerateProgressionStageFixtures, completeProgressionStage, finalizeTournamentAfterGroups } = require('./progression.service');
 const { materializeApprovedPlayers, materializeApprovedPlayerForUser } = require('./roster.service');
 
 module.exports = {
@@ -54,6 +54,15 @@ module.exports = {
   startFinalStageFromGroups,
   finalizeTournamentWithoutFinalStage,
   finalizeTournamentWithFinalStage,
+  updateProgressionPlan,
+  appendProgressionStage,
+  abandonPendingProgressionStage,
+  getGroupAdvancementPreview,
+  getStageCandidates,
+  startProgressionStage,
+  regenerateProgressionStageFixtures,
+  completeProgressionStage,
+  finalizeTournamentAfterGroups,
   materializeApprovedPlayers,
   materializeApprovedPlayerForUser,
 };

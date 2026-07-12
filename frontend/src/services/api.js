@@ -3,6 +3,7 @@ import { resolveApiBaseUrl } from '../config/apiBaseUrl';
 import { getToken } from '../utils/tokenStore';
 import { logApiError } from '../utils/errorLogger';
 import { wakeBackendIfNeeded } from './systemService';
+import { decrementApiLoading, incrementApiLoading } from './apiLoadingStore';
 
 const API_BASE_URL = resolveApiBaseUrl();
 
@@ -19,6 +20,8 @@ apiClient.interceptors.request.use(async (config) => {
   const isHealthCheck = String(config.url || '').includes('/health');
 
   if (!isHealthCheck) {
+    incrementApiLoading();
+    config.__racknrollLoadingTracked = true;
     await wakeBackendIfNeeded();
   }
 
@@ -60,8 +63,16 @@ const normalizeError = (error) => {
 };
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (response.config?.__racknrollLoadingTracked) {
+      decrementApiLoading();
+    }
+    return response;
+  },
   (error) => {
+    if (error?.config?.__racknrollLoadingTracked) {
+      decrementApiLoading();
+    }
     const normalized = normalizeError(error);
     const requestConfig = error?.config || {};
 

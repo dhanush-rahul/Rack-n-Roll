@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { ScaledText as Text } from '../../components/ui/ScaledText';
-import { AppIcon } from '../../components/ui/AppIcon';
+import { LoadingPlaceholder } from '../../components/ui/LoadingPlaceholder';
 import {
   ActionButton,
   ChipSelector,
@@ -11,6 +11,7 @@ import {
   SectionCard,
   TabStatsRow,
 } from '../../components/tournament/TournamentChrome';
+import { AppIcon } from '../../components/ui/AppIcon';
 import { tournamentColors } from '../../styles/tournamentUi';
 
 const GROUP_COUNT_OPTIONS = Array.from({ length: 8 }, (_, index) => ({
@@ -48,6 +49,7 @@ export function GroupsTab({
   finalStageEnabled = false,
   finaleStandings = [],
   handicapEnabled = false,
+  progressionStandingsSections = [],
 }) {
   const [standingsView, setStandingsView] = useState('team');
 
@@ -225,6 +227,30 @@ export function GroupsTab({
         </View>
       )}
 
+      {progressionStandingsSections.map((section, index) => {
+        const displayStandings =
+          isDoubles && standingsView === 'team'
+            ? mapTeamStandingsForDisplay(section.teamStandings || [])
+            : section.standings || [];
+
+        return (
+          <View key={section.stageId} style={{ marginBottom: 14 }}>
+            <SectionCard
+              title={section.stageName}
+              subtitle="Standings from completed matches in this round."
+            >
+              <GroupStandingsCard
+                groupName={section.stageName}
+                standings={displayStandings}
+                showScoresheetStats={false}
+                showTopThreeMedals={isTournamentCompleted && index === 0}
+                medalCount={3}
+              />
+            </SectionCard>
+          </View>
+        );
+      })}
+
       <SectionCard
         title="Standings by group"
         subtitle="Rankings refresh when you save scores on the Games tab."
@@ -265,7 +291,7 @@ export function GroupsTab({
         }
       >
         {isLoadingGroupsTab && groupsTabItems.length === 0 && (
-          <Text style={{ color: tournamentColors.textMuted, fontSize: 13 }}>Loading standings…</Text>
+          <LoadingPlaceholder message="Loading standings…" compact />
         )}
 
         {finaleMode && finaleDisplayStandings.length > 0 && (

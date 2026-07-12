@@ -129,6 +129,53 @@ export async function startTournamentFinalStage(tournamentId, payload = {}) {
   return response.data;
 }
 
+export async function updateTournamentProgressionPlan(tournamentId, payload = {}) {
+  const response = await apiPut(`/api/tournaments/${tournamentId}/progression-plan`, payload);
+  return response.data;
+}
+
+export async function appendProgressionStage(tournamentId, payload = {}) {
+  const response = await apiPost(`/api/tournaments/${tournamentId}/progression/stages`, payload);
+  return response.data;
+}
+
+export async function abandonPendingProgressionStage(tournamentId, stageId) {
+  const response = await apiDelete(`/api/tournaments/${tournamentId}/progression/stages/${stageId}`);
+  return response.data;
+}
+
+export async function fetchGroupAdvancementPreview(tournamentId, payload = {}) {
+  const response = await apiPost(`/api/tournaments/${tournamentId}/progression/advancement-preview`, payload);
+  return response.data;
+}
+
+export async function fetchStageCandidates(tournamentId, stageId) {
+  const response = await apiGet(`/api/tournaments/${tournamentId}/progression/stages/${stageId}/candidates`);
+  return response.data;
+}
+
+export async function startProgressionStage(tournamentId, stageId, payload = {}) {
+  const response = await apiPost(`/api/tournaments/${tournamentId}/progression/stages/${stageId}/start`, payload);
+  return response.data;
+}
+
+export async function regenerateProgressionStageFixtures(tournamentId, stageId) {
+  const response = await apiPost(
+    `/api/tournaments/${tournamentId}/progression/stages/${stageId}/regenerate-fixtures`
+  );
+  return response.data;
+}
+
+export async function completeProgressionStage(tournamentId, stageId) {
+  const response = await apiPost(`/api/tournaments/${tournamentId}/progression/stages/${stageId}/complete`);
+  return response.data;
+}
+
+export async function completeTournamentAfterGroups(tournamentId, payload = {}) {
+  const response = await apiPost(`/api/tournaments/${tournamentId}/progression/complete-after-groups`, payload);
+  return response.data;
+}
+
 export async function completeTournamentWithoutFinalStage(tournamentId, payload = {}) {
   const response = await apiPost(`/api/tournaments/${tournamentId}/final-stage/skip-and-complete`, payload);
   return response.data;
