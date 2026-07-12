@@ -170,7 +170,11 @@ export function RegistrationsTab({
 
     const scrollTimer = setTimeout(() => {
       searchSectionRef.current?.measure((_x, _y, _width, _height, _pageX, pageY) => {
-        scrollRef.current?.scrollTo?.({ y: Math.max(0, pageY - 96), animated: true });
+        const yOffset = Number(pageY);
+        if (!Number.isFinite(yOffset)) {
+          return;
+        }
+        scrollRef.current?.scrollTo?.({ y: Math.max(0, yOffset - 96), animated: true });
       });
     }, 320);
 
