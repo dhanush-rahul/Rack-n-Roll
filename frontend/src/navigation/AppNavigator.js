@@ -21,7 +21,20 @@ import { CreateTournamentScreen } from '../screens/CreateTournamentScreen';
 import { CreateTournamentWalkthroughScreen } from '../screens/CreateTournamentWalkthroughScreen';
 import { ScoresheetScreen } from '../screens/ScoresheetScreen';
 import { LiveMatchSessionScreen } from '../screens/LiveMatchSessionScreen';
+import { ScreenErrorBoundary } from '../components/ScreenErrorBoundary';
 import { TournamentDetailScreen } from '../screens/TournamentDetailScreen';
+
+function TournamentDetailScreenWithBoundary(props) {
+  return (
+    <ScreenErrorBoundary
+      screenName="TournamentDetail"
+      title="Host dashboard unavailable"
+      onGoBack={() => props.navigation?.goBack?.()}
+    >
+      <TournamentDetailScreen {...props} />
+    </ScreenErrorBoundary>
+  );
+}
 import { AppBootstrapScreen, BOOTSTRAP_BACKGROUND } from '../screens/AppBootstrapScreen';
 import { GlobalLoadingOverlay } from '../components/ui/GlobalLoadingOverlay';
 import { ProfileScreen } from '../screens/ProfileScreen';
@@ -225,7 +238,11 @@ function RootStack() {
         options={{ title: 'Create Tournament' }}
       />
       <Stack.Screen name="CreateTournament" component={CreateTournamentScreen} options={{ title: 'Create Tournament' }} />
-      <Stack.Screen name="TournamentDetail" component={TournamentDetailScreen} options={{ title: 'Tournament' }} />
+      <Stack.Screen
+        name="TournamentDetail"
+        component={TournamentDetailScreenWithBoundary}
+        options={{ title: 'Tournament' }}
+      />
       <Stack.Screen name="Scoresheet" component={ScoresheetScreen} options={{ title: 'Scoresheet' }} />
       <Stack.Screen name="LiveMatchSession" component={LiveMatchSessionScreen} options={{ title: 'Live match' }} />
     </Stack.Navigator>

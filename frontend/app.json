@@ -36,7 +36,7 @@
       }
     },
     "android": {
-      "versionCode": 17,
+      "versionCode": 18,
       "package": "com.dhanushcharipally.racknroll",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
@@ -44,7 +44,7 @@
       }
     },
     "ios": {
-      "buildNumber": "17",
+      "buildNumber": "18",
       "bundleIdentifier": "com.dhanushcharipally.racknroll"
     },
     "web": {

@@ -13,6 +13,7 @@ import { useGroupStandings } from '../hooks/useGroupStandings';
 import { formatApiError, useScreenFeedback } from '../hooks/useScreenFeedback';
 import { logApiError } from '../utils/errorLogger';
 import { ScreenScrollShell } from '../components/layout/ScreenScrollShell';
+import { EmptyStateCard } from '../components/tournament/TournamentChrome';
 import { ScreenSkeleton } from '../components/ui/ScreenSkeleton';
 import { HostTournamentTabLayout } from '../components/layout/TournamentTabLayout';
 import { useHostTournamentDetail } from '../hooks/queries/useHostTournamentDetail';
@@ -99,6 +100,7 @@ export function TournamentDetailScreen({ route, navigation }) {
   const {
     data: detail,
     isLoading: isDetailQueryLoading,
+    isError: isDetailQueryError,
     refetch: refetchDetail,
     error: detailQueryError,
   } = useHostTournamentDetail(tournamentId);
@@ -1123,8 +1125,32 @@ export function TournamentDetailScreen({ route, navigation }) {
     [clearAll, groupFixtures, scheduleTarget, showError, tournamentId]
   );
 
+  if (!tournamentId) {
+    return (
+      <ScreenScrollShell contentContainerStyle={{ gap: 16 }}>
+        <EmptyStateCard
+          icon="warning"
+          title="Tournament not found"
+          message="This link is missing a tournament id. Go back and open the host dashboard again."
+        />
+      </ScreenScrollShell>
+    );
+  }
+
   if (isDetailQueryLoading && !detail) {
     return <ScreenSkeleton />;
+  }
+
+  if (isDetailQueryError && !detail) {
+    return (
+      <ScreenScrollShell contentContainerStyle={{ gap: 16 }}>
+        <EmptyStateCard
+          icon="warning"
+          title="Unable to load host dashboard"
+          message={formatApiError(detailQueryError, 'Unable to load tournament detail')}
+        />
+      </ScreenScrollShell>
+    );
   }
 
   return (
