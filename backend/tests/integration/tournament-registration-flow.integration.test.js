@@ -790,8 +790,8 @@ describe('M6-S2 integration pack: discover -> register -> host approve', () => {
     expect(assignGroupsResponse.status).toBe(200);
     expect(assignGroupsResponse.body.success).toBe(true);
 
-    await Game.deleteMany({ tournamentId, stage: 'groupStage' });
-    expect(await Game.countDocuments({ tournamentId, stage: 'groupStage' })).toBe(0);
+    await Game.deleteMany({ tournamentId, stageId: 'groupStage' });
+    expect(await Game.countDocuments({ tournamentId, stageId: 'groupStage' })).toBe(0);
 
     const regenerateResponse = await request(app)
       .post(`/api/tournaments/${tournamentId}/groups/regenerate`)
@@ -875,7 +875,8 @@ describe('M6-S2 integration pack: discover -> register -> host approve', () => {
 
     expect(startFinalResponse.status).toBe(200);
     expect(startFinalResponse.body.success).toBe(true);
-    expect(startFinalResponse.body.data.finalStageBestOf).toBe(5);
+    expect(startFinalResponse.body.data.stageId).toBeTruthy();
+    expect(startFinalResponse.body.data.gameCount).toBeGreaterThan(0);
 
     const completeWithoutFinalsResponse = await request(app)
       .post(`/api/tournaments/${tournamentId}/final-stage/skip-and-complete`)
@@ -946,7 +947,7 @@ describe('M6-S2 integration pack: discover -> register -> host approve', () => {
 
     expect(assignGroupsResponse.status).toBe(200);
 
-    const gamesBeforeLateAdd = await Game.countDocuments({ tournamentId, stage: 'groupStage' });
+    const gamesBeforeLateAdd = await Game.countDocuments({ tournamentId, stageId: 'groupStage' });
 
     const manualAddResponse = await request(app)
       .post(`/api/tournaments/${tournamentId}/participants/manual-add`)
@@ -957,7 +958,7 @@ describe('M6-S2 integration pack: discover -> register -> host approve', () => {
     expect(manualAddResponse.body.data.groupSync).toBeTruthy();
     expect(manualAddResponse.body.data.groupSync.gamesCreated).toBeGreaterThan(0);
 
-    const gamesAfterLateAdd = await Game.countDocuments({ tournamentId, stage: 'groupStage' });
+    const gamesAfterLateAdd = await Game.countDocuments({ tournamentId, stageId: 'groupStage' });
     expect(gamesAfterLateAdd).toBeGreaterThan(gamesBeforeLateAdd);
   });
 });

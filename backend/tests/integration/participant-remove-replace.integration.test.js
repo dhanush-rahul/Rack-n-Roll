@@ -101,7 +101,7 @@ describe('Participant remove and replace flows', () => {
 
     const playerRecords = await Player.find({ tournamentId, status: 'active' }).lean();
     const divisions = await Division.find({ tournamentId, name: { $ne: 'Final Stage' } }).lean();
-    const games = await Game.find({ tournamentId, stage: 'groupStage' }).lean();
+    const games = await Game.find({ tournamentId, stageId: 'groupStage' }).lean();
 
     return { host, players, tournamentId, playerRecords, divisions, games };
   };
@@ -178,7 +178,7 @@ describe('Participant remove and replace flows', () => {
 
     const gamesBeforeRemove = await Game.find({
       tournamentId,
-      stage: 'groupStage',
+      stageId: 'groupStage',
       status: { $in: ['scheduled', 'inProgress'] },
       $or: [{ playerAId: outgoingPlayer._id }, { playerBId: outgoingPlayer._id }],
     }).lean();
@@ -205,7 +205,7 @@ describe('Participant remove and replace flows', () => {
 
     const gamesAfterRemove = await Game.find({
       tournamentId,
-      stage: 'groupStage',
+      stageId: 'groupStage',
       status: { $in: ['scheduled', 'inProgress'] },
       $or: [{ playerAId: outgoingPlayer._id }, { playerBId: outgoingPlayer._id }],
     }).lean();
@@ -236,7 +236,7 @@ describe('Participant remove and replace flows', () => {
 
     const scheduledGame = await Game.findOne({
       tournamentId,
-      stage: 'groupStage',
+      stageId: 'groupStage',
       status: 'scheduled',
       $or: [{ playerAId: outgoingPlayer._id }, { playerBId: outgoingPlayer._id }],
     }).lean();
@@ -246,7 +246,7 @@ describe('Participant remove and replace flows', () => {
     const anotherScheduledGame = await Game.create({
       tournamentId,
       divisionId: scheduledGame.divisionId,
-      stage: 'groupStage',
+      stageId: 'groupStage',
       status: 'scheduled',
       bestOf: scheduledGame.bestOf || 1,
       roundNumber: scheduledGame.roundNumber || 1,
@@ -317,7 +317,7 @@ describe('Participant remove and replace flows', () => {
 
     const scheduledGamesBefore = await Game.countDocuments({
       tournamentId,
-      stage: 'groupStage',
+      stageId: 'groupStage',
       status: 'scheduled',
       $or: [{ playerAId: outgoingPlayer._id }, { playerBId: outgoingPlayer._id }],
     });
@@ -346,7 +346,7 @@ describe('Participant remove and replace flows', () => {
 
     const scheduledGamesAfter = await Game.find({
       tournamentId,
-      stage: 'groupStage',
+      stageId: 'groupStage',
       status: 'scheduled',
       $or: [{ playerAId: incomingPlayer._id }, { playerBId: incomingPlayer._id }],
     }).lean();

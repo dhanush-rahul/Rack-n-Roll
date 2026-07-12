@@ -104,7 +104,7 @@ describe('Phase 5 integration: live match session', () => {
 
     expect(assignGroupsResponse.status).toBe(200);
 
-    const game = await Game.findOne({ tournamentId, stage: 'groupStage' }).lean();
+    const game = await Game.findOne({ tournamentId, stageId: 'groupStage' }).lean();
     expect(game).toBeTruthy();
     expect(game.bestOf).toBe(3);
 
@@ -230,7 +230,7 @@ describe('Phase 5 integration: live match session', () => {
 
     const scoresheet = await request(app)
       .get(`/api/tournaments/${tournamentId}/scoresheet`)
-      .query({ stage: 'groupStage', page: 1, pageSize: 100 })
+      .query({ stageId: 'groupStage', page: 1, pageSize: 100 })
       .set(authHeader(proctorOne.token));
 
     expect(scoresheet.status).toBe(200);

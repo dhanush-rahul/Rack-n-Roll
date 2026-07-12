@@ -1,4 +1,4 @@
-const rateLimit = require('express-rate-limit');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const ApiError = require('../utils/ApiError');
 
 const isTestEnv = () => process.env.NODE_ENV === 'test';
@@ -9,6 +9,16 @@ const rateLimitHandler = (req, res, next, options) => {
       retryAfterSeconds: Math.ceil(options.windowMs / 1000),
     })
   );
+};
+
+const resolveAccountPasswordKey = (req) => {
+  const userId = String(req.auth?.userId || '').trim();
+
+  if (userId) {
+    return userId;
+  }
+
+  return ipKeyGenerator(req.ip ?? '');
 };
 
 const authRateLimiter = rateLimit({
@@ -39,7 +49,7 @@ const accountPasswordRateLimiter = rateLimit({
   skip: isTestEnv,
   handler: rateLimitHandler,
   validate: { trustProxy: true },
-  keyGenerator: (req) => req.auth?.userId || req.ip,
+  keyGenerator: resolveAccountPasswordKey,
 });
 
 module.exports = {
