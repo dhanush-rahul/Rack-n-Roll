@@ -19,6 +19,7 @@
     "eas:build:development": "node scripts/sync-app-version.js && node scripts/bump-version-code.js && node scripts/print-release-info.js && eas build --profile development",
     "eas:build:preview": "node scripts/sync-app-version.js && node scripts/bump-version-code.js && node scripts/print-release-info.js && eas build --profile preview",
     "eas:build:production": "node scripts/sync-app-version.js && node scripts/bump-version-code.js && node scripts/print-release-info.js && eas build --profile production",
+    "eas:update:production": "eas update --channel production",
     "lint": "eslint src"
   },
   "dependencies": {
@@ -33,6 +34,7 @@
     "axios": "^1.17.0",
     "babel-preset-expo": "~54.0.10",
     "expo": "^54.0.0",
+    "expo-application": "~7.0.8",
     "expo-auth-session": "~7.0.11",
     "expo-clipboard": "~8.0.8",
     "expo-crypto": "~15.0.9",
@@ -42,6 +44,7 @@
     "expo-sharing": "~14.0.8",
     "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.9",
+    "expo-updates": "~29.0.18",
     "expo-web-browser": "~15.0.11",
     "react": "19.1.0",
     "react-dom": "19.1.0",
