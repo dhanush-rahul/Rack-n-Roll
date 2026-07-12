@@ -482,11 +482,15 @@ const loadGroupStandingsList = async (tournamentId, query = {}) => {
     const rankedPlayerIdSet = new Set(rankedStandings.map((entry) => String(entry.playerId)));
     const unrankedPlayerIds = divisionPlayerIds.filter((playerId) => !rankedPlayerIdSet.has(playerId));
 
-    const enrichStandingEntry = (entry) => ({
-      ...entry,
-      player: divisionPlayerSummaryById.get(String(entry.playerId)) || entry.player || null,
-      stats: computePoolStats(entry),
-    });
+    const enrichStandingEntry = (entry) => {
+      const player = divisionPlayerSummaryById.get(String(entry.playerId)) || entry.player || null;
+      return {
+        ...entry,
+        player,
+        displayName: player?.displayName || null,
+        stats: computePoolStats(entry),
+      };
+    };
 
     const mergedStandings = [
       ...rankedStandings.map(enrichStandingEntry),
@@ -514,11 +518,15 @@ const loadGroupStandingsList = async (tournamentId, query = {}) => {
       const rankedTeamIdSet = new Set(rankedTeamStandings.map((entry) => String(entry.teamId)));
       const unrankedTeamIds = divisionTeamIds.filter((teamId) => !rankedTeamIdSet.has(teamId));
 
-      const enrichTeamStandingEntry = (entry) => ({
-        ...entry,
-        team: teamSummaryById.get(String(entry.teamId)) || entry.team || null,
-        stats: computePoolStats(entry),
-      });
+      const enrichTeamStandingEntry = (entry) => {
+        const team = teamSummaryById.get(String(entry.teamId)) || entry.team || null;
+        return {
+          ...entry,
+          team,
+          displayName: team?.displayName || null,
+          stats: computePoolStats(entry),
+        };
+      };
 
       teamStandings = [
         ...rankedTeamStandings.map(enrichTeamStandingEntry),

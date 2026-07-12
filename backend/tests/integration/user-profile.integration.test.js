@@ -95,7 +95,7 @@ describe('User profile integration', () => {
       tournamentId: tournament._id,
       playerAId: hostPlayer._id,
       playerBId: guestPlayer._id,
-      stage: 'groupStage',
+      stageId: 'groupStage',
       status: 'completed',
       winnerPlayerId: guestPlayer._id,
       playerASeriesWins: 0,

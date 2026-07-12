@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
+import { LoadingScreen } from '../components/ui/LoadingScreen';
 import { ScaledText as Text } from '../components/ui/ScaledText';
 import { ScreenScrollShell } from '../components/layout/ScreenScrollShell';
 import { useResponsiveLayout } from '../utils/responsive';
@@ -261,11 +262,7 @@ export function LiveMatchSessionScreen({ route, navigation }) {
   };
 
   if (isLoading && !session) {
-    return (
-      <View style={[tournamentUi.screen, { alignItems: 'center', justifyContent: 'center' }]}>
-        <Text style={{ color: tournamentColors.textMuted }}>Loading match…</Text>
-      </View>
-    );
+    return <LoadingScreen statusMessage="Loading match…" fullScreen={false} />;
   }
 
   const isInProgress =

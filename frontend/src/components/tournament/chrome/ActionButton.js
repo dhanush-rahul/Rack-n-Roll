@@ -30,7 +30,9 @@ export function ActionButton({ label, onPress, disabled, variant = 'primary', fu
         opacity: pressed || disabled ? 0.72 : 1,
       })}
     >
-      <Text style={{ fontWeight: '700', fontSize: 14, color: styles.text }}>{label}</Text>
+      <Text style={{ fontWeight: '700', fontSize: 14, color: styles.text, numberOfLines: 2 }}>
+        {label}
+      </Text>
     </Pressable>
   );
 }

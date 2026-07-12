@@ -220,9 +220,67 @@ const tournamentSchema = new mongoose.Schema(
         default: false,
       },
     },
+    progressionPlan: {
+      deferred: {
+        type: Boolean,
+        default: false,
+      },
+      stages: {
+        type: [
+          {
+            stageId: { type: String, required: true, trim: true },
+            name: { type: String, required: true, trim: true, minlength: 2, maxlength: 40 },
+            order: { type: Number, required: true, min: 1 },
+            format: { type: String, enum: ['knockout', 'roundRobin'], required: true },
+            bestOf: { type: Number, enum: [1, 3, 5, 7], default: 3 },
+            proctored: { type: Boolean, default: false },
+            advancement: {
+              source: { type: String, enum: ['groups', 'previousStage'], required: true },
+              sourceStageId: { type: String, default: null },
+              topPerGroup: { type: Number, min: 1, max: 32, default: null },
+              advanceCount: { type: Number, min: 1, max: 256, default: null },
+              selectionMode: {
+                type: String,
+                enum: ['autoStandings', 'hostManual'],
+                default: 'autoStandings',
+              },
+              poolMode: {
+                type: String,
+                enum: ['combined', 'groupPairKnockout', 'randomKnockout'],
+                default: 'combined',
+              },
+              directPromotePerGroup: { type: Number, min: 0, max: 32, default: 0 },
+              bypassTargetStageName: { type: String, default: null, maxlength: 40 },
+              advancePerGroupPair: { type: Number, min: 1, max: 32, default: 1 },
+            },
+            status: {
+              type: String,
+              enum: ['pending', 'active', 'completed'],
+              default: 'pending',
+            },
+          },
+        ],
+        default: [],
+      },
+    },
+    progressionBypass: {
+      type: [
+        {
+          targetStageName: { type: String, required: true, trim: true },
+          participantIds: { type: [String], default: [] },
+          sourceStageId: { type: String, default: null },
+        },
+      ],
+      default: [],
+    },
+    activeStageId: {
+      type: String,
+      default: null,
+      index: true,
+    },
     progressionState: {
       type: String,
-      enum: ['registration', 'groupSetup', 'groupStage', 'finalStage', 'completed'],
+      enum: ['registration', 'groupSetup', 'groupStage', 'stageActive', 'finalStage', 'completed'],
       default: 'registration',
       index: true,
     },

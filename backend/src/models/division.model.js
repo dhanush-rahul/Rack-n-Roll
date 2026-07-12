@@ -38,6 +38,11 @@ const divisionSchema = new mongoose.Schema(
       enum: ['open', 'closed'],
       default: 'open',
     },
+    stageId: {
+      type: String,
+      default: null,
+      index: true,
+    },
   },
   {
     timestamps: true,

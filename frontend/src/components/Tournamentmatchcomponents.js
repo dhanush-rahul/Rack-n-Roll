@@ -3,6 +3,7 @@ import { Button, Platform, Pressable, View } from 'react-native';
 import { ScaledText as Text } from './ui/ScaledText';
 import { ScaledTextInput as TextInput } from './ui/ScaledTextInput';
 import { AppIcon } from './ui/AppIcon';
+import { isKnockoutByeGame } from '../utils/fixtureDisplay';
 
 export const isPlayedScoreEntry = (entry) => {
   const playerAScore = Number(entry?.playerAScore);
@@ -46,10 +47,17 @@ export function MatchCard({
 }) {
   const playerAName = game.playerA?.displayName || game.playerAId;
   const playerBName = game.playerB?.displayName || game.playerBId;
+  const stageScope = String(game.stageId || game.stage || 'groupStage');
+  const hasPlayerA = Boolean(game.playerA?.id || game.playerAId || game.teamA?.id || game.teamAId);
+  const hasPlayerB = Boolean(game.playerB?.id || game.playerBId || game.teamB?.id || game.teamBId);
+  const isByeMatch =
+    Boolean(game.isBye) ||
+    isKnockoutByeGame(game) ||
+    ((hasPlayerA !== hasPlayerB) && (game.status === 'completed' || game.status === 'bye'));
 
   const scoreStateKey =
     game.id ||
-    `pending-${roundNumber}-${matchNumber}-${game.playerA?.id || game.playerAId || 'a'}-${game.playerB?.id || game.playerBId || 'b'}`;
+    `${stageScope}-pending-${roundNumber}-${matchNumber}-${game.playerA?.id || game.playerAId || 'a'}-${game.playerB?.id || game.playerBId || 'b'}`;
 
   // Build display entries: prefer live scoreInputState when present, otherwise fall back to
   // game.scoreEntries so the read-only scoresheet also shows persisted scores.
@@ -79,6 +87,29 @@ export function MatchCard({
 
   const completedGamesCount = resolvedEntries.filter((e) => isPlayedScoreEntry(e)).length;
   const currentStatus = scoreInputState?.status || game.status || 'scheduled';
+
+  if (isByeMatch) {
+    const byePlayerName = hasPlayerA ? playerAName : playerBName;
+
+    return (
+      <View
+        style={{
+          borderWidth: 1,
+          borderColor: 'transparent',
+          borderTopColor: '#e5e7eb',
+          borderRadius: 8,
+          padding: 10,
+          gap: 6,
+          backgroundColor: '#fffbeb',
+        }}
+      >
+        <Text style={{ fontWeight: '600' }}>Bye — Match {matchNumber}</Text>
+        <Text style={{ color: '#92400e' }}>
+          {byePlayerName} advances automatically (no opponent this round).
+        </Text>
+      </View>
+    );
+  }
 
   const handleChangeScore = useCallback(
     (entryIndex, field, value) => {
@@ -333,9 +364,10 @@ export function RoundSection({
           // Support both raw game objects (scoresheet) and the merged pattern-match objects
           // (TournamentDetailScreen) which carry extra fields like playerA.id, gameId, etc.
           const gameId = match.id || match.gameId;
+          const stageScope = String(match.stageId || match.stage || 'groupStage');
           const scoreStateKey =
             gameId ||
-            `pending-${round.roundNumber}-${match.matchNumber || matchIndex + 1}-${
+            `${stageScope}-pending-${round.roundNumber}-${match.matchNumber || matchIndex + 1}-${
               match.playerA?.id || match.playerAId || 'a'
             }-${match.playerB?.id || match.playerBId || 'b'}`;
 
@@ -347,13 +379,26 @@ export function RoundSection({
           // Normalise the game shape so MatchCard always gets consistent fields
           const normalisedGame = {
             id: gameId,
+            stageId: match.stageId || match.stage,
+            stage: match.stage,
             bestOf: match.bestOf || 1,
             status: match.status || 'scheduled',
+            isBye: Boolean(match.isBye) || isKnockoutByeGame(match),
             scoreEntries: match.scoreEntries || [],
-            playerA: match.playerA || { id: match.playerAId, displayName: match.playerAId },
-            playerB: match.playerB || { id: match.playerBId, displayName: match.playerBId },
-            playerAId: match.playerAId || match.playerA?.id,
-            playerBId: match.playerBId || match.playerB?.id,
+            playerA:
+              match.playerA?.id || match.playerAId
+                ? match.playerA || { id: match.playerAId, displayName: match.playerA?.name || match.playerAId }
+                : null,
+            playerB:
+              match.playerB?.id || match.playerBId
+                ? match.playerB || { id: match.playerBId, displayName: match.playerB?.name || match.playerBId }
+                : null,
+            teamA: match.teamA || null,
+            teamB: match.teamB || null,
+            playerAId: match.playerAId || match.playerA?.id || null,
+            playerBId: match.playerBId || match.playerB?.id || null,
+            teamAId: match.teamAId || match.teamA?.id || null,
+            teamBId: match.teamBId || match.teamB?.id || null,
           };
 
           return (

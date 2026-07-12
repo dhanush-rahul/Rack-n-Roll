@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchTournamentScoresheet } from '../../services/tournamentService';
 import { SCORESHEET_STALE_TIME_MS } from '../../config/queryClient';
@@ -29,10 +30,13 @@ export function useScoresheetPages(tournamentId, params = {}, options = {}) {
 export function useFetchScoresheetPages() {
   const queryClient = useQueryClient();
 
-  return (tournamentId, params = {}) =>
-    queryClient.fetchQuery({
-      queryKey: queryKeys.scoresheet(tournamentId, params),
-      queryFn: () => fetchAllScoresheetPages(tournamentId, params),
-      staleTime: SCORESHEET_STALE_TIME_MS,
-    });
+  return useCallback(
+    (tournamentId, params = {}) =>
+      queryClient.fetchQuery({
+        queryKey: queryKeys.scoresheet(tournamentId, params),
+        queryFn: () => fetchAllScoresheetPages(tournamentId, params),
+        staleTime: SCORESHEET_STALE_TIME_MS,
+      }),
+    [queryClient]
+  );
 }

@@ -101,6 +101,22 @@ const normalizeTournamentInput = (input, hostUserId) => {
   const pairFormationMode =
     input?.competitionConfig?.pairFormationMode === 'hostAssigns' ? 'hostAssigns' : 'playerPicksPartner';
 
+  const groupCount = parsePositiveInteger(
+    input?.competitionConfig?.groupCount ?? input?.groupCount,
+    null
+  );
+
+  const progressionPlan = input?.progressionPlan
+    ? require('./progressionPlan.utils').normalizeProgressionPlanInput(input.progressionPlan)
+    : { stages: [] };
+
+  if (progressionPlan.stages.length > 0) {
+    const validation = require('./progressionPlan.utils').validateProgressionPlan(progressionPlan, { groupCount });
+    if (!validation.valid) {
+      throw new ApiError(400, 'INVALID_PROGRESSION_PLAN', validation.errors.join(' '));
+    }
+  }
+
   return {
     name: String(input?.name || '').trim(),
     hostUserId,
@@ -114,15 +130,18 @@ const normalizeTournamentInput = (input, hostUserId) => {
     location: normalizeLocation(input?.location),
     startsAt: parseStartsAt(input?.startsAt),
     status: 'draft',
+    progressionPlan,
     competitionConfig: {
       format,
       pairFormationMode,
       groupStageBestOf,
+      groupCount,
       handicapEnabled: format === 'doubles' ? false : Boolean(input?.competitionConfig?.handicapEnabled ?? input?.handicapEnabled),
       groupStageProctored:
         format === 'doubles'
           ? false
           : Boolean(input?.competitionConfig?.groupStageProctored ?? input?.groupStageProctored ?? false),
+      finalStageEnabled: progressionPlan.stages.length > 0,
     },
   };
 };
@@ -163,7 +182,6 @@ const mapGuestPlayerRosterItem = (player) => ({
   status: 'approved',
   isGuest: true,
   guestUsername: player.pendingLinkUsername || null,
-  rosterName: player.displayName,
   inviteCodeUsed: null,
   reviewedByUserId: player.addedByHostUserId ? String(player.addedByHostUserId) : null,
   reviewedAt: player.createdAt || null,
@@ -219,6 +237,35 @@ const mapHostTournamentDetail = (tournament, pendingParticipantsCount = 0) => ({
   },
   status: tournament.status,
   progressionState: tournament.progressionState || 'registration',
+  activeStageId: tournament.activeStageId || null,
+  progressionPlan: {
+    deferred: Boolean(tournament.progressionPlan?.deferred),
+    stages: (tournament.progressionPlan?.stages || []).map((stage) => ({
+      stageId: String(stage.stageId),
+      name: stage.name,
+      order: stage.order,
+      format: stage.format,
+      bestOf: stage.bestOf,
+      proctored: Boolean(stage.proctored),
+      advancement: {
+        source: stage.advancement?.source || 'groups',
+        sourceStageId: stage.advancement?.sourceStageId || null,
+        topPerGroup: stage.advancement?.topPerGroup ?? null,
+        advanceCount: stage.advancement?.advanceCount ?? null,
+        selectionMode: stage.advancement?.selectionMode || 'autoStandings',
+        poolMode: stage.advancement?.poolMode || 'combined',
+        directPromotePerGroup: stage.advancement?.directPromotePerGroup ?? 0,
+        bypassTargetStageName: stage.advancement?.bypassTargetStageName || null,
+        advancePerGroupPair: stage.advancement?.advancePerGroupPair ?? 1,
+      },
+      status: stage.status || 'pending',
+    })),
+  },
+  progressionBypass: (tournament.progressionBypass || []).map((entry) => ({
+    targetStageName: entry.targetStageName,
+    participantIds: (entry.participantIds || []).map(String),
+    sourceStageId: entry.sourceStageId || null,
+  })),
   scoreEditorUserIds: (tournament.scoreEditorUserIds || []).map((value) => String(value)),
   proctorTransferRequest: tournament.proctorTransferRequest?.toUserId
     ? {
@@ -265,15 +312,12 @@ const mapUserSummary = (user) =>
       }
     : null;
 
-const mapRegistrationSummaryWithUser = (registration, userSummaryById, rosterNameByUserId = null, playerIdByUserId = null) => {
+const mapRegistrationSummaryWithUser = (registration, userSummaryById) => {
   const summary = mapRegistrationSummary(registration);
-  const userId = summary.userId;
 
   return {
     ...summary,
-    rosterName: rosterNameByUserId?.get(userId) || null,
-    playerId: playerIdByUserId?.get(userId) || null,
-    user: userSummaryById.get(userId) || null,
+    user: userSummaryById.get(summary.userId) || null,
   };
 };
 
@@ -293,7 +337,7 @@ const buildUserSummaryById = async (userIds = []) => {
   }
 
   const users = await User.find({ _id: { $in: normalizedUniqueUserIds } })
-    .select({ _id: 1, name: 1, email: 1, username: 1, handicap: 1 })
+    .select({ _id: 1, name: 1, email: 1, handicap: 1 })
     .lean();
 
   return users.reduce((accumulator, user) => {
@@ -313,11 +357,30 @@ const buildPlayerSummaryById = async (playerIds = []) => {
     .select({ _id: 1, userId: 1, displayName: 1, handicapEnabled: 1, handicapValue: 1 })
     .lean();
 
+  const userIds = players.map((player) => player.userId).filter(Boolean);
+  const users = userIds.length
+    ? await User.find({ _id: { $in: userIds } })
+        .select({ _id: 1, username: 1, name: 1 })
+        .lean()
+    : [];
+  const userSummaryById = users.reduce((accumulator, user) => {
+    accumulator.set(String(user._id), user);
+    return accumulator;
+  }, new Map());
+
   return players.reduce((accumulator, player) => {
+    const linkedUser = player.userId ? userSummaryById.get(String(player.userId)) : null;
+    const displayName =
+      String(player.displayName || '').trim() ||
+      String(linkedUser?.username || '').trim() ||
+      String(linkedUser?.name || '').trim() ||
+      null;
+
     accumulator.set(String(player._id), {
       id: String(player._id),
       userId: player.userId ? String(player.userId) : null,
-      displayName: player.displayName,
+      displayName,
+      username: linkedUser?.username ? String(linkedUser.username) : null,
       handicapEnabled: Boolean(player.handicapEnabled),
       handicapValue: Number(player.handicapValue || 0),
     });
@@ -422,11 +485,24 @@ const assertHostAccess = async (tournamentId, hostUserId) => {
 
 // ── Stage / proctoring helpers ─────────────────────────────────────────────
 
-const isStageProctored = (competitionConfig = {}, stage = 'groupStage') => {
-  if (stage === 'finalStage') {
+const isStageProctored = (competitionConfig = {}, stageId = 'groupStage', tournament = null) => {
+  if (stageId === 'groupStage') {
+    return Boolean(competitionConfig.groupStageProctored);
+  }
+
+  const stage = (tournament?.progressionPlan?.stages || []).find(
+    (entry) => String(entry.stageId) === String(stageId)
+  );
+
+  if (stage) {
+    return Boolean(stage.proctored);
+  }
+
+  if (stageId === 'finalStage') {
     return Boolean(competitionConfig.finalStageProctored);
   }
-  return Boolean(competitionConfig.groupStageProctored);
+
+  return false;
 };
 
 const isActiveTournamentParticipant = async (tournamentId, userId) => {

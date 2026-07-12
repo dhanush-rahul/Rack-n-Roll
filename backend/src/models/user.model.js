@@ -43,6 +43,12 @@ const userSchema = new mongoose.Schema(
       min: 0,
       max: 2,
     },
+    usernameChangeCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 2,
+    },
     authProvider: {
       type: String,
       enum: ['local', 'google'],

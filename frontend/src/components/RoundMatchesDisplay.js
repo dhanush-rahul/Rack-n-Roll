@@ -82,6 +82,7 @@ const renderRound = ({
   useLiveSessionScoring = false,
   onStartGame,
   onScheduleMatch,
+  viewOnly = false,
   sp = (n) => n,
   isWide = false,
   isDesktopWeb = false,
@@ -203,7 +204,7 @@ const renderRound = ({
             });
           }
           const tone = statusTone(match.status);
-          const canEditThisMatch = match.canEditMatch ?? canEditPatternScores;
+          const canEditThisMatch = viewOnly ? false : (match.canEditMatch ?? canEditPatternScores);
           const hasSavedScores =
             match.status === 'completed' ||
             match.status === 'inProgress' ||
@@ -218,6 +219,7 @@ const renderRound = ({
                 );
               }));
           const showAppointmentInHeader =
+            !viewOnly &&
             Boolean(onScheduleMatch) &&
             match.canScheduleMatch !== false &&
             matchId &&
@@ -296,7 +298,7 @@ const renderRound = ({
                 )}
               </View>
 
-              {onScheduleMatch && match.canScheduleMatch !== false && matchId ? (
+              {onScheduleMatch && !viewOnly && match.canScheduleMatch !== false && matchId ? (
                 <View style={{ marginTop: 10, ...(isDesktopWeb ? { maxWidth: 180, marginLeft: 'auto' } : null) }}>
                   <MatchActionButton
                     label={match.scheduledStartAt ? 'Reschedule' : 'Schedule match'}
@@ -504,6 +506,7 @@ export function RoundMatchesDisplay({
   useLiveSessionScoring = false,
   onStartGame,
   onScheduleMatch,
+  viewOnly = false,
 }) {
   const resolvedExpandedRoundKey =
     expandedRoundKey !== undefined && expandedRoundKey !== null
@@ -539,6 +542,7 @@ export function RoundMatchesDisplay({
     useLiveSessionScoring,
     onStartGame,
     onScheduleMatch,
+    viewOnly,
   };
 
   const sections =

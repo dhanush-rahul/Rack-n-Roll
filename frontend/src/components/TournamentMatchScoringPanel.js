@@ -1,4 +1,5 @@
 import React from 'react';
+import { LoadingPlaceholder } from './ui/LoadingPlaceholder';
 import { RoundMatchesDisplay } from './RoundMatchesDisplay';
 
 export function TournamentMatchScoringPanel({
@@ -31,11 +32,13 @@ export function TournamentMatchScoringPanel({
   useLiveSessionScoring = false,
   onStartGame,
   onScheduleMatch,
+  viewOnly = false,
 }) {
   return (
     <>
       {filterToolbar}
       {emptyFilterMessage}
+      {isLoading && <LoadingPlaceholder message="Loading matches…" />}
       {!isLoading && (
         <RoundMatchesDisplay
           displaySections={displaySections}
@@ -64,6 +67,7 @@ export function TournamentMatchScoringPanel({
           useLiveSessionScoring={useLiveSessionScoring}
           onStartGame={onStartGame}
           onScheduleMatch={onScheduleMatch}
+          viewOnly={viewOnly}
         />
       )}
     </>

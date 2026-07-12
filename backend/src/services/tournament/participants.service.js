@@ -50,7 +50,7 @@ const pullPlayerFromDivisions = async (tournamentId, playerId) => {
 const cancelIncompleteGroupGamesForPlayer = async (tournamentId, playerId) => {
   const result = await Game.deleteMany({
     tournamentId,
-    stage: 'groupStage',
+    stageId: 'groupStage',
     status: { $in: ['scheduled', 'inProgress'] },
     $or: [{ playerAId: playerId }, { playerBId: playerId }],
   });
@@ -61,7 +61,7 @@ const cancelIncompleteGroupGamesForPlayer = async (tournamentId, playerId) => {
 const swapPlayerInIncompleteGroupGames = async (tournamentId, outgoingPlayerId, incomingPlayerId) => {
   const games = await Game.find({
     tournamentId,
-    stage: 'groupStage',
+    stageId: 'groupStage',
     status: { $in: ['scheduled', 'inProgress'] },
     $or: [{ playerAId: outgoingPlayerId }, { playerBId: outgoingPlayerId }],
   }).lean();

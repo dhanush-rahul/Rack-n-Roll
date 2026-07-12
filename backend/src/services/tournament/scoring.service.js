@@ -29,17 +29,34 @@ const {
   buildUserSummaryById,
   isStageProctored,
 } = require('./shared');
+const { GROUP_STAGE_ID } = require('./progressionPlan.utils');
+const { advanceKnockoutWinner } = require('./knockoutFixtures.service');
 
 const loadTournamentScoresheet = async (tournamentId, userId, query = {}) => {
   const canEdit = userId ? await canUserEditTournamentScores(tournamentId, userId) : false;
   const tournamentMeta = await Tournament.findById(tournamentId)
-    .select({ proctorTransferRequest: 1, scoreEditorUserIds: 1, hostUserId: 1, competitionConfig: 1, progressionState: 1 })
+    .select({
+      proctorTransferRequest: 1,
+      scoreEditorUserIds: 1,
+      hostUserId: 1,
+      competitionConfig: 1,
+      progressionState: 1,
+      progressionPlan: 1,
+      activeStageId: 1,
+      progressionBypass: 1,
+    })
     .lean();
 
   const page = parsePositiveInteger(query.page, 1);
   const requestedPageSize = parsePositiveInteger(query.pageSize, 25);
   const pageSize = Math.min(requestedPageSize, 100);
-  const stage = query.stage === 'finalStage' ? 'finalStage' : query.stage === 'groupStage' ? 'groupStage' : null;
+  const stageId =
+    query.stageId ||
+    (query.stage === 'finalStage'
+      ? query.stage
+      : query.stage === 'groupStage'
+        ? GROUP_STAGE_ID
+        : null);
   const status = ['scheduled', 'inProgress', 'completed'].includes(query.status) ? query.status : null;
   const divisionId = normalizeDivisionScopeValue(query.divisionId);
   const normalizedPlayerQuery = String(query.playerQuery || '').trim();
@@ -74,7 +91,7 @@ const loadTournamentScoresheet = async (tournamentId, userId, query = {}) => {
 
   const findFilter = { tournamentId };
 
-  if (stage) findFilter.stage = stage;
+  if (stageId) findFilter.stageId = stageId;
   if (status) findFilter.status = status;
   if (query.divisionId !== undefined) findFilter.divisionId = divisionId;
 
@@ -108,7 +125,7 @@ const loadTournamentScoresheet = async (tournamentId, userId, query = {}) => {
 
   const [games, total, divisions] = await Promise.all([
     Game.find(findFilter)
-      .sort({ stage: 1, roundNumber: 1, createdAt: 1, _id: 1 })
+      .sort({ stageId: 1, roundNumber: 1, createdAt: 1, _id: 1 })
       .skip((page - 1) * pageSize)
       .limit(pageSize)
       .lean(),
@@ -137,7 +154,14 @@ const loadTournamentScoresheet = async (tournamentId, userId, query = {}) => {
     format: tournamentMeta?.competitionConfig?.format || 'singles',
     pairFormationMode: tournamentMeta?.competitionConfig?.pairFormationMode || 'playerPicksPartner',
     progressionState: tournamentMeta?.progressionState || 'registration',
+    activeStageId: tournamentMeta?.activeStageId ? String(tournamentMeta.activeStageId) : null,
+    progressionBypass: (tournamentMeta?.progressionBypass || []).map((entry) => ({
+      targetStageName: entry.targetStageName,
+      participantIds: (entry.participantIds || []).map(String),
+      sourceStageId: entry.sourceStageId ? String(entry.sourceStageId) : null,
+    })),
     groupStageProctored: Boolean(tournamentMeta?.competitionConfig?.groupStageProctored),
+    progressionPlan: tournamentMeta?.progressionPlan || { stages: [] },
     finalStageProctored: Boolean(tournamentMeta?.competitionConfig?.finalStageProctored),
     hostUserId: tournamentMeta?.hostUserId ? String(tournamentMeta.hostUserId) : null,
     proctors: editorUserIds.map((editorId) => ({
@@ -170,7 +194,7 @@ const listTournamentScoresheet = (tournamentId, userId, query = {}) => {
   const keyQuery = {
     page: query.page,
     pageSize: query.pageSize,
-    stage: query.stage,
+    stageId: query.stageId || query.stage,
     status: query.status,
     divisionId: query.divisionId,
     playerQuery: query.playerQuery,
@@ -192,16 +216,16 @@ const updateGameScores = async (tournamentId, gameId, userId, payload = {}) => {
   }
 
   const tournament = await Tournament.findById(tournamentId)
-    .select({ hostUserId: 1, scoreEditorUserIds: 1, competitionConfig: 1 })
+    .select({ hostUserId: 1, scoreEditorUserIds: 1, competitionConfig: 1, progressionPlan: 1 })
     .lean();
 
   if (!tournament) {
     throw new ApiError(404, 'TOURNAMENT_NOT_FOUND', 'Tournament not found');
   }
 
-  const gameStage = existingGame.stage || 'groupStage';
+  const gameStageId = existingGame.stageId || existingGame.stage || GROUP_STAGE_ID;
 
-  if (isStageProctored(tournament.competitionConfig || {}, gameStage)) {
+  if (isStageProctored(tournament.competitionConfig || {}, gameStageId, tournament)) {
     throw new ApiError(
       403,
       'MANUAL_SCORING_DISABLED',
@@ -213,7 +237,7 @@ const updateGameScores = async (tournamentId, gameId, userId, payload = {}) => {
 
   let effectiveBestOf = parseBestOf(existingGame.bestOf, 1);
 
-  if (gameStage === 'groupStage') {
+  if (gameStageId === GROUP_STAGE_ID) {
     const configuredGroupStageBestOf = parseBestOf(tournament.competitionConfig?.groupStageBestOf, effectiveBestOf);
     effectiveBestOf = Math.max(effectiveBestOf, configuredGroupStageBestOf);
   }
@@ -252,7 +276,16 @@ const updateGameScores = async (tournamentId, gameId, userId, payload = {}) => {
     { new: true, runValidators: true }
   ).lean();
 
-  await recomputeLeaderboardForScope(tournamentId, updatedGame.divisionId);
+  if (updatedGame.divisionId) {
+    await recomputeLeaderboardForScope(tournamentId, updatedGame.divisionId);
+  }
+
+  invalidateScoresheetCache(tournamentId);
+
+  if (nextStatus === 'completed' && updatedGame.nextWinnerGameId) {
+    const isDoubles = Boolean(updatedGame.teamAId || updatedGame.teamBId);
+    await advanceKnockoutWinner(updatedGame, isDoubles);
+  }
 
   const playerSummaryById = await buildPlayerSummaryById(
     [updatedGame.playerAId, updatedGame.playerBId].filter(Boolean)
@@ -406,14 +439,14 @@ const upsertAndScoreGroupStageGame = async (tournamentId, userId, payload = {}) 
   const playerBId = String(playerB._id);
 
   await assertCanEditGameScores(tournamentId, userId, {
-    stage: 'groupStage',
+    stageId: GROUP_STAGE_ID,
     playerAId,
     playerBId,
   });
 
   let game = await Game.findOne({
     tournamentId,
-    stage: 'groupStage',
+    stageId: GROUP_STAGE_ID,
     roundNumber,
     $or: [
       { playerAId, playerBId },
@@ -445,7 +478,7 @@ const upsertAndScoreGroupStageGame = async (tournamentId, userId, payload = {}) 
     const createdGame = await Game.create({
       tournamentId,
       divisionId: normalizeDivisionScopeValue(division?._id),
-      stage: 'groupStage',
+      stageId: GROUP_STAGE_ID,
       roundNumber,
       bestOf,
       playerAId,

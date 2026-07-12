@@ -240,7 +240,7 @@ describe('Guest player add and username linking', () => {
       .set(authHeader(host.token))
       .send({ groupCount: 2, groupStageBestOf: 1 });
 
-    const gamesBeforeGuestAdd = await Game.countDocuments({ tournamentId, stage: 'groupStage' });
+    const gamesBeforeGuestAdd = await Game.countDocuments({ tournamentId, stageId: 'groupStage' });
 
     const guestUsername = `lateguest${String(unique).slice(-6)}`;
 
@@ -256,7 +256,7 @@ describe('Guest player add and username linking', () => {
     expect(guestAddResponse.body.data.groupSync).toBeTruthy();
     expect(guestAddResponse.body.data.groupSync.gamesCreated).toBeGreaterThan(0);
 
-    const gamesAfterGuestAdd = await Game.countDocuments({ tournamentId, stage: 'groupStage' });
+    const gamesAfterGuestAdd = await Game.countDocuments({ tournamentId, stageId: 'groupStage' });
     expect(gamesAfterGuestAdd).toBeGreaterThan(gamesBeforeGuestAdd);
 
     const guestPlayer = await Player.findOne({

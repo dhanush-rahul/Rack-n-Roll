@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View } from 'react-native';
 import { ScaledText as Text } from '../../components/ui/ScaledText';
+import { LoadingPlaceholder } from '../../components/ui/LoadingPlaceholder';
 import { TournamentMatchScoringPanel } from '../../components/TournamentMatchScoringPanel';
 import {
   ActionButton,
@@ -105,9 +106,7 @@ export function FinaleTab({
         )}
 
         {isLoadingFinaleTab && matchCount === 0 && (
-          <Text style={{ color: tournamentColors.textMuted, fontSize: 13, marginBottom: 12 }}>
-            Loading finale matches…
-          </Text>
+          <LoadingPlaceholder message="Loading finale matches…" compact />
         )}
 
         {!isLoadingFinaleTab && finalDisplaySections.length === 0 && (

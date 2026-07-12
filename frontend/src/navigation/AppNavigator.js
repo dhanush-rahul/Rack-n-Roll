@@ -23,6 +23,7 @@ import { ScoresheetScreen } from '../screens/ScoresheetScreen';
 import { LiveMatchSessionScreen } from '../screens/LiveMatchSessionScreen';
 import { TournamentDetailScreen } from '../screens/TournamentDetailScreen';
 import { AppBootstrapScreen, BOOTSTRAP_BACKGROUND } from '../screens/AppBootstrapScreen';
+import { GlobalLoadingOverlay } from '../components/ui/GlobalLoadingOverlay';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { DiscoverWalkthroughScreen } from '../screens/DiscoverWalkthroughScreen';
 import { useWebBrowserBackGuard } from '../hooks/useWebBrowserBackGuard';
@@ -397,6 +398,7 @@ export function AppNavigator() {
             <AppBootstrapScreen statusMessage={bootstrapMessage} onReady={hideNativeSplash} />
           </Animated.View>
         )}
+        {!isLoading && <GlobalLoadingOverlay />}
       </View>
       <ConfirmModal
         visible={signOutConfirmVisible}

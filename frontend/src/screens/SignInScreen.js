@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Pressable, View } from 'react-native';
 import {
   AuthErrorBanner,
   AuthField,
@@ -12,21 +12,55 @@ import {
 import { ActionButton } from '../components/tournament/TournamentChrome';
 import { LegalFooter } from '../components/legal/LegalLinks';
 import { GoogleSignInSection } from '../components/auth/GoogleSignInSection';
+import { AppIcon } from '../components/ui/AppIcon';
+import { ScaledText as Text } from '../components/ui/ScaledText';
 import { isGoogleSignInAvailable } from '../config/googleAuth';
 import { useAuth } from '../context/AuthContext';
 import { getAuthErrorMessage } from '../utils/authErrors';
 import { hasValidationErrors, validateSignInInput } from '../utils/authValidation';
 import { navigateAfterAuth } from '../utils/navigateAfterAuth';
 import { navigateAfterGoogleAuth } from '../utils/navigateAfterGoogleAuth';
+import {
+  clearRememberedCredentials,
+  getRememberedCredentials,
+  saveRememberedCredentials,
+} from '../utils/rememberedCredentialsStore';
+import { tournamentColors } from '../styles/tournamentUi';
 
 export function SignInScreen({ navigation, route }) {
   const { signIn, signInWithGoogle } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({ username: '', password: '' });
   const [errorText, setErrorText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
+  const [isLoadingRememberedCredentials, setIsLoadingRememberedCredentials] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const remembered = await getRememberedCredentials();
+
+        if (!cancelled && remembered) {
+          setUsername(remembered.username);
+          setPassword(remembered.password);
+          setRememberMe(true);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingRememberedCredentials(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const onSubmit = async () => {
     const { errors, sanitized } = validateSignInInput({ username, password });
@@ -41,6 +75,16 @@ export function SignInScreen({ navigation, route }) {
       setIsSubmitting(true);
       setErrorText('');
       await signIn(sanitized);
+
+      if (rememberMe) {
+        await saveRememberedCredentials({
+          username: sanitized.username,
+          password: sanitized.password,
+        });
+      } else {
+        await clearRememberedCredentials();
+      }
+
       navigateAfterAuth(navigation, route.params?.returnTo);
     } catch (error) {
       setErrorText(getAuthErrorMessage(error, 'Invalid username or password. Please try again.'));
@@ -124,11 +168,35 @@ export function SignInScreen({ navigation, route }) {
           maxLength={72}
         />
 
+        <Pressable
+          onPress={() => setRememberMe((current) => !current)}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: rememberMe }}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 10,
+            marginBottom: 8,
+          }}
+        >
+          <AppIcon
+            name={rememberMe ? 'checkboxOn' : 'checkboxOff'}
+            size={22}
+            color={rememberMe ? tournamentColors.primary : tournamentColors.textMuted}
+          />
+          <Text style={{ fontSize: 14, color: tournamentColors.text }}>Remember me on this device</Text>
+        </Pressable>
+
         <View style={{ marginBottom: 8 }}>
           <ActionButton label="Forgot password?" onPress={() => navigation.navigate('ForgotPassword')} variant="ghost" fullWidth />
         </View>
 
-        <AuthPrimaryButton label="Sign in" onPress={onSubmit} disabled={isSubmitting || isGoogleSubmitting} loading={isSubmitting} />
+        <AuthPrimaryButton
+          label="Sign in"
+          onPress={onSubmit}
+          disabled={isSubmitting || isGoogleSubmitting || isLoadingRememberedCredentials}
+          loading={isSubmitting}
+        />
 
         {isGoogleSignInAvailable() ? (
           <GoogleSignInSection

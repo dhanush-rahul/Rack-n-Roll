@@ -93,11 +93,46 @@ const gameSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
-    stage: {
+    stageId: {
       type: String,
-      enum: ['groupStage', 'finalStage'],
       default: 'groupStage',
       index: true,
+    },
+    bracketRound: {
+      type: Number,
+      min: 1,
+      default: null,
+    },
+    bracketPosition: {
+      type: Number,
+      min: 1,
+      default: null,
+    },
+    bracketGroupKey: {
+      type: String,
+      default: null,
+      trim: true,
+      index: true,
+    },
+    nextWinnerGameId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Game',
+      default: null,
+      index: true,
+    },
+    feedsFromGameIds: {
+      type: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Game',
+        },
+      ],
+      default: [],
+    },
+    winnerSlot: {
+      type: String,
+      enum: ['playerA', 'playerB', 'teamA', 'teamB'],
+      default: null,
     },
     roundNumber: {
       type: Number,
@@ -175,11 +210,34 @@ const gameSchema = new mongoose.Schema(
 );
 
 gameSchema.index({ tournamentId: 1, divisionId: 1, status: 1 });
-gameSchema.index({ tournamentId: 1, stage: 1, divisionId: 1, roundNumber: 1 });
+gameSchema.index({ tournamentId: 1, stageId: 1, divisionId: 1, roundNumber: 1 });
 
 gameSchema.pre('validate', function validateGameSides() {
-  const hasPlayers = Boolean(this.playerAId && this.playerBId);
-  const hasTeams = Boolean(this.teamAId && this.teamBId);
+  const hasPlayerA = Boolean(this.playerAId);
+  const hasPlayerB = Boolean(this.playerBId);
+  const hasTeamA = Boolean(this.teamAId);
+  const hasTeamB = Boolean(this.teamBId);
+  const hasPlayers = hasPlayerA && hasPlayerB;
+  const hasTeams = hasTeamA && hasTeamB;
+
+  const isKnockoutBracketSlot =
+    Boolean(this.stageId) &&
+    Number(this.bracketRound || 0) >= 1 &&
+    !hasPlayerA &&
+    !hasPlayerB &&
+    !hasTeamA &&
+    !hasTeamB;
+
+  if (isKnockoutBracketSlot) {
+    return;
+  }
+
+  const isSinglesBye = (hasPlayerA || hasPlayerB) && !hasPlayers && !hasTeamA && !hasTeamB;
+  const isDoublesBye = (hasTeamA || hasTeamB) && !hasTeams && !hasPlayerA && !hasPlayerB;
+
+  if (isSinglesBye || isDoublesBye) {
+    return;
+  }
 
   if (hasPlayers === hasTeams) {
     throw new Error('Game must have either playerAId/playerBId or teamAId/teamBId');
