@@ -1,6 +1,6 @@
 import React from 'react';
 import { View } from 'react-native';
-import Svg, { Circle } from 'react-native-svg';
+import Svg, { Circle, G } from 'react-native-svg';
 import { ScaledText as Text } from '../../ui/ScaledText';
 import { useTheme } from '../../../context/ThemeContext';
 import { tournamentColors } from '../../../styles/tournamentUi';
@@ -30,18 +30,18 @@ export function TournamentProgressChart({ progress }) {
             strokeWidth={strokeWidth}
             fill="none"
           />
-          <Circle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            stroke={colors.primary}
-            strokeWidth={strokeWidth}
-            fill="none"
-            strokeDasharray={`${completedStroke} ${circumference}`}
-            strokeLinecap="round"
-            rotation="-90"
-            origin={`${size / 2}, ${size / 2}`}
-          />
+          <G transform={`rotate(-90 ${size / 2} ${size / 2})`}>
+            <Circle
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              stroke={colors.primary}
+              strokeWidth={strokeWidth}
+              fill="none"
+              strokeDasharray={`${completedStroke} ${circumference}`}
+              strokeLinecap="round"
+            />
+          </G>
         </Svg>
         <View style={{ position: 'absolute', alignItems: 'center' }}>
           <Text style={{ fontSize: 28, fontWeight: '800', color: colors.text }}>{percentComplete}%</Text>
