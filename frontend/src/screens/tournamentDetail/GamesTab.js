@@ -36,6 +36,7 @@ export function GamesTab({
   onStartGame,
   onScheduleMatch,
   groupStageProctored = false,
+  scoringStyle = 'individualGames',
   showProgressionConfigurator = false,
   groupCount = 0,
   groupLabels = [],
@@ -103,7 +104,8 @@ export function GamesTab({
       useLiveSessionScoring={groupStageProctored}
       onStartGame={onStartGame}
       onScheduleMatch={onScheduleMatch}
-      showSaveButton={!groupStageProctored}
+      showSaveButton={false}
+      scoringStyle={scoringStyle}
       isProgressing={isProgressing}
       emptyTitle="No group-stage games"
       emptyMessage="Fixtures appear here after groups are assigned."

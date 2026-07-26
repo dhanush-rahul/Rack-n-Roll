@@ -59,7 +59,7 @@ export function ChooseUsernameScreen({ navigation, route }) {
         updateCurrentUser(result.user);
       }
 
-      navigateAfterAuth(navigation, route.params?.returnTo);
+      await navigateAfterAuth(navigation, route.params?.returnTo);
     } catch (error) {
       setErrorText(getAuthErrorMessage(error, 'Unable to save username. Please try again.'));
     } finally {
@@ -114,9 +114,9 @@ export function ChooseUsernameScreen({ navigation, route }) {
           style={{
             padding: 10,
             borderRadius: 10,
-            backgroundColor: '#f8fafc',
+            backgroundColor: tournamentColors.surfaceRaised,
             borderWidth: 1,
-            borderColor: '#e5e7eb',
+            borderColor: tournamentColors.borderLight,
             marginBottom: 14,
           }}
         >

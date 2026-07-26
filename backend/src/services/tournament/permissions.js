@@ -221,7 +221,9 @@ const mapGameForScoresheet = (
     viewerUserId = null,
   } = {}
 ) => {
-  const seriesOutcome = computeSeriesOutcome(game, game.scoreEntries || []);
+  const scoringStyle =
+    tournamentMeta?.competitionConfig?.scoringStyle === 'totalPoints' ? 'totalPoints' : 'individualGames';
+  const seriesOutcome = computeSeriesOutcome(game, game.scoreEntries || [], scoringStyle);
   const resolvedCanScheduleMatch =
     canScheduleMatch ||
     (tournamentMeta && viewerUserId
@@ -269,6 +271,11 @@ const mapGameForScoresheet = (
       playerAScore: entry.playerAScore,
       playerBScore: entry.playerBScore,
     })),
+    matchStartedAt: game.seriesState?.startedAt ? new Date(game.seriesState.startedAt).toISOString() : null,
+    matchDurationMs:
+      game.seriesState?.startedAt && game.updatedAt
+        ? Math.max(new Date(game.updatedAt).getTime() - new Date(game.seriesState.startedAt).getTime(), 0)
+        : null,
     updatedAt: game.updatedAt,
   };
 };

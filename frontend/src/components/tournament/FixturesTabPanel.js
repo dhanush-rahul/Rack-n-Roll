@@ -47,9 +47,10 @@ export function FixturesTabPanel({
   useLiveSessionScoring = false,
   onStartGame,
   onScheduleMatch,
-  showSaveButton = true,
+  showSaveButton = false,
   showAddSeriesButton = false,
   viewOnly = false,
+  scoringStyle = 'individualGames',
   isProgressing = false,
   emptyIcon = 'pool',
   emptyTitle = 'No fixtures yet',
@@ -204,6 +205,7 @@ export function FixturesTabPanel({
           showSaveButton={showSaveButton}
           showAddSeriesButton={showAddSeriesButton}
           viewOnly={viewOnly}
+          scoringStyle={scoringStyle}
         />
       </SectionCard>
 

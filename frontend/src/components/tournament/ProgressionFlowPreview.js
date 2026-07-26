@@ -18,9 +18,9 @@ export function ProgressionFlowPreview({ pipeline = [], errors = [] }) {
                 paddingHorizontal: 10,
                 paddingVertical: 6,
                 borderRadius: 999,
-                backgroundColor: step.byeWarning ? '#fef2f2' : '#eff6ff',
+                backgroundColor: step.byeWarning ? tournamentColors.errorSurface : tournamentColors.primarySoft,
                 borderWidth: 1,
-                borderColor: step.byeWarning ? '#fecaca' : '#bfdbfe',
+                borderColor: step.byeWarning ? tournamentColors.errorBorder : tournamentColors.previewBorder,
               }}
             >
               <Text style={{ fontSize: 12, fontWeight: '700', color: tournamentColors.text }}>
@@ -42,12 +42,12 @@ export function ProgressionFlowPreview({ pipeline = [], errors = [] }) {
       {pipeline
         .filter((step) => step.byeWarning)
         .map((step) => (
-          <Text key={step.label} style={{ fontSize: 12, color: '#b91c1c' }}>
+          <Text key={step.label} style={{ fontSize: 12, color: tournamentColors.error }}>
             {step.byeWarning}
           </Text>
         ))}
       {errors.map((error) => (
-        <Text key={error} style={{ fontSize: 12, color: '#b91c1c' }}>
+        <Text key={error} style={{ fontSize: 12, color: tournamentColors.error }}>
           {error}
         </Text>
       ))}

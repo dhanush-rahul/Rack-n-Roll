@@ -18,6 +18,7 @@ import {
 import { LegalFooter } from '../components/legal/LegalLinks';
 import { confirmPasswordReset, requestPasswordResetPin, validatePasswordResetPin } from '../services/authService';
 import { authUi } from '../styles/authUi';
+import { tournamentColors } from '../styles/tournamentUi';
 import { getAuthErrorMessage } from '../utils/authErrors';
 import {
   hasValidationErrors,
@@ -215,13 +216,13 @@ export function ForgotPasswordScreen({ navigation }) {
               style={{
                 padding: 12,
                 borderRadius: 12,
-                backgroundColor: '#f8fafc',
+                backgroundColor: tournamentColors.surfaceRaised,
                 borderWidth: 1,
-                borderColor: '#e5e7eb',
+                borderColor: tournamentColors.borderLight,
                 marginBottom: 14,
               }}
             >
-              <Text style={{ fontSize: 12, lineHeight: 18, color: '#64748b' }}>
+              <Text style={{ fontSize: 12, lineHeight: 18, color: tournamentColors.mutedIcon }}>
                 Password reset requires an email on file. If you signed up without one, sign in with your username and add a recovery email in Profile first.
               </Text>
             </View>

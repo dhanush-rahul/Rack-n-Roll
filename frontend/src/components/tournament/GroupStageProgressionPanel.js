@@ -44,9 +44,9 @@ function Stepper({ label, value, onChange, min = 0, max = 32 }) {
             backgroundColor: tournamentColors.white,
           }}
         >
-          <Text style={{ fontSize: 18, fontWeight: '700' }}>−</Text>
+          <Text style={{ fontWeight: '700', color: tournamentColors.text }}>−</Text>
         </Pressable>
-        <Text style={{ minWidth: 28, textAlign: 'center', fontWeight: '700' }}>{value}</Text>
+        <Text style={{ minWidth: 28, textAlign: 'center', fontWeight: '700', color: tournamentColors.text }}>{value}</Text>
         <Pressable
           onPress={() => onChange(Math.min(max, value + 1))}
           style={{
@@ -60,7 +60,7 @@ function Stepper({ label, value, onChange, min = 0, max = 32 }) {
             backgroundColor: tournamentColors.white,
           }}
         >
-          <Text style={{ fontSize: 18, fontWeight: '700' }}>+</Text>
+          <Text style={{ fontSize: 18, fontWeight: '700', color: tournamentColors.text }}>+</Text>
         </Pressable>
       </View>
     </View>
@@ -236,7 +236,7 @@ export function GroupStageProgressionPanel({
               borderColor: tournamentColors.border,
               borderRadius: 10,
               padding: 12,
-              backgroundColor: '#f8fafc',
+              backgroundColor: tournamentColors.surfaceRaised,
             }}
           >
             <Text style={{ fontWeight: '700', color: tournamentColors.text }}>Skip this stage (optional)</Text>
@@ -334,7 +334,7 @@ export function GroupStageProgressionPanel({
             borderColor: tournamentColors.border,
             borderRadius: 12,
             padding: 12,
-            backgroundColor: '#eff6ff',
+            backgroundColor: tournamentColors.primarySoft,
           }}
         >
           <Text style={{ fontWeight: '700', fontSize: 16, color: tournamentColors.text }}>

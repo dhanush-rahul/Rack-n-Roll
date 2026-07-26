@@ -92,7 +92,7 @@ export function SignUpScreen({ navigation, route }) {
       setIsSubmitting(true);
       setErrorText('');
       await signUp(sanitized);
-      navigateAfterAuth(navigation, route.params?.returnTo);
+      await navigateAfterAuth(navigation, route.params?.returnTo);
     } catch (error) {
       setErrorText(getAuthErrorMessage(error, 'Unable to create account. Please try again.'));
     } finally {
@@ -140,7 +140,11 @@ export function SignUpScreen({ navigation, route }) {
         />
       }
     >
-      <AuthFormCard title="Create account" subtitle="Choose a username for sign-in and how you appear on tournament rosters.">
+      <AuthFormCard
+        title="Create account"
+        subtitle="Choose a username for sign-in and how you appear on tournament rosters."
+        preventAutofill
+      >
         <AuthErrorBanner message={errorText} />
 
         <AuthField
@@ -185,6 +189,9 @@ export function SignUpScreen({ navigation, route }) {
           availabilityStatus={status}
           availabilityReason={reason}
           helperText="Used to sign in. Lowercase letters, numbers, and underscores only."
+          autoComplete="off"
+          textContentType="none"
+          importantForAutofill="no"
         />
 
         <AuthField
@@ -200,7 +207,9 @@ export function SignUpScreen({ navigation, route }) {
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="email-address"
-          textContentType="emailAddress"
+          autoComplete="off"
+          textContentType="none"
+          importantForAutofill="no"
           maxLength={254}
         />
 
@@ -217,7 +226,9 @@ export function SignUpScreen({ navigation, route }) {
           secureTextEntry
           autoCapitalize="none"
           autoCorrect={false}
+          autoComplete="new-password"
           textContentType="newPassword"
+          importantForAutofill="no"
           maxLength={72}
         />
 
@@ -234,7 +245,9 @@ export function SignUpScreen({ navigation, route }) {
           secureTextEntry
           autoCapitalize="none"
           autoCorrect={false}
+          autoComplete="new-password"
           textContentType="newPassword"
+          importantForAutofill="no"
           maxLength={72}
         />
 
@@ -244,9 +257,9 @@ export function SignUpScreen({ navigation, route }) {
           style={{
             padding: 10,
             borderRadius: 10,
-            backgroundColor: '#f8fafc',
+            backgroundColor: tournamentColors.surfaceRaised,
             borderWidth: 1,
-            borderColor: '#e5e7eb',
+            borderColor: tournamentColors.borderLight,
             marginBottom: 14,
           }}
         >

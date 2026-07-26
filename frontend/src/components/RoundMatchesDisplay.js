@@ -1,12 +1,10 @@
 import React from 'react';
-import { getSeriesScoringMeta } from '../utils/seriesScoring';
 import { Pressable, View } from 'react-native';
 import { useTypography } from '../context/TypographyContext';
 import { ScaledText as Text } from './ui/ScaledText';
-import { ScaledTextInput as TextInput } from './ui/ScaledTextInput';
-import { discoverUi, tournamentColors, tournamentUi } from '../styles/tournamentUi';
+import { discoverUi, tournamentColors } from '../styles/tournamentUi';
 import { AppIcon } from './ui/AppIcon';
-import { formatMatchScheduledAt } from './tournament/MatchScheduleModal';
+import { RoundMatchesTable } from './tournament/RoundMatchesTable';
 
 function MatchActionButton({ label, onPress, disabled, variant = 'primary' }) {
   const isPrimary = variant === 'primary';
@@ -35,7 +33,7 @@ function MatchActionButton({ label, onPress, disabled, variant = 'primary' }) {
         style={{
           fontWeight: '700',
           fontSize: 14,
-          color: isPrimary ? tournamentColors.white : tournamentColors.primary,
+          color: isPrimary ? tournamentColors.onPrimary || '#ffffff' : tournamentColors.primary,
         }}
       >
         {label}
@@ -43,27 +41,6 @@ function MatchActionButton({ label, onPress, disabled, variant = 'primary' }) {
     </Pressable>
   );
 }
-
-const SCORE_GRID_LABEL_WIDTH = 40;
-const SCORE_GRID_GAP = 8;
-
-const ScoreGridColumn = ({ children, isLabel = false }) => (
-  <View style={isLabel ? { width: SCORE_GRID_LABEL_WIDTH } : { flex: 1, minWidth: 0 }}>
-    {children}
-  </View>
-);
-
-const statusTone = (status) => {
-  if (status === 'completed') {
-    return { bg: '#dcfce7', text: '#166534', label: 'Completed' };
-  }
-
-  if (status === 'inProgress') {
-    return { bg: '#fef3c7', text: '#b45309', label: 'In progress' };
-  }
-
-  return { bg: '#f1f5f9', text: '#475569', label: 'Not started' };
-};
 
 const renderRound = ({
   round,
@@ -86,6 +63,7 @@ const renderRound = ({
   sp = (n) => n,
   isWide = false,
   isDesktopWeb = false,
+  scoringStyle = 'individualGames',
 }) => {
   const roundKey = round.roundKey || `round-${round.roundNumber}`;
   const matchPad = isWide ? sp(14) : 12;
@@ -112,7 +90,7 @@ const renderRound = ({
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
-          backgroundColor: isRoundOpen ? '#f8fafc' : tournamentColors.white,
+          backgroundColor: isRoundOpen ? tournamentColors.surfaceRaised : tournamentColors.white,
           opacity: pressed ? 0.9 : 1,
         })}
       >
@@ -122,13 +100,13 @@ const renderRound = ({
               Round {round.roundNumber}
             </Text>
             {isRoundCompleted && (
-              <View style={{ backgroundColor: '#dcfce7', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}>
-                <Text style={{ color: '#166534', fontWeight: '700', fontSize: 11 }}>Done</Text>
+              <View style={{ backgroundColor: tournamentColors.statusSuccessBg, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}>
+                <Text style={{ color: tournamentColors.statusSuccessText, fontWeight: '700', fontSize: 11 }}>Done</Text>
               </View>
             )}
             {round.roundKey === filteredActiveRoundNumber && (
-              <View style={{ backgroundColor: '#dbeafe', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}>
-                <Text style={{ color: '#1d4ed8', fontWeight: '700', fontSize: 11 }}>Current</Text>
+              <View style={{ backgroundColor: tournamentColors.statusInfoBg, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}>
+                <Text style={{ color: tournamentColors.statusInfoText, fontWeight: '700', fontSize: 11 }}>Current</Text>
               </View>
             )}
           </View>
@@ -144,335 +122,25 @@ const renderRound = ({
         />
       </Pressable>
 
-      {isRoundOpen &&
-        (round.matches || []).map((match, matchIndex) => {
-          const matchId = match.gameId || match.id;
-          const playerAKey = String(match.playerA?.id || match.playerAId || 'a');
-          const playerBKey = String(match.playerB?.id || match.playerBId || 'b');
-          const matchIdentityKey = matchId
-            ? String(matchId)
-            : `${playerAKey}::${playerBKey}::${String(match.matchNumber || 0)}`;
-          const matchKey = `${roundKey}-match-${matchIdentityKey}-${matchIndex}`;
-          const playerAName =
-            match.playerA?.name ||
-            match.playerA?.displayName ||
-            match.playerA?.id ||
-            match.playerAName ||
-            match.playerAId ||
-            'Player A';
-          const playerBName =
-            match.playerB?.name ||
-            match.playerB?.displayName ||
-            match.playerB?.id ||
-            match.playerBName ||
-            match.playerBId ||
-            'Player B';
-          const scoreStateKey =
-            matchId || `pending-${round.roundNumber}-${match.matchNumber}-${playerAKey}-${playerBKey}`;
-          const isSavingThisMatch =
-            savingGameId === scoreStateKey || (Boolean(matchId) && savingGameId === matchId);
-          const defaultSeriesMax = Math.max(
-            Number(match.bestOf || 1),
-            Number(defaultSeriesMaxGames || 1),
-            1
-          );
-          const scoreInput = scoreInputsByGameId[scoreStateKey] || {
-            status: match.status || 'scheduled',
-            seriesMaxGames: defaultSeriesMax,
-            entries: Array.from({ length: defaultSeriesMax }, (_, index) => ({
-              gameNumber: index + 1,
-              playerAScore: '',
-              playerBScore: '',
-            })),
-          };
-          const scoreInputEntries = (scoreInput.entries || []).map((entry, entryIndex) => ({
-            gameNumber: Number(entry?.gameNumber || entryIndex + 1),
-            playerAScore: String(entry?.playerAScore ?? ''),
-            playerBScore: String(entry?.playerBScore ?? ''),
-          }));
-          const { seriesTargetBestOf, isSeriesAtLimit } = getSeriesScoringMeta({
-            scoreInput,
-            matchBestOf: match.bestOf,
-            configuredBestOf: defaultSeriesMaxGames,
-            entryCount: scoreInputEntries.length,
-          });
-          while (scoreInputEntries.length < seriesTargetBestOf) {
-            scoreInputEntries.push({
-              gameNumber: scoreInputEntries.length + 1,
-              playerAScore: '',
-              playerBScore: '',
-            });
-          }
-          const tone = statusTone(match.status);
-          const canEditThisMatch = viewOnly ? false : (match.canEditMatch ?? canEditPatternScores);
-          const hasSavedScores =
-            match.status === 'completed' ||
-            match.status === 'inProgress' ||
-            (Array.isArray(match.scoreEntries) &&
-              match.scoreEntries.some((entry) => {
-                const playerAScore = Number(entry?.playerAScore);
-                const playerBScore = Number(entry?.playerBScore);
-                return (
-                  Number.isFinite(playerAScore) &&
-                  Number.isFinite(playerBScore) &&
-                  !(playerAScore === 0 && playerBScore === 0)
-                );
-              }));
-          const showAppointmentInHeader =
-            !viewOnly &&
-            Boolean(onScheduleMatch) &&
-            match.canScheduleMatch !== false &&
-            matchId &&
-            match.status === 'scheduled';
-          const appointmentLabel = match.scheduledStartAt
-            ? formatMatchScheduledAt(match.scheduledStartAt)
-            : 'Not scheduled';
-
-          return (
-            <View
-              key={matchKey}
-              style={{
-                borderTopWidth: 1,
-                borderTopColor: tournamentColors.borderLight,
-                padding: matchPad,
-                backgroundColor: '#fafbfc',
-              }}
-            >
-              <View
-                style={
-                  isDesktopWeb
-                    ? {
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: 16,
-                        flexWrap: 'wrap',
-                      }
-                    : {
-                        flexDirection: 'row',
-                        justifyContent: 'space-between',
-                        alignItems: 'flex-start',
-                        gap: isWide ? sp(10) : 8,
-                      }
-                }
-              >
-                <View style={{ flex: isDesktopWeb ? 1 : undefined, minWidth: isDesktopWeb ? 220 : undefined, gap: isWide ? sp(6) : 4 }}>
-                  <Text style={{ fontWeight: '800', fontSize: 14, color: tournamentColors.text }}>
-                    Match {match.matchNumber}
-                  </Text>
-                  <Text style={{ fontSize: 14, color: tournamentColors.text, lineHeight: 20 }}>
-                    {playerAName}
-                    <Text style={{ color: tournamentColors.textMuted }}> vs </Text>
-                    {playerBName}
-                  </Text>
-                  {!isDesktopWeb ? (
-                    <Text style={{ fontSize: 12, color: tournamentColors.textMuted }}>
-                      {useLiveSessionScoring
-                        ? `Best of ${seriesTargetBestOf} · Series ${Number(match.playerASeriesWins || 0)}–${Number(match.playerBSeriesWins || 0)}`
-                        : `Best of ${seriesTargetBestOf} · ${scoreInputEntries.length}/${seriesTargetBestOf} games entered`}
-                    </Text>
-                  ) : null}
-                </View>
-                {isDesktopWeb ? (
-                  <Text style={{ fontSize: 12, color: tournamentColors.textMuted, minWidth: 140 }}>
-                    {useLiveSessionScoring
-                      ? `Bo${seriesTargetBestOf} · ${Number(match.playerASeriesWins || 0)}–${Number(match.playerBSeriesWins || 0)}`
-                      : `${scoreInputEntries.length}/${seriesTargetBestOf} games`}
-                  </Text>
-                ) : null}
-                {showAppointmentInHeader ? (
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      fontWeight: '600',
-                      color: match.scheduledStartAt ? '#1d4ed8' : tournamentColors.textMuted,
-                      textAlign: 'right',
-                      maxWidth: '45%',
-                    }}
-                  >
-                    {appointmentLabel}
-                  </Text>
-                ) : (
-                  <View style={{ backgroundColor: tone.bg, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 }}>
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: tone.text }}>{tone.label}</Text>
-                  </View>
-                )}
-              </View>
-
-              {onScheduleMatch && !viewOnly && match.canScheduleMatch !== false && matchId ? (
-                <View style={{ marginTop: 10, ...(isDesktopWeb ? { maxWidth: 180, marginLeft: 'auto' } : null) }}>
-                  <MatchActionButton
-                    label={match.scheduledStartAt ? 'Reschedule' : 'Schedule match'}
-                    onPress={() =>
-                      onScheduleMatch({
-                        gameId: matchId,
-                        tournamentId: match.tournamentId,
-                        playerAName,
-                        playerBName,
-                        scheduledStartAt: match.scheduledStartAt || null,
-                      })
-                    }
-                    variant="secondary"
-                  />
-                </View>
-              ) : null}
-
-              {useLiveSessionScoring && onStartGame ? (
-                <View style={{ marginTop: 10, ...(isDesktopWeb ? { maxWidth: 180, marginLeft: 'auto' } : null) }}>
-                  {match.status === 'completed' ? (
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#166534' }}>
-                      Series complete · {Number(match.playerASeriesWins || 0)}–{Number(match.playerBSeriesWins || 0)}
-                    </Text>
-                  ) : (
-                    <MatchActionButton
-                      label={match.status === 'inProgress' ? 'Resume game' : 'Start game'}
-                      onPress={() =>
-                        onStartGame({
-                          gameId: matchId,
-                          tournamentId: match.tournamentId,
-                          playerAName,
-                          playerBName,
-                        })
-                      }
-                      disabled={!canEditPatternScores || !matchId}
-                    />
-                  )}
-                </View>
-              ) : (
-              <>
-              <View
-                style={{
-                  marginTop: 10,
-                  borderWidth: 1,
-                  borderColor: tournamentColors.borderLight,
-                  borderRadius: 10,
-                  overflow: 'hidden',
-                  backgroundColor: tournamentColors.white,
-                }}
-              >
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: SCORE_GRID_GAP,
-                    paddingHorizontal: 10,
-                    paddingVertical: 8,
-                    backgroundColor: '#f8fafc',
-                    borderBottomWidth: 1,
-                    borderBottomColor: tournamentColors.borderLight,
-                  }}
-                >
-                  <ScoreGridColumn isLabel>
-                    <Text style={{ fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }}>G#</Text>
-                  </ScoreGridColumn>
-                  <ScoreGridColumn>
-                    <Text style={{ fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }} numberOfLines={1}>
-                      {playerAName}
-                    </Text>
-                  </ScoreGridColumn>
-                  <ScoreGridColumn>
-                    <Text style={{ fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }} numberOfLines={1}>
-                      {playerBName}
-                    </Text>
-                  </ScoreGridColumn>
-                </View>
-
-                {scoreInputEntries.map((entry, entryIndex) => {
-                  const safeEntry = entry || {
-                    gameNumber: entryIndex + 1,
-                    playerAScore: '',
-                    playerBScore: '',
-                  };
-                  const isLastEntry = entryIndex === scoreInputEntries.length - 1;
-
-                  return (
-                    <View
-                      key={`${scoreStateKey}-entry-${entryIndex}`}
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: SCORE_GRID_GAP,
-                        paddingHorizontal: 10,
-                        paddingVertical: 8,
-                        borderBottomWidth: isLastEntry ? 0 : 1,
-                        borderBottomColor: '#f1f5f9',
-                      }}
-                    >
-                      <ScoreGridColumn isLabel>
-                        <Text style={{ color: tournamentColors.text, fontWeight: '700', fontSize: 12 }}>
-                          {entryIndex + 1}
-                        </Text>
-                      </ScoreGridColumn>
-                      <ScoreGridColumn>
-                        <TextInput
-                          style={{ ...tournamentUi.input, paddingVertical: 8, width: '100%' }}
-                          placeholder="0"
-                          value={safeEntry.playerAScore}
-                          onChangeText={(value) =>
-                            onChangeScoreInput(scoreStateKey, entryIndex, 'playerAScore', value)
-                          }
-                          keyboardType="numeric"
-                          editable={canEditThisMatch}
-                        />
-                      </ScoreGridColumn>
-                      <ScoreGridColumn>
-                        <TextInput
-                          style={{ ...tournamentUi.input, paddingVertical: 8, width: '100%' }}
-                          placeholder="0"
-                          value={safeEntry.playerBScore}
-                          onChangeText={(value) =>
-                            onChangeScoreInput(scoreStateKey, entryIndex, 'playerBScore', value)
-                          }
-                          keyboardType="numeric"
-                          editable={canEditThisMatch}
-                        />
-                      </ScoreGridColumn>
-                    </View>
-                  );
-                })}
-              </View>
-
-              {showAddSeriesButton && onAddSeriesGame ? (
-                <View style={{ marginTop: 10 }}>
-                  <MatchActionButton
-                    label="Add game to series"
-                    onPress={() =>
-                      onAddSeriesGame({ scoreStateKey, scoreInput, seriesMaxGames: seriesTargetBestOf })
-                    }
-                    disabled={!canEditThisMatch || isSeriesAtLimit}
-                    variant="secondary"
-                  />
-                </View>
-              ) : null}
-
-              {showSaveButton && onSaveMatchScores ? (
-                <View style={{ marginTop: 10 }}>
-                  <MatchActionButton
-                    label={
-                      isSavingThisMatch
-                        ? 'Saving…'
-                        : hasSavedScores
-                          ? 'Update scores'
-                          : 'Save match scores'
-                    }
-                    onPress={() =>
-                      onSaveMatchScores({
-                        gameId: matchId,
-                        roundNumber: round.roundNumber,
-                        playerAId: match.playerA?.id || match.playerAId,
-                        playerBId: match.playerB?.id || match.playerBId,
-                        scoreStateKey,
-                        bestOf: seriesTargetBestOf,
-                      })
-                    }
-                    disabled={!canEditThisMatch || isSavingThisMatch}
-                  />
-                </View>
-              ) : null}
-              </>
-              )}
-            </View>
-          );
-        })}
+      {isRoundOpen ? (
+        <RoundMatchesTable
+          matches={(round.matches || []).map((match) => ({
+            ...match,
+            roundNumber: round.roundNumber,
+          }))}
+          scoringStyle={scoringStyle}
+          scoreInputsByGameId={scoreInputsByGameId}
+          onChangeScoreInput={onChangeScoreInput}
+          savingGameId={savingGameId}
+          onSaveMatchScores={onSaveMatchScores}
+          canEditPatternScores={canEditPatternScores}
+          defaultSeriesMaxGames={defaultSeriesMaxGames}
+          useLiveSessionScoring={useLiveSessionScoring}
+          onStartGame={onStartGame}
+          onScheduleMatch={onScheduleMatch}
+          viewOnly={viewOnly}
+        />
+      ) : null}
     </View>
   );
 };
@@ -507,6 +175,7 @@ export function RoundMatchesDisplay({
   onStartGame,
   onScheduleMatch,
   viewOnly = false,
+  scoringStyle = 'individualGames',
 }) {
   const resolvedExpandedRoundKey =
     expandedRoundKey !== undefined && expandedRoundKey !== null
@@ -543,6 +212,7 @@ export function RoundMatchesDisplay({
     onStartGame,
     onScheduleMatch,
     viewOnly,
+    scoringStyle,
   };
 
   const sections =
@@ -604,19 +274,24 @@ export function RoundMatchesDisplay({
                       style={{
                         fontWeight: '800',
                         fontSize: 16,
-                        color: isSectionOpen ? tournamentColors.white : tournamentColors.text,
+                        color: isSectionOpen ? tournamentColors.onPrimary || '#ffffff' : tournamentColors.text,
                       }}
                     >
                       {section.sectionName}
                     </Text>
-                    <Text style={{ color: isSectionOpen ? '#dbeafe' : tournamentColors.textMuted, fontSize: 12 }}>
+                    <Text
+                      style={{
+                        color: isSectionOpen ? tournamentColors.heroSubtext : tournamentColors.textMuted,
+                        fontSize: 12,
+                      }}
+                    >
                       {sectionMatchCount} {sectionMatchCount === 1 ? 'match' : 'matches'}
                     </Text>
                   </View>
                   <AppIcon
                     name={isSectionOpen ? 'chevronUp' : 'chevronDown'}
                     size={22}
-                    color={isSectionOpen ? tournamentColors.white : tournamentColors.primary}
+                    color={isSectionOpen ? tournamentColors.onPrimary || '#ffffff' : tournamentColors.primary}
                   />
                 </Pressable>
               ) : (

@@ -1,5 +1,8 @@
+const mongoose = require('mongoose');
 const Tournament = require('../../models/tournament.model');
 const TournamentRegistration = require('../../models/tournamentRegistration.model');
+const Player = require('../../models/player.model');
+const Game = require('../../models/game.model');
 const ApiError = require('../../utils/ApiError');
 const cache = require('../../utils/cache');
 const { materializeApprovedPlayers } = require('./roster.service');
@@ -101,6 +104,216 @@ const listMyRegisteredDiscoverTournaments = async (userId) => {
     );
 
   return { items };
+};
+
+const parseMyEventsFilterIds = (filterValue) => {
+  const rawParts = String(filterValue || 'all')
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (rawParts.length === 0 || rawParts.includes('all')) {
+    return [];
+  }
+
+  return [...new Set(rawParts.filter((part) => ['hosting', 'playing', 'pending'].includes(part)))];
+};
+
+const matchesMyEventsRoleFilters = (item, filterIds) => {
+  if (!filterIds.length) {
+    return true;
+  }
+
+  const isHost = (item.roles || []).includes('host');
+  const isPending = item.currentUserRegistrationStatus === 'underReview';
+
+  return filterIds.some((filterId) => {
+    if (filterId === 'hosting') {
+      return isHost;
+    }
+
+    if (filterId === 'playing') {
+      return !isHost && !isPending;
+    }
+
+    if (filterId === 'pending') {
+      return isPending;
+    }
+
+    return false;
+  });
+};
+
+const listMyTournaments = async (userId, query = {}) => {
+  const normalizedUserId = String(userId || '').trim();
+
+  if (!normalizedUserId) {
+    return {
+      items: [],
+      pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 },
+      stats: { total: 0, hostingCount: 0, playingCount: 0 },
+    };
+  }
+
+  const page = parsePositiveInteger(query.page, 1);
+  const requestedPageSize = parsePositiveInteger(query.pageSize, 20);
+  const pageSize = Math.min(requestedPageSize, 50);
+  const sortId = String(query.sort || 'activity').trim();
+  const filterIds = parseMyEventsFilterIds(query.filter);
+  const searchTerm = String(query.q || query.search || '').trim().toLowerCase();
+
+  const [hostedTournaments, registrations, players] = await Promise.all([
+    Tournament.find({ hostUserId: normalizedUserId }).select({ _id: 1 }).lean(),
+    TournamentRegistration.find({
+      userId: normalizedUserId,
+      status: { $in: ['underReview', 'approved'] },
+    })
+      .select({ tournamentId: 1, status: 1 })
+      .lean(),
+    Player.find({ userId: normalizedUserId, status: 'active' }).select({ _id: 1, tournamentId: 1 }).lean(),
+  ]);
+
+  const registrationStatusByTournamentId = registrations.reduce((accumulator, registration) => {
+    accumulator.set(String(registration.tournamentId), registration.status);
+    return accumulator;
+  }, new Map());
+
+  const rolesByTournamentId = new Map();
+
+  hostedTournaments.forEach((tournament) => {
+    const tournamentId = String(tournament._id);
+    const roles = rolesByTournamentId.get(tournamentId) || [];
+    if (!roles.includes('host')) {
+      roles.push('host');
+    }
+    rolesByTournamentId.set(tournamentId, roles);
+  });
+
+  registrations.forEach((registration) => {
+    const tournamentId = String(registration.tournamentId);
+    const roles = rolesByTournamentId.get(tournamentId) || [];
+    if (!roles.includes('registered')) {
+      roles.push('registered');
+    }
+    rolesByTournamentId.set(tournamentId, roles);
+  });
+
+  players.forEach((player) => {
+    const tournamentId = String(player.tournamentId);
+    const roles = rolesByTournamentId.get(tournamentId) || [];
+    if (!roles.includes('player')) {
+      roles.push('player');
+    }
+    rolesByTournamentId.set(tournamentId, roles);
+  });
+
+  const tournamentIds = [...rolesByTournamentId.keys()];
+
+  if (tournamentIds.length === 0) {
+    return {
+      items: [],
+      pagination: { page, pageSize, total: 0, totalPages: 0 },
+      stats: { total: 0, hostingCount: 0, playingCount: 0 },
+    };
+  }
+
+  const playerIds = players.map((player) => player._id);
+  const lastActivityByTournamentId = new Map();
+
+  if (playerIds.length > 0) {
+    const tournamentObjectIds = tournamentIds.map((id) => new mongoose.Types.ObjectId(id));
+    const activityRows = await Game.aggregate([
+      {
+        $match: {
+          tournamentId: { $in: tournamentObjectIds },
+          $or: [{ playerAId: { $in: playerIds } }, { playerBId: { $in: playerIds } }],
+        },
+      },
+      {
+        $group: {
+          _id: '$tournamentId',
+          lastMatchActivityAt: { $max: '$updatedAt' },
+        },
+      },
+    ]);
+
+    activityRows.forEach((row) => {
+      lastActivityByTournamentId.set(String(row._id), row.lastMatchActivityAt);
+    });
+  }
+
+  const tournaments = await Tournament.find({ _id: { $in: tournamentIds } }).lean();
+
+  const allItems = tournaments
+    .map((tournament) => {
+      const tournamentId = String(tournament._id);
+      const lastMatchActivityAt =
+        lastActivityByTournamentId.get(tournamentId) ||
+        tournament.updatedAt ||
+        tournament.startsAt ||
+        tournament.createdAt;
+
+      return {
+        ...mapTournamentForDiscovery(
+          tournament,
+          registrationStatusByTournamentId.get(tournamentId) || null
+        ),
+        roles: rolesByTournamentId.get(tournamentId) || [],
+        lastMatchActivityAt,
+      };
+    })
+    .sort(
+      (left, right) =>
+        new Date(right.lastMatchActivityAt).getTime() - new Date(left.lastMatchActivityAt).getTime()
+    );
+
+  const stats = {
+    total: allItems.length,
+    hostingCount: allItems.filter((item) => (item.roles || []).includes('host')).length,
+    playingCount: allItems.filter((item) => {
+      const isHost = (item.roles || []).includes('host');
+      const isPending = item.currentUserRegistrationStatus === 'underReview';
+      return !isHost && !isPending;
+    }).length,
+  };
+
+  let filteredItems = allItems.filter((item) => {
+    if (!matchesMyEventsRoleFilters(item, filterIds)) {
+      return false;
+    }
+
+    if (searchTerm && !String(item.name || '').toLowerCase().includes(searchTerm)) {
+      return false;
+    }
+
+    return true;
+  });
+
+  filteredItems = [...filteredItems].sort((left, right) => {
+    if (sortId === 'startsSoon') {
+      return new Date(left.startsAt || 0).getTime() - new Date(right.startsAt || 0).getTime();
+    }
+
+    if (sortId === 'name') {
+      return String(left.name || '').localeCompare(String(right.name || ''));
+    }
+
+    if (sortId === 'newest') {
+      return new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime();
+    }
+
+    return new Date(right.lastMatchActivityAt || 0).getTime() - new Date(left.lastMatchActivityAt || 0).getTime();
+  });
+
+  const total = filteredItems.length;
+  const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
+  const items = filteredItems.slice((page - 1) * pageSize, page * pageSize);
+
+  return {
+    items,
+    pagination: { page, pageSize, total, totalPages },
+    stats,
+  };
 };
 
 const listDiscoverTournaments = async (query = {}, userId) => {
@@ -296,6 +509,7 @@ module.exports = {
   createTournament,
   listDiscoverTournaments,
   listMyRegisteredDiscoverTournaments,
+  listMyTournaments,
   getHostTournamentDetail,
   validateInviteCodeForTournament,
   updateHostTournamentSettings,

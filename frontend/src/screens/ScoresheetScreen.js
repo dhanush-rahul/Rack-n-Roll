@@ -10,7 +10,6 @@ import { useStageFixtures } from '../hooks/useStageFixtures';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatApiError, useScreenFeedback } from '../hooks/useScreenFeedback';
 import { ScreenScrollShell } from '../components/layout/ScreenScrollShell';
-import { ScreenSkeleton } from '../components/ui/ScreenSkeleton';
 import { ScoresheetTabLayout } from '../components/layout/TournamentTabLayout';
 import { useFetchScoresheetPages, useScoresheetMeta } from '../hooks/queries/useScoresheetPages';
 import { useTournamentGroupStandings } from '../hooks/queries/useTournamentGroupStandings';
@@ -26,9 +25,12 @@ import { useProgressionPlan } from '../hooks/tournamentDetail';
 import { buildGroupDisplayName } from '../utils/groupNaming';
 import { ScoresheetGroupsTab } from '../components/scoresheet/ScoresheetGroupsTab';
 import { ScoresheetGamesTab } from '../components/scoresheet/ScoresheetGamesTab';
+import { TrackerTab } from '../components/tournament/tracker/TrackerTab';
+import { useTournamentTracker } from '../hooks/queries/useTournamentTracker';
 import { StageTabView } from './tournamentDetail/StageTabView';
 
 const BASE_SCORESHEET_TABS = [
+  { id: 'tracker', label: 'Tracker' },
   { id: 'groups', label: 'Groups' },
 ];
 
@@ -40,8 +42,9 @@ export function ScoresheetScreen({ route, navigation }) {
   const fetchScoresheetPages = useFetchScoresheetPages();
   const { data: standingsMeta } = useTournamentGroupStandings(tournamentId, {}, { enabled: Boolean(tournamentId) });
   const { data: scoresheetMeta } = useScoresheetMeta(tournamentId, { enabled: Boolean(tournamentId) });
-  const [activeTab, setActiveTab] = useState('groups');
-
+  const { data: trackerData, isLoading: isTrackerLoading, isError: isTrackerError, refetch: refetchTracker, error: trackerError } =
+    useTournamentTracker(tournamentId, {}, { enabled: Boolean(tournamentId) });
+  const [activeTab, setActiveTab] = useState('tracker');
   const [groupsTabItems, setGroupsTabItems] = useState([]);
   const [handicapEnabled, setHandicapEnabled] = useState(false);
   const [groupPlayerGameStatsById, setGroupPlayerGameStatsById] = useState({});
@@ -103,6 +106,8 @@ export function ScoresheetScreen({ route, navigation }) {
       !activeProgressionStageMeta.isBypassPreview
   );
 
+  const scoringStyle =
+    scoresheetMeta?.scoringStyle === 'totalPoints' ? 'totalPoints' : 'individualGames';
   const showGamesTab = groupsLocked;
 
   const scoresheetTabs = useMemo(() => {
@@ -568,8 +573,54 @@ export function ScoresheetScreen({ route, navigation }) {
     [groupPlayerGameStatsById]
   );
 
+  const trackerProgress = trackerData?.progress;
+  const heroStats = [
+    {
+      label: 'PROGRESS',
+      value: trackerProgress ? `${trackerProgress.percentComplete || 0}%` : '…',
+    },
+    {
+      label: 'COMPLETED',
+      value: trackerProgress ? String(trackerProgress.completedGames || 0) : '…',
+    },
+    {
+      label: 'PENDING',
+      value: trackerProgress ? String(trackerProgress.pendingGames || 0) : '…',
+    },
+  ];
+
   if (!tournamentMetaReady) {
-    return <ScreenSkeleton />;
+    return (
+      <ScreenScrollShell contentContainerStyle={{ gap: 16 }}>
+        <View style={{ marginBottom: 16 }}>
+          <TournamentScreenHero
+            eyebrow="SCORESHEET"
+            title={tournamentTitle}
+            subtitle="Follow standings, fixtures, and results as the tournament progresses."
+            badges={[{ label: 'View only', tone: 'primary' }]}
+            stats={[
+              { label: 'PROGRESS', value: '…' },
+              { label: 'COMPLETED', value: '…' },
+              { label: 'PENDING', value: '…' },
+            ]}
+          />
+        </View>
+        <View style={{ marginBottom: 12 }}>
+          <ReadOnlyBanner />
+        </View>
+        <ScoresheetTabLayout tabs={BASE_SCORESHEET_TABS} activeTab="tracker" onSelectTab={() => {}}>
+          <ScoresheetGroupsTab
+            isLoadingGroupsTab
+            groupsTabItems={[]}
+            resolveGroupPlayerGameStats={() => ({ gamesPlayed: 0, gamesRemaining: 0 })}
+            handicapEnabled={false}
+            onLoadGroupsTab={() => {}}
+            progressionStandingsSections={[]}
+            isDoubles={false}
+          />
+        </ScoresheetTabLayout>
+      </ScreenScrollShell>
+    );
   }
 
   return (
@@ -580,11 +631,7 @@ export function ScoresheetScreen({ route, navigation }) {
           title={tournamentTitle}
           subtitle="Follow standings, fixtures, and results as the tournament progresses."
           badges={[{ label: 'View only', tone: 'primary' }]}
-          stats={[
-            { label: 'GROUPS', value: String(groupsTabItems.length) },
-            { label: 'FIXTURES', value: String(displaySections.length) },
-            { label: 'ROUNDS', value: String(stageTabs.length) },
-          ]}
+          stats={heroStats}
         />
       </View>
 
@@ -593,7 +640,15 @@ export function ScoresheetScreen({ route, navigation }) {
       </View>
 
       <ScoresheetTabLayout tabs={scoresheetTabs} activeTab={activeTab} onSelectTab={setActiveTab}>
-      {activeTab === 'teams' ? (
+      {activeTab === 'tracker' ? (
+        <TrackerTab
+          trackerData={trackerData}
+          isLoading={isTrackerLoading}
+          isError={isTrackerError}
+          errorMessage={trackerError ? formatApiError(trackerError, 'Unable to load tracker') : ''}
+          onRetry={() => refetchTracker()}
+        />
+      ) : activeTab === 'teams' ? (
         <TeamsSection
           tournamentId={tournamentId}
           isHost={false}
@@ -637,6 +692,7 @@ export function ScoresheetScreen({ route, navigation }) {
           showMyGamesToggle={isAuthenticated}
           isMyGamesView={groupFixtures.isMyGamesView}
           onSetGamesView={groupFixtures.setGamesView}
+          scoringStyle={scoringStyle}
         />
       ) : activeTab.startsWith('stage:') ? (
         (() => {
@@ -682,6 +738,7 @@ export function ScoresheetScreen({ route, navigation }) {
               showMyGamesToggle={isAuthenticated}
               isMyGamesView={stageFixtures.isMyGamesView}
               onSetGamesView={stageFixtures.setGamesView}
+              scoringStyle={scoringStyle}
             />
           );
         })()

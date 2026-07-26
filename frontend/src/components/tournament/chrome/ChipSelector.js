@@ -26,7 +26,7 @@ export function ChipSelector({ label, options, value, onChange }) {
                 borderRadius: 999,
                 borderWidth: 1,
                 borderColor: selected ? tournamentColors.primary : tournamentColors.border,
-                backgroundColor: selected ? '#dbeafe' : '#f8fafc',
+                backgroundColor: selected ? tournamentColors.primary : tournamentColors.surfaceRaised,
                 opacity: pressed ? 0.88 : 1,
               })}
             >
@@ -34,7 +34,7 @@ export function ChipSelector({ label, options, value, onChange }) {
                 style={{
                   fontWeight: '700',
                   fontSize: 13,
-                  color: selected ? tournamentColors.primary : tournamentColors.textMuted,
+                  color: selected ? tournamentColors.onPrimary || '#ffffff' : tournamentColors.textMuted,
                 }}
               >
                 {option.label}

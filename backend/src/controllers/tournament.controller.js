@@ -3,6 +3,7 @@ const {
   createTournament,
   listDiscoverTournaments,
   listMyRegisteredDiscoverTournaments,
+  listMyTournaments,
   getHostTournamentDetail,
   validateInviteCodeForTournament,
   submitRegistrationRequest,
@@ -46,6 +47,7 @@ const {
   completeProgressionStage,
   finalizeTournamentAfterGroups,
   listGroupStandings,
+  getTournamentTracker,
 } = require('../services/tournament');
 const {
   startGameSession,
@@ -72,6 +74,11 @@ const discoverTournamentsController = asyncHandler(async (req, res) => {
 
 const discoverMyRegisteredTournamentsController = asyncHandler(async (req, res) => {
   const result = await listMyRegisteredDiscoverTournaments(req.auth.userId);
+  return res.status(200).json({ success: true, data: result });
+});
+
+const listMyTournamentsController = asyncHandler(async (req, res) => {
+  const result = await listMyTournaments(req.auth.userId, req.query);
   return res.status(200).json({ success: true, data: result });
 });
 
@@ -221,6 +228,11 @@ const startFinalStageFromGroupsController = asyncHandler(async (req, res) => {
 
 const listGroupStandingsForHostController = asyncHandler(async (req, res) => {
   const result = await listGroupStandings(req.params.tournamentId, req.auth?.userId, req.query);
+  return res.status(200).json({ success: true, data: result });
+});
+
+const getTournamentTrackerController = asyncHandler(async (req, res) => {
+  const result = await getTournamentTracker(req.params.tournamentId, req.query);
   return res.status(200).json({ success: true, data: result });
 });
 
@@ -420,6 +432,7 @@ module.exports = {
   createTournamentController,
   discoverTournamentsController,
   discoverMyRegisteredTournamentsController,
+  listMyTournamentsController,
   getHostTournamentDetailController,
   validateInviteCodeController,
   submitRegistrationRequestController,
@@ -450,6 +463,7 @@ module.exports = {
   assignRandomGroupsController,
   regenerateGroupStageFixturesController,
   listGroupStandingsForHostController,
+  getTournamentTrackerController,
   startFinalStageFromGroupsController,
   finalizeTournamentWithoutFinalStageController,
   finalizeTournamentWithFinalStageController,

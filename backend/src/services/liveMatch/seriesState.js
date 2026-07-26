@@ -202,8 +202,20 @@ const mapLiveMatchState = async (game, canEdit, viewerUserId = null) => {
   const isSessionController = Boolean(viewerId && controllerUserId && viewerId === controllerUserId);
   const hasTakeoverRequest = Boolean(takeoverUserId);
   const isTakeoverRequester = Boolean(viewerId && takeoverUserId && viewerId === takeoverUserId);
-  const tournament = await Tournament.findById(game.tournamentId).select({ hostUserId: 1 }).lean();
+  const tournament = await Tournament.findById(game.tournamentId)
+    .select({ hostUserId: 1, competitionConfig: 1 })
+    .lean();
   const hostUserId = tournament?.hostUserId ? String(tournament.hostUserId) : null;
+  const scoringStyle =
+    tournament?.competitionConfig?.scoringStyle === 'totalPoints' ? 'totalPoints' : 'individualGames';
+  const runningTotals = (game.scoreEntries || []).reduce(
+    (accumulator, entry) => {
+      accumulator.playerA += Number(entry?.playerAScore || 0);
+      accumulator.playerB += Number(entry?.playerBScore || 0);
+      return accumulator;
+    },
+    { playerA: 0, playerB: 0 }
+  );
   const isHost = Boolean(viewerId && hostUserId && viewerId === hostUserId);
   const canClaimScoring = Boolean(canEdit && isInProgress && !controllerUserId);
   const activeTurns = activeEntry?.turns || [];
@@ -237,6 +249,9 @@ const mapLiveMatchState = async (game, canEdit, viewerUserId = null) => {
     playerB: playerSummaryById.get(String(game.playerBId)) || null,
     playerASeriesWins: Number(game.playerASeriesWins || 0),
     playerBSeriesWins: Number(game.playerBSeriesWins || 0),
+    scoringStyle,
+    playerATotalPoints: runningTotals.playerA,
+    playerBTotalPoints: runningTotals.playerB,
     winnerPlayerId: game.winnerPlayerId ? String(game.winnerPlayerId) : null,
     activeGameNumber,
     currentTurnPlayerId: activeEntry?.currentTurnPlayerId

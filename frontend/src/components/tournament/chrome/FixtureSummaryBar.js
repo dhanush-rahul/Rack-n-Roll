@@ -14,7 +14,7 @@ export function FixtureSummaryBar({ text }) {
         paddingVertical: 10,
         paddingHorizontal: 12,
         borderRadius: 10,
-        backgroundColor: '#f1f5f9',
+        backgroundColor: tournamentColors.inputFill,
         borderWidth: 1,
         borderColor: tournamentColors.borderLight,
       }}

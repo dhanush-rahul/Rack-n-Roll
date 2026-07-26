@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState, useCallback } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import { ScaledText as Text } from '../components/ui/ScaledText';
 import { ScaledTextInput as TextInput } from '../components/ui/ScaledTextInput';
@@ -11,11 +11,13 @@ import { useScreenInsets } from '../hooks/useScreenInsets';
 import { invalidateTournamentCache } from '../hooks/queries/invalidateTournamentCache';
 import { createTournament } from '../services/tournamentService';
 import { tournamentColors, tournamentUi } from '../styles/tournamentUi';
+import { useTheme } from '../context/ThemeContext';
 import { useResponsiveLayout, centeredContentStyle } from '../utils/responsive';
-import { WebFormColumns } from '../components/layout/WebTwoColumnLayout';
 import { WebScheduleInputs } from '../components/scheduling/WebScheduleInputs';
 import { ProgressionPlanEditor, validateProgressionPlan } from '../components/tournament/ProgressionPlanEditor';
+import { WizardTimeline } from '../components/createTournament/WizardTimeline';
 import { buildDefaultProgressionState, serializeProgressionPlan } from '../utils/progressionPlanUtils';
+import { markIgnoreNextPopState } from '../utils/navigationGuard';
 
 const PLAYER_PRESETS = [8, 16, 32, 64];
 
@@ -25,6 +27,18 @@ const GROUP_STAGE_BEST_OF_OPTIONS = [
   { value: '5', label: 'Best of 5' },
   { value: '7', label: 'Best of 7' },
 ];
+
+const CREATE_WIZARD_TABS = [
+  { id: 'details', label: 'Details' },
+  { id: 'format', label: 'Format' },
+  { id: 'scoring', label: 'Scoring' },
+  { id: 'progression', label: 'Progression' },
+  { id: 'launch', label: 'Launch' },
+];
+
+const getTabIndex = (tabId) => CREATE_WIZARD_TABS.findIndex((tab) => tab.id === tabId);
+const getNextTab = (tabId) => CREATE_WIZARD_TABS[getTabIndex(tabId) + 1]?.id ?? null;
+const getPrevTab = (tabId) => CREATE_WIZARD_TABS[getTabIndex(tabId) - 1]?.id ?? null;
 
 const buildDefaultStartsAt = () => {
   const defaultStart = new Date();
@@ -84,7 +98,7 @@ function PickerField({ label, value, onPress }) {
         borderColor: tournamentColors.border,
         borderRadius: 10,
         padding: 12,
-        backgroundColor: tournamentColors.white,
+        backgroundColor: tournamentColors.inputFill,
         opacity: pressed ? 0.9 : 1,
         gap: 6,
       })}
@@ -105,7 +119,7 @@ function ModeOption({ label, description, selected, onPress }) {
         borderColor: selected ? tournamentColors.primary : tournamentColors.border,
         borderRadius: 12,
         padding: 12,
-        backgroundColor: selected ? '#eff6ff' : tournamentColors.white,
+        backgroundColor: selected ? tournamentColors.modeSelectedBg : tournamentColors.surfaceRaised,
         opacity: pressed ? 0.9 : 1,
         gap: 4,
       })}
@@ -118,24 +132,74 @@ function ModeOption({ label, description, selected, onPress }) {
   );
 }
 
+function WizardNavFooter({ activeTab, onBack, onContinue, isLastTab }) {
+  const prevTab = getPrevTab(activeTab);
+  const nextTab = getNextTab(activeTab);
+
+  if (!prevTab && !nextTab) {
+    return null;
+  }
+
+  return (
+    <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
+      {prevTab ? (
+        <Pressable
+          onPress={onBack}
+          style={({ pressed }) => ({
+            flex: 1,
+            borderRadius: 12,
+            paddingVertical: 14,
+            alignItems: 'center',
+            borderWidth: 1,
+            borderColor: tournamentColors.border,
+            backgroundColor: tournamentColors.inputFill,
+            opacity: pressed ? 0.88 : 1,
+          })}
+        >
+          <Text style={{ color: tournamentColors.text, fontSize: 15, fontWeight: '700' }}>Back</Text>
+        </Pressable>
+      ) : null}
+      {!isLastTab && nextTab ? (
+        <Pressable
+          onPress={onContinue}
+          style={({ pressed }) => ({
+            flex: prevTab ? 1.4 : 1,
+            borderRadius: 12,
+            paddingVertical: 14,
+            alignItems: 'center',
+            backgroundColor: tournamentColors.primary,
+            opacity: pressed ? 0.88 : 1,
+          })}
+        >
+          <Text style={{ color: tournamentColors.onPrimary || '#ffffff', fontSize: 15, fontWeight: '700' }}>Continue</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
 export function CreateTournamentScreen({ navigation, route }) {
   const queryClient = useQueryClient();
   const { contentMaxWidth, horizontalPadding, isDesktopWeb } = useResponsiveLayout();
   const { scrollPaddingBottom } = useScreenInsets();
+  const { colors } = useTheme();
   const defaultStartsAt = useMemo(() => buildDefaultStartsAt(), []);
   const scrollRef = useRef(null);
   const [name, setName] = useState('');
-  const [maxParticipants, setMaxParticipants] = useState('16');
-  const [registrationMode, setRegistrationMode] = useState('public');
+  const [maxParticipants, setMaxParticipants] = useState('');
+  const [registrationMode, setRegistrationMode] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [startsAt, setStartsAt] = useState(defaultStartsAt);
   const [activePicker, setActivePicker] = useState(null);
   const [venue, setVenue] = useState('');
-  const [groupStageBestOf, setGroupStageBestOf] = useState('3');
-  const [competitionFormat, setCompetitionFormat] = useState('singles');
-  const [pairFormationMode, setPairFormationMode] = useState('playerPicksPartner');
+  const [groupStageBestOf, setGroupStageBestOf] = useState('');
+  const [competitionFormat, setCompetitionFormat] = useState('');
+  const [pairFormationMode, setPairFormationMode] = useState('');
   const [handicapEnabled, setHandicapEnabled] = useState(false);
-  const [groupStageProctored, setGroupStageProctored] = useState(false);
+  const [groupStageProctored, setGroupStageProctored] = useState(null);
+  const [scoringStyle, setScoringStyle] = useState('');
+  const [activeWizardTab, setActiveWizardTab] = useState('details');
+  const [visitedWizardTabs, setVisitedWizardTabs] = useState(() => new Set(['details']));
   const [progressionState, setProgressionState] = useState(() => buildDefaultProgressionState());
   const [fieldErrors, setFieldErrors] = useState({});
   const [errorText, setErrorText] = useState('');
@@ -147,6 +211,101 @@ export function CreateTournamentScreen({ navigation, route }) {
   });
 
   const previewStartsAt = useMemo(() => formatPreviewDateTime(startsAt), [startsAt]);
+
+  const isFormatSelected = competitionFormat === 'singles' || competitionFormat === 'doubles';
+  const isScoringStyleSelected = scoringStyle === 'individualGames' || scoringStyle === 'totalPoints';
+  const isBestOfSelected = GROUP_STAGE_BEST_OF_OPTIONS.some((option) => option.value === groupStageBestOf);
+  const isRegistrationSelected = registrationMode === 'public' || registrationMode === 'inviteOnly';
+
+  const isTabValid = useCallback(
+    (tabId) => {
+      const trimmedName = name.trim();
+      const parsedPlayers = Number(maxParticipants);
+      const trimmedVenue = venue.trim();
+
+      if (tabId === 'details') {
+        if (trimmedName.length < 3) return false;
+        if (!Number.isInteger(parsedPlayers) || parsedPlayers < 1) return false;
+        if (Number.isNaN(startsAt.getTime())) return false;
+        if (!trimmedVenue) return false;
+        return true;
+      }
+
+      if (tabId === 'format') {
+        if (!isFormatSelected) return false;
+        if (competitionFormat === 'doubles' && pairFormationMode !== 'playerPicksPartner' && pairFormationMode !== 'hostAssigns') {
+          return false;
+        }
+        return true;
+      }
+
+      if (tabId === 'scoring') {
+        if (!isScoringStyleSelected || !isBestOfSelected) return false;
+        if (competitionFormat === 'singles' && groupStageProctored === null) return false;
+        return true;
+      }
+
+      if (tabId === 'progression') {
+        return validateProgressionPlan(progressionState).valid;
+      }
+
+      if (tabId === 'launch') {
+        if (!isRegistrationSelected) return false;
+        if (registrationMode === 'inviteOnly' && inviteCode.trim().length < 4) return false;
+        return true;
+      }
+
+      return true;
+    },
+    [
+      competitionFormat,
+      groupStageBestOf,
+      groupStageProctored,
+      inviteCode,
+      isBestOfSelected,
+      isFormatSelected,
+      isRegistrationSelected,
+      isScoringStyleSelected,
+      maxParticipants,
+      name,
+      pairFormationMode,
+      progressionState,
+      registrationMode,
+      scoringStyle,
+      startsAt,
+      venue,
+    ]
+  );
+
+  const isFormFullyValid = useMemo(
+    () => CREATE_WIZARD_TABS.every((tab) => isTabValid(tab.id)),
+    [isTabValid]
+  );
+
+  const getTabStatus = useCallback(
+    (tabId) => {
+      const activeIndex = getTabIndex(activeWizardTab);
+      const tabIndex = getTabIndex(tabId);
+
+      if (tabId === activeWizardTab) {
+        return 'current';
+      }
+
+      if (!visitedWizardTabs.has(tabId)) {
+        if (tabIndex < activeIndex) {
+          return 'incomplete';
+        }
+        return 'upcoming';
+      }
+
+      if (isTabValid(tabId)) {
+        return 'complete';
+      }
+
+      return 'incomplete';
+    },
+    [activeWizardTab, isTabValid, visitedWizardTabs]
+  );
 
   const onSchedulePickerChange = (event, selectedDate) => {
     if (Platform.OS === 'android') {
@@ -175,6 +334,127 @@ export function CreateTournamentScreen({ navigation, route }) {
     setFieldErrors((current) => ({ ...current, schedule: '' }));
   };
 
+  const validateTab = (tabId) => {
+    const nextErrors = {};
+    const trimmedName = name.trim();
+    const parsedPlayers = Number(maxParticipants);
+    const trimmedVenue = venue.trim();
+
+    if (tabId === 'details') {
+      if (trimmedName.length < 3) {
+        nextErrors.name = 'Tournament name must be at least 3 characters.';
+      }
+      if (!Number.isInteger(parsedPlayers) || parsedPlayers < 1) {
+        nextErrors.maxParticipants = 'Enter a whole number of players (at least 1).';
+      }
+      if (Number.isNaN(startsAt.getTime())) {
+        nextErrors.schedule = 'Pick a valid start date and time.';
+      }
+      if (!trimmedVenue) {
+        nextErrors.venue = 'Tell players where the tournament is held.';
+      }
+    }
+
+    if (tabId === 'format') {
+      if (!isFormatSelected) {
+        nextErrors.competitionFormat = 'Choose singles or doubles.';
+      } else if (
+        competitionFormat === 'doubles' &&
+        pairFormationMode !== 'playerPicksPartner' &&
+        pairFormationMode !== 'hostAssigns'
+      ) {
+        nextErrors.pairFormationMode = 'Choose how teams form.';
+      }
+    }
+
+    if (tabId === 'scoring') {
+      if (!isScoringStyleSelected) {
+        nextErrors.scoringStyle = 'Choose a scoring style.';
+      }
+      if (!isBestOfSelected) {
+        nextErrors.groupStageBestOf = 'Choose games per match for the group stage.';
+      }
+      if (competitionFormat === 'singles' && groupStageProctored === null) {
+        nextErrors.groupStageProctored = 'Choose manual or proctored group-stage scoring.';
+      }
+    }
+
+    if (tabId === 'progression') {
+      const progressionValidation = validateProgressionPlan(progressionState);
+      if (!progressionValidation.valid) {
+        nextErrors.progression = progressionValidation.errors[0] || 'Fix progression plan errors.';
+      }
+    }
+
+    if (tabId === 'launch') {
+      if (!isRegistrationSelected) {
+        nextErrors.registrationMode = 'Choose public or invite-only registration.';
+      } else if (registrationMode === 'inviteOnly' && inviteCode.trim().length < 4) {
+        nextErrors.inviteCode = 'Invite-only tournaments need a code of at least 4 characters.';
+      }
+    }
+
+    setFieldErrors((current) => {
+      const cleared = { ...current };
+      if (tabId === 'details') {
+        delete cleared.name;
+        delete cleared.maxParticipants;
+        delete cleared.schedule;
+        delete cleared.venue;
+      }
+      if (tabId === 'format') {
+        delete cleared.competitionFormat;
+        delete cleared.pairFormationMode;
+      }
+      if (tabId === 'scoring') {
+        delete cleared.scoringStyle;
+        delete cleared.groupStageBestOf;
+        delete cleared.groupStageProctored;
+      }
+      if (tabId === 'progression') {
+        delete cleared.progression;
+      }
+      if (tabId === 'launch') {
+        delete cleared.registrationMode;
+        delete cleared.inviteCode;
+      }
+      return { ...cleared, ...nextErrors };
+    });
+
+    return Object.keys(nextErrors).length === 0;
+  };
+
+  const goToTab = (tabId) => {
+    setVisitedWizardTabs((current) => {
+      const next = new Set(current);
+      next.add(tabId);
+      return next;
+    });
+    setActiveWizardTab(tabId);
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  };
+
+  const onContinue = () => {
+    if (!validateTab(activeWizardTab)) {
+      setErrorText('Please fix the highlighted fields before continuing.');
+      return;
+    }
+
+    setErrorText('');
+    const nextTab = getNextTab(activeWizardTab);
+    if (nextTab) {
+      goToTab(nextTab);
+    }
+  };
+
+  const onBack = () => {
+    setErrorText('');
+    const prevTab = getPrevTab(activeWizardTab);
+    if (prevTab) {
+      goToTab(prevTab);
+    }
+  };
+
   const validateForm = () => {
     const nextErrors = {};
     const trimmedName = name.trim();
@@ -197,6 +477,32 @@ export function CreateTournamentScreen({ navigation, route }) {
       nextErrors.venue = 'Tell players where the tournament is held.';
     }
 
+    if (!isFormatSelected) {
+      nextErrors.competitionFormat = 'Choose singles or doubles.';
+    } else if (
+      competitionFormat === 'doubles' &&
+      pairFormationMode !== 'playerPicksPartner' &&
+      pairFormationMode !== 'hostAssigns'
+    ) {
+      nextErrors.pairFormationMode = 'Choose how teams form.';
+    }
+
+    if (!isScoringStyleSelected) {
+      nextErrors.scoringStyle = 'Choose a scoring style.';
+    }
+
+    if (!isBestOfSelected) {
+      nextErrors.groupStageBestOf = 'Choose games per match for the group stage.';
+    }
+
+    if (competitionFormat === 'singles' && groupStageProctored === null) {
+      nextErrors.groupStageProctored = 'Choose manual or proctored group-stage scoring.';
+    }
+
+    if (!isRegistrationSelected) {
+      nextErrors.registrationMode = 'Choose public or invite-only registration.';
+    }
+
     if (registrationMode === 'inviteOnly' && inviteCode.trim().length < 4) {
       nextErrors.inviteCode = 'Invite-only tournaments need a code of at least 4 characters.';
     }
@@ -207,14 +513,35 @@ export function CreateTournamentScreen({ navigation, route }) {
     }
 
     setFieldErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0 ? { trimmedName, parsedPlayers, trimmedVenue, startsAt } : null;
+
+    if (Object.keys(nextErrors).length > 0) {
+      const errorTabByField = {
+        name: 'details',
+        maxParticipants: 'details',
+        venue: 'details',
+        schedule: 'details',
+        competitionFormat: 'format',
+        pairFormationMode: 'format',
+        scoringStyle: 'scoring',
+        groupStageBestOf: 'scoring',
+        groupStageProctored: 'scoring',
+        inviteCode: 'launch',
+        registrationMode: 'launch',
+        progression: 'progression',
+      };
+      const firstErrorField = Object.keys(nextErrors)[0];
+      setActiveWizardTab(errorTabByField[firstErrorField] || 'details');
+      return null;
+    }
+
+    return { trimmedName, parsedPlayers, trimmedVenue, startsAt };
   };
 
   const onSubmit = async () => {
     const validated = validateForm();
 
     if (!validated) {
-      setErrorText('Please fix the highlighted fields.');
+      setErrorText('Please fix the highlighted fields on the indicated tab.');
       return;
     }
 
@@ -238,7 +565,8 @@ export function CreateTournamentScreen({ navigation, route }) {
           groupStageBestOf: Number(groupStageBestOf),
           groupCount: progressionState.enabled ? Number(progressionState.plannedGroupCount) : undefined,
           handicapEnabled: competitionFormat === 'doubles' ? false : handicapEnabled,
-          groupStageProctored: competitionFormat === 'doubles' ? false : groupStageProctored,
+          groupStageProctored: competitionFormat === 'doubles' ? false : Boolean(groupStageProctored),
+          scoringStyle,
         },
         progressionPlan: progressionState.enabled
           ? serializeProgressionPlan(progressionState)
@@ -272,7 +600,8 @@ export function CreateTournamentScreen({ navigation, route }) {
     setSuccessModal({ visible: false, message: '', tournamentId: null });
 
     if (tournamentId) {
-      navigation.navigate('Home', { highlightTournamentId: tournamentId });
+      markIgnoreNextPopState();
+      navigation.navigate('Discover', { highlightTournamentId: tournamentId });
     }
   };
 
@@ -292,7 +621,7 @@ export function CreateTournamentScreen({ navigation, route }) {
     >
       <ScrollView
         ref={scrollRef}
-        style={[tournamentUi.screen, isDesktopWeb && { backgroundColor: '#eef2f6' }]}
+        style={[tournamentUi.screen, isDesktopWeb && { backgroundColor: colors.backgroundAlt }]}
         contentContainerStyle={[
           centeredContentStyle(contentMaxWidth),
           { paddingHorizontal: horizontalPadding, paddingTop: 16, paddingBottom: scrollPaddingBottom, gap: 14 },
@@ -304,21 +633,53 @@ export function CreateTournamentScreen({ navigation, route }) {
         style={{
           borderRadius: 16,
           padding: 16,
-          backgroundColor: '#0f172a',
+          backgroundColor: tournamentColors.heroBg,
           gap: 8,
+          overflow: 'hidden',
         }}
       >
-        <Text style={{ color: '#e2e8f0', fontSize: 14, lineHeight: 20 }}>
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            width: 140,
+            height: 140,
+            borderRadius: 70,
+            top: -40,
+            right: -30,
+            backgroundColor: tournamentColors.heroGlow,
+          }}
+        />
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            width: 140,
+            height: 140,
+            borderRadius: 70,
+            bottom: -50,
+            left: -20,
+            backgroundColor: tournamentColors.heroGlowAlt,
+          }}
+        />
+        <Text style={{ color: tournamentColors.heroBodyText, fontSize: 14, lineHeight: 20 }}>
           Set up your tournament once. Rack-N-Roll handles registration, groups, and scoring from there.
         </Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-          <Text style={previewPillStyle}>Host Dashboard</Text>
+          <Text style={previewPillTextStyle}>Host Dashboard</Text>
         </View>
       </View>
 
-      <WebFormColumns
-        left={
-          <>
+      <WizardTimeline
+        tabs={CREATE_WIZARD_TABS}
+        activeTab={activeWizardTab}
+        onSelectTab={goToTab}
+        getTabIndex={getTabIndex}
+        getTabStatus={getTabStatus}
+      />
+
+      {activeWizardTab === 'details' && (
+        <>
       <SectionCard title="Tournament details" subtitle="What players will see first on Discover.">
         <View style={{ gap: 6 }}>
           <FieldLabel>Tournament name</FieldLabel>
@@ -363,7 +724,7 @@ export function CreateTournamentScreen({ navigation, route }) {
                     borderRadius: 999,
                     borderWidth: 1,
                     borderColor: selected ? tournamentColors.primary : tournamentColors.border,
-                    backgroundColor: selected ? '#dbeafe' : tournamentColors.white,
+                    backgroundColor: selected ? tournamentColors.chipSelectedBg : tournamentColors.surfaceRaised,
                   }}
                 >
                   <Text style={{ fontWeight: '600', color: selected ? tournamentColors.primary : tournamentColors.text }}>
@@ -389,149 +750,6 @@ export function CreateTournamentScreen({ navigation, route }) {
           />
           {Boolean(fieldErrors.venue) && <Text style={errorTextStyle}>{fieldErrors.venue}</Text>}
         </View>
-      </SectionCard>
-
-      <SectionCard title="Competition format" subtitle="Singles or doubles for the entire tournament.">
-        <View style={{ flexDirection: 'row', gap: 10 }}>
-          <ModeOption
-            label="Singles"
-            description="One player per side. Handicap and proctored scoring available."
-            selected={competitionFormat === 'singles'}
-            onPress={() => setCompetitionFormat('singles')}
-          />
-          <ModeOption
-            label="Doubles"
-            description="Two players per team. Manual team scoring only; handicap is off."
-            selected={competitionFormat === 'doubles'}
-            onPress={() => setCompetitionFormat('doubles')}
-          />
-        </View>
-
-        {competitionFormat === 'doubles' && (
-          <View style={{ marginTop: 12, gap: 8 }}>
-            <FieldLabel>How teams form</FieldLabel>
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <ModeOption
-                label="Players pick"
-                description="Approved players choose a solo partner after joining."
-                selected={pairFormationMode === 'playerPicksPartner'}
-                onPress={() => setPairFormationMode('playerPicksPartner')}
-              />
-              <ModeOption
-                label="Host assigns"
-                description="You form or break teams from the Players tab."
-                selected={pairFormationMode === 'hostAssigns'}
-                onPress={() => setPairFormationMode('hostAssigns')}
-              />
-            </View>
-          </View>
-        )}
-      </SectionCard>
-
-      <SectionCard title="Match format" subtitle="Group-stage series length before the finale (finale configured later).">
-        <ChipSelector
-          label="Games per match (group stage)"
-          options={GROUP_STAGE_BEST_OF_OPTIONS}
-          value={groupStageBestOf}
-          onChange={setGroupStageBestOf}
-        />
-        {competitionFormat === 'singles' && (
-        <Pressable
-          onPress={() => setHandicapEnabled((current) => !current)}
-          style={({ pressed }) => ({
-            marginTop: 12,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 10,
-            padding: 12,
-            borderRadius: 10,
-            borderWidth: 1,
-            borderColor: handicapEnabled ? tournamentColors.primary : tournamentColors.border,
-            backgroundColor: handicapEnabled ? '#eff6ff' : tournamentColors.white,
-            opacity: pressed ? 0.9 : 1,
-          })}
-        >
-          <AppIcon
-            name={handicapEnabled ? 'checkboxOn' : 'checkboxOff'}
-            size={22}
-            color={handicapEnabled ? tournamentColors.primary : tournamentColors.textMuted}
-          />
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontWeight: '700', color: tournamentColors.text }}>Use handicap in standings</Text>
-            <Text style={{ fontSize: 12, color: tournamentColors.textMuted, marginTop: 2 }}>
-              Lower handicap = stronger player (APA-style). Copies profile handicap when players join.
-            </Text>
-          </View>
-        </Pressable>
-        )}
-        {competitionFormat === 'singles' && (
-        <View style={{ marginTop: 12, gap: 8 }}>
-          <FieldLabel>Group-stage scoring</FieldLabel>
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <ModeOption
-              label="Manual"
-              description="Players and host enter scores in a grid on the Games tab."
-              selected={!groupStageProctored}
-              onPress={() => setGroupStageProctored(false)}
-            />
-            <ModeOption
-              label="Proctored"
-              description="Assigned proctors run live match scoring with leg and takeover."
-              selected={groupStageProctored}
-              onPress={() => setGroupStageProctored(true)}
-            />
-          </View>
-        </View>
-        )}
-      </SectionCard>
-
-      <SectionCard
-        title="After groups"
-        subtitle="Name your own stages, pick knockout or round-robin, and chain advancement rules."
-      >
-        <ProgressionPlanEditor
-          value={progressionState}
-          onChange={setProgressionState}
-          competitionFormat={competitionFormat}
-          fieldError={fieldErrors.progression}
-        />
-      </SectionCard>
-          </>
-        }
-        right={
-          <>
-      <SectionCard title="Registration" subtitle="Choose who can request a spot.">
-        <View style={{ flexDirection: 'row', gap: 10 }}>
-          <ModeOption
-            label="Public"
-            description="Anyone on Discover can request to join."
-            selected={registrationMode === 'public'}
-            onPress={() => setRegistrationMode('public')}
-          />
-          <ModeOption
-            label="Invite only"
-            description="Players need your invite code to register."
-            selected={registrationMode === 'inviteOnly'}
-            onPress={() => setRegistrationMode('inviteOnly')}
-          />
-        </View>
-
-        {registrationMode === 'inviteOnly' && (
-          <View style={{ gap: 6 }}>
-            <FieldLabel>Invite code</FieldLabel>
-            <TextInput
-              style={tournamentUi.input}
-              placeholder="e.g. RACK2026"
-              value={inviteCode}
-              onChangeText={(value) => {
-                setInviteCode(value);
-                setFieldErrors((current) => ({ ...current, inviteCode: '' }));
-              }}
-              autoCapitalize="characters"
-            />
-            {Boolean(fieldErrors.inviteCode) && <Text style={errorTextStyle}>{fieldErrors.inviteCode}</Text>}
-          </View>
-        )}
       </SectionCard>
 
       <SectionCard title="Schedule" subtitle="Pick when play begins.">
@@ -568,7 +786,7 @@ export function CreateTournamentScreen({ navigation, route }) {
                   borderColor: tournamentColors.border,
                   borderRadius: 12,
                   overflow: 'hidden',
-                  backgroundColor: tournamentColors.white,
+                  backgroundColor: tournamentColors.inputFill,
                 }}
               >
                 <DateTimePicker
@@ -598,13 +816,225 @@ export function CreateTournamentScreen({ navigation, route }) {
 
         {Boolean(fieldErrors.schedule) && <Text style={errorTextStyle}>{fieldErrors.schedule}</Text>}
       </SectionCard>
+        </>
+      )}
+
+      {activeWizardTab === 'format' && (
+      <SectionCard title="Competition format" subtitle="Singles or doubles for the entire tournament.">
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <ModeOption
+            label="Singles"
+            description="One player per side. Handicap and proctored scoring available."
+            selected={competitionFormat === 'singles'}
+            onPress={() => {
+              setCompetitionFormat('singles');
+              setGroupStageProctored(null);
+              setFieldErrors((current) => ({ ...current, competitionFormat: '', pairFormationMode: '' }));
+            }}
+          />
+          <ModeOption
+            label="Doubles"
+            description="Two players per team. Manual team scoring only; handicap is off."
+            selected={competitionFormat === 'doubles'}
+            onPress={() => {
+              setCompetitionFormat('doubles');
+              setGroupStageProctored(false);
+              setFieldErrors((current) => ({ ...current, competitionFormat: '', pairFormationMode: '' }));
+            }}
+          />
+        </View>
+        {Boolean(fieldErrors.competitionFormat) && <Text style={errorTextStyle}>{fieldErrors.competitionFormat}</Text>}
+
+        {competitionFormat === 'doubles' && (
+          <View style={{ marginTop: 12, gap: 8 }}>
+            <FieldLabel>How teams form</FieldLabel>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <ModeOption
+                label="Players pick"
+                description="Approved players choose a solo partner after joining."
+                selected={pairFormationMode === 'playerPicksPartner'}
+                onPress={() => {
+                  setPairFormationMode('playerPicksPartner');
+                  setFieldErrors((current) => ({ ...current, pairFormationMode: '' }));
+                }}
+              />
+              <ModeOption
+                label="Host assigns"
+                description="You form or break teams from the Players tab."
+                selected={pairFormationMode === 'hostAssigns'}
+                onPress={() => {
+                  setPairFormationMode('hostAssigns');
+                  setFieldErrors((current) => ({ ...current, pairFormationMode: '' }));
+                }}
+              />
+            </View>
+            {Boolean(fieldErrors.pairFormationMode) && <Text style={errorTextStyle}>{fieldErrors.pairFormationMode}</Text>}
+          </View>
+        )}
+      </SectionCard>
+      )}
+
+      {activeWizardTab === 'scoring' && (
+      <>
+      <SectionCard title="Scoring style" subtitle="How match scores are entered and counted tournament-wide.">
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <ModeOption
+            label="Individual games"
+            description="One score box per game in the series (best-of format)."
+            selected={scoringStyle === 'individualGames'}
+            onPress={() => {
+              setScoringStyle('individualGames');
+              setFieldErrors((current) => ({ ...current, scoringStyle: '' }));
+            }}
+          />
+          <ModeOption
+            label="Total points"
+            description="One running total per player for the whole match."
+            selected={scoringStyle === 'totalPoints'}
+            onPress={() => {
+              setScoringStyle('totalPoints');
+              setFieldErrors((current) => ({ ...current, scoringStyle: '' }));
+            }}
+          />
+        </View>
+        {Boolean(fieldErrors.scoringStyle) && <Text style={errorTextStyle}>{fieldErrors.scoringStyle}</Text>}
+      </SectionCard>
+
+      <SectionCard title="Match format" subtitle="Group-stage series length before later stages (finale configured in Progression).">
+        <ChipSelector
+          label="Games per match (group stage)"
+          options={GROUP_STAGE_BEST_OF_OPTIONS}
+          value={groupStageBestOf}
+          onChange={(value) => {
+            setGroupStageBestOf(value);
+            setFieldErrors((current) => ({ ...current, groupStageBestOf: '' }));
+          }}
+        />
+        {Boolean(fieldErrors.groupStageBestOf) && <Text style={errorTextStyle}>{fieldErrors.groupStageBestOf}</Text>}
+        {competitionFormat === 'singles' && (
+        <Pressable
+          onPress={() => setHandicapEnabled((current) => !current)}
+          style={({ pressed }) => ({
+            marginTop: 12,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 10,
+            padding: 12,
+            borderRadius: 10,
+            borderWidth: 1,
+            borderColor: handicapEnabled ? tournamentColors.primary : tournamentColors.border,
+            backgroundColor: handicapEnabled ? tournamentColors.modeSelectedBg : tournamentColors.surfaceRaised,
+            opacity: pressed ? 0.9 : 1,
+          })}
+        >
+          <AppIcon
+            name={handicapEnabled ? 'checkboxOn' : 'checkboxOff'}
+            size={22}
+            color={handicapEnabled ? tournamentColors.primary : tournamentColors.textMuted}
+          />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontWeight: '700', color: tournamentColors.text }}>Use handicap in standings</Text>
+            <Text style={{ fontSize: 12, color: tournamentColors.textMuted, marginTop: 2 }}>
+              Lower handicap = stronger player (APA-style). Copies profile handicap when players join.
+            </Text>
+          </View>
+        </Pressable>
+        )}
+        {competitionFormat === 'singles' && (
+        <View style={{ marginTop: 12, gap: 8 }}>
+          <FieldLabel>Group-stage scoring</FieldLabel>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <ModeOption
+              label="Manual"
+              description="Players and host enter scores in the match table on the Games tab."
+              selected={groupStageProctored === false}
+              onPress={() => {
+                setGroupStageProctored(false);
+                setFieldErrors((current) => ({ ...current, groupStageProctored: '' }));
+              }}
+            />
+            <ModeOption
+              label="Proctored"
+              description="Assigned proctors run live match scoring with lag and takeover."
+              selected={groupStageProctored === true}
+              onPress={() => {
+                setGroupStageProctored(true);
+                setFieldErrors((current) => ({ ...current, groupStageProctored: '' }));
+              }}
+            />
+          </View>
+          {Boolean(fieldErrors.groupStageProctored) && (
+            <Text style={errorTextStyle}>{fieldErrors.groupStageProctored}</Text>
+          )}
+        </View>
+        )}
+      </SectionCard>
+      </>
+      )}
+
+      {activeWizardTab === 'progression' && (
+      <SectionCard
+        title="After groups"
+        subtitle="Name your own stages, pick knockout or round-robin, and chain advancement rules."
+      >
+        <ProgressionPlanEditor
+          value={progressionState}
+          onChange={setProgressionState}
+          competitionFormat={competitionFormat}
+          fieldError={fieldErrors.progression}
+        />
+      </SectionCard>
+      )}
+
+      {activeWizardTab === 'launch' && (
+      <>
+      <SectionCard title="Registration" subtitle="Choose who can request a spot.">
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <ModeOption
+            label="Public"
+            description="Anyone on Discover can request to join."
+            selected={registrationMode === 'public'}
+            onPress={() => {
+              setRegistrationMode('public');
+              setFieldErrors((current) => ({ ...current, registrationMode: '' }));
+            }}
+          />
+          <ModeOption
+            label="Invite only"
+            description="Players need your invite code to register."
+            selected={registrationMode === 'inviteOnly'}
+            onPress={() => {
+              setRegistrationMode('inviteOnly');
+              setFieldErrors((current) => ({ ...current, registrationMode: '' }));
+            }}
+          />
+        </View>
+        {Boolean(fieldErrors.registrationMode) && <Text style={errorTextStyle}>{fieldErrors.registrationMode}</Text>}
+
+        {registrationMode === 'inviteOnly' && (
+          <View style={{ gap: 6 }}>
+            <FieldLabel>Invite code</FieldLabel>
+            <TextInput
+              style={tournamentUi.input}
+              placeholder="e.g. RACK2026"
+              value={inviteCode}
+              onChangeText={(value) => {
+                setInviteCode(value);
+                setFieldErrors((current) => ({ ...current, inviteCode: '' }));
+              }}
+              autoCapitalize="characters"
+            />
+            {Boolean(fieldErrors.inviteCode) && <Text style={errorTextStyle}>{fieldErrors.inviteCode}</Text>}
+          </View>
+        )}
+      </SectionCard>
 
       <View
         style={{
           borderRadius: 14,
           borderWidth: 1,
-          borderColor: '#bfdbfe',
-          backgroundColor: '#f8fafc',
+          borderColor: tournamentColors.previewBorder,
+          backgroundColor: tournamentColors.previewBg,
           padding: 14,
           gap: 6,
         }}
@@ -619,27 +1049,50 @@ export function CreateTournamentScreen({ navigation, route }) {
         <Text style={{ color: tournamentColors.textMuted }}>
           {venue.trim() || 'Venue not set yet'}
         </Text>
+        <Text style={{ color: tournamentColors.textMuted }}>
+          {competitionFormat === 'doubles'
+            ? 'Doubles'
+            : competitionFormat === 'singles'
+              ? 'Singles'
+              : 'Format not set'}
+          {' · '}
+          {scoringStyle === 'totalPoints'
+            ? 'Total points'
+            : scoringStyle === 'individualGames'
+              ? 'Individual games'
+              : 'Scoring not set'}
+          {groupStageBestOf ? ` · Bo${groupStageBestOf} group stage` : ' · Group stage not set'}
+        </Text>
       </View>
 
-      {Boolean(errorText) && <Text style={errorTextStyle}>{errorText}</Text>}
+      {Boolean(errorText) && activeWizardTab === 'launch' && <Text style={errorTextStyle}>{errorText}</Text>}
 
         <Pressable
           onPress={onSubmit}
-          disabled={isSubmitting}
+          disabled={isSubmitting || !isFormFullyValid}
           style={({ pressed }) => ({
-            backgroundColor: isSubmitting ? tournamentColors.primaryMuted : tournamentColors.primary,
+            backgroundColor:
+              isSubmitting || !isFormFullyValid ? tournamentColors.primaryMuted : tournamentColors.primary,
             borderRadius: 12,
             paddingVertical: 16,
             alignItems: 'center',
-            opacity: pressed || isSubmitting ? 0.85 : 1,
+            opacity: pressed || isSubmitting || !isFormFullyValid ? 0.85 : 1,
           })}
         >
-          <Text style={{ color: tournamentColors.white, fontSize: 16, fontWeight: '700' }}>
+          <Text style={{ color: tournamentColors.onPrimary || '#ffffff', fontSize: 16, fontWeight: '700' }}>
             {isSubmitting ? 'Creating tournament...' : 'Launch tournament'}
           </Text>
         </Pressable>
-          </>
-        }
+      </>
+      )}
+
+      {Boolean(errorText) && <Text style={errorTextStyle}>{errorText}</Text>}
+
+      <WizardNavFooter
+        activeTab={activeWizardTab}
+        onBack={onBack}
+        onContinue={onContinue}
+        isLastTab={activeWizardTab === 'launch'}
       />
       </ScrollView>
     </KeyboardAvoidingView>
@@ -647,11 +1100,11 @@ export function CreateTournamentScreen({ navigation, route }) {
   );
 }
 
-const previewPillStyle = {
-  color: '#cbd5e1',
+const previewPillTextStyle = {
+  color: tournamentColors.previewPill,
   fontSize: 12,
   fontWeight: '600',
-  backgroundColor: 'rgba(148, 163, 184, 0.2)',
+  backgroundColor: tournamentColors.previewPillBg,
   paddingHorizontal: 10,
   paddingVertical: 5,
   borderRadius: 999,

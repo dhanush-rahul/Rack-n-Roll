@@ -110,7 +110,7 @@ export function CollapsibleSectionCard({
 
   const borderColor = highlightAnimation.interpolate({
     inputRange: [0, 1],
-    outputRange: [tournamentColors.cardBorder, '#2563eb'],
+    outputRange: [tournamentColors.cardBorder, tournamentColors.primary],
   });
 
   const cardPadding = isWide ? sp(14) : 12;
@@ -124,8 +124,8 @@ export function CollapsibleSectionCard({
           padding: 0,
           overflow: 'hidden',
           borderWidth: highlighted ? 2 : 1,
-          borderColor: highlighted ? borderColor : expanded ? '#bfdbfe' : tournamentColors.cardBorder,
-          backgroundColor: highlighted ? '#f8fbff' : tournamentColors.white,
+          borderColor: highlighted ? borderColor : expanded ? tournamentColors.primaryTint : tournamentColors.cardBorder,
+          backgroundColor: highlighted ? tournamentColors.primarySoft : tournamentColors.white,
         },
       ]}
     >
@@ -160,7 +160,7 @@ export function CollapsibleSectionCard({
             borderRadius: 16,
             alignItems: 'center',
             justifyContent: 'center',
-            backgroundColor: expanded ? '#eff6ff' : '#f1f5f9',
+            backgroundColor: expanded ? tournamentColors.chipSelectedBg : tournamentColors.inputFill,
             opacity: pressed ? 0.75 : 1,
           })}
         >

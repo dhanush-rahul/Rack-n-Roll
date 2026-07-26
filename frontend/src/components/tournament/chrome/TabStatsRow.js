@@ -22,7 +22,7 @@ export function TabStatsRow({ stats = [] }) {
             paddingVertical: isWide ? sp(12) : 12,
             paddingHorizontal: isWide ? sp(14) : 14,
             borderRadius: 14,
-            backgroundColor: '#f8fafc',
+            backgroundColor: tournamentColors.surfaceRaised,
             borderWidth: 1,
             borderColor: tournamentColors.cardBorder,
           }}

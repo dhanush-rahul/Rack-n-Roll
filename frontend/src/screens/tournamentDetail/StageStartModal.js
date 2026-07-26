@@ -244,7 +244,7 @@ export function StageStartModal({
               <Text style={{ marginTop: 6, fontSize: 13, color: tournamentColors.textMuted, lineHeight: 18 }}>
                 {selectionHint}
               </Text>
-              <Text style={{ marginTop: 4, color: '#065f46' }}>
+              <Text style={{ marginTop: 4, color: tournamentColors.success }}>
                 Selected: {selectedCount}
                 {suggestedCount > 0 ? ` · ${suggestedCount} suggested` : ''}
               </Text>
@@ -283,8 +283,8 @@ export function StageStartModal({
                               padding: 10,
                               borderRadius: 8,
                               borderWidth: 1,
-                              borderColor: selected ? '#2563eb' : '#d1d5db',
-                              backgroundColor: selected ? '#eff6ff' : '#ffffff',
+                              borderColor: selected ? tournamentColors.primary : tournamentColors.border,
+                              backgroundColor: selected ? tournamentColors.chipSelectedBg : tournamentColors.white,
                             }}
                           >
                             <Text style={{ fontWeight: '600' }}>{entry.label}</Text>
@@ -344,8 +344,8 @@ export function StageStartModal({
                                 borderRadius: 8,
                                 marginBottom: 6,
                                 borderWidth: 1,
-                                borderColor: '#d1d5db',
-                                backgroundColor: '#f8fafc',
+                                borderColor: tournamentColors.border,
+                                backgroundColor: tournamentColors.surfaceAlt,
                               }}
                             >
                               <Text style={{ fontWeight: '600', color: tournamentColors.textMuted }}>
@@ -366,8 +366,8 @@ export function StageStartModal({
                               borderRadius: 8,
                               marginBottom: 6,
                               borderWidth: 1,
-                              borderColor: selected ? '#2563eb' : suggested ? '#93c5fd' : '#d1d5db',
-                              backgroundColor: selected ? '#eff6ff' : '#ffffff',
+                              borderColor: selected ? tournamentColors.primary : suggested ? tournamentColors.primaryTint : tournamentColors.border,
+                              backgroundColor: selected ? tournamentColors.chipSelectedBg : tournamentColors.white,
                             }}
                           >
                             <Text style={{ fontWeight: '600' }}>

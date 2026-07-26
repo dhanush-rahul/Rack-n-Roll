@@ -19,7 +19,11 @@ export function exitWalkthroughTo(navigation, targetScreen, targetParams) {
   const routes = state?.routes ?? [];
   const previousRoute = routes[routes.length - 2];
 
-  if (previousRoute?.name === targetScreen) {
+  const paramsMatch =
+    !targetParams ||
+    JSON.stringify(previousRoute?.params ?? null) === JSON.stringify(targetParams ?? null);
+
+  if (previousRoute?.name === targetScreen && paramsMatch) {
     navigation.goBack();
     return;
   }

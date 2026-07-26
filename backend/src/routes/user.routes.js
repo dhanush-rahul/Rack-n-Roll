@@ -1,10 +1,11 @@
 const express = require('express');
-const { getMyProfileController, updateMyHandicapController, setMyPasswordController, changeMyUsernameController, updateMyEmailController } = require('../controllers/user.controller');
+const { getMyProfileController, getPublicUserProfileController, updateMyHandicapController, setMyPasswordController, changeMyUsernameController, updateMyEmailController } = require('../controllers/user.controller');
 const { requireAuth } = require('../middleware/requireAuth');
 const { accountPasswordRateLimiter } = require('../middleware/rateLimiters');
 
 const router = express.Router();
 
+router.get('/public/:username', getPublicUserProfileController);
 router.get('/me/profile', requireAuth, getMyProfileController);
 router.patch('/me/handicap', requireAuth, updateMyHandicapController);
 router.patch('/me/username', requireAuth, changeMyUsernameController);

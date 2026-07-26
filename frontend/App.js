@@ -6,25 +6,36 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppUpdateGate } from './src/components/AppUpdateGate';
 import { WebStyleEnhancements } from './src/components/layout/WebStyleEnhancements';
 import { AuthProvider } from './src/context/AuthContext';
+import { ThemeProvider, useTheme } from './src/context/ThemeContext';
+import { MenuDrawerProvider } from './src/context/MenuDrawerContext';
 import { TypographyProvider } from './src/context/TypographyContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { queryClient } from './src/config/queryClient';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
+function ThemedStatusBar() {
+  const { colors } = useTheme();
+  return <StatusBar style={colors.statusBar === 'light' ? 'light' : 'dark'} />;
+}
+
 export default function App() {
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
-        <TypographyProvider>
-          <AuthProvider>
-            <AppUpdateGate>
-              <WebStyleEnhancements />
-              <StatusBar style="auto" />
-              <AppNavigator />
-            </AppUpdateGate>
-          </AuthProvider>
-        </TypographyProvider>
+        <ThemeProvider>
+          <TypographyProvider>
+            <AuthProvider>
+              <MenuDrawerProvider>
+                <AppUpdateGate>
+                  <WebStyleEnhancements />
+                  <ThemedStatusBar />
+                  <AppNavigator />
+                </AppUpdateGate>
+              </MenuDrawerProvider>
+            </AuthProvider>
+          </TypographyProvider>
+        </ThemeProvider>
       </QueryClientProvider>
     </SafeAreaProvider>
   );

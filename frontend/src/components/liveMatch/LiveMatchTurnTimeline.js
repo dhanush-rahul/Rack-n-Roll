@@ -31,13 +31,20 @@ function VisitRow({ turn, playerA, playerB, isCurrent }) {
         padding: 12,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: isCurrent ? 'rgba(14, 165, 233, 0.55)' : 'rgba(226, 232, 240, 0.9)',
-        backgroundColor: isCurrent ? 'rgba(239, 246, 255, 0.95)' : 'rgba(248, 250, 252, 0.98)',
+        borderColor: isCurrent ? tournamentColors.liveCurrentBorder : tournamentColors.liveWaitingBorder,
+        backgroundColor: isCurrent ? tournamentColors.liveCurrentBg : tournamentColors.liveWaitingPanel,
         marginBottom: 8,
       }}
     >
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Text style={{ fontSize: 11, fontWeight: '800', letterSpacing: 1.1, color: isCurrent ? '#0284c7' : '#64748b' }}>
+        <Text
+          style={{
+            fontSize: 11,
+            fontWeight: '800',
+            letterSpacing: 1.1,
+            color: isCurrent ? tournamentColors.liveCurrentLabel : tournamentColors.mutedIcon,
+          }}
+        >
           VISIT {turn.turnNumber}
         </Text>
         {isCurrent && (
@@ -46,17 +53,18 @@ function VisitRow({ turn, playerA, playerB, isCurrent }) {
               paddingHorizontal: 8,
               paddingVertical: 3,
               borderRadius: 999,
-              backgroundColor: 'rgba(14, 165, 233, 0.15)',
+              backgroundColor: tournamentColors.liveAccentSoft,
             }}
           >
-            <Text style={{ fontSize: 10, fontWeight: '800', color: '#0369a1' }}>AT TABLE</Text>
+            <Text style={{ fontSize: 10, fontWeight: '800', color: tournamentColors.liveAccent }}>AT TABLE</Text>
           </View>
         )}
       </View>
       <Text style={{ marginTop: 6, fontSize: 16, fontWeight: '800', color: tournamentColors.text }}>{playerName}</Text>
       {turn.legWinnerPlayerId && (
-        <Text style={{ marginTop: 4, fontSize: 13, color: '#0369a1', fontWeight: '600' }}>
-          Leg won <AppIcon name="arrowRight" size={13} color="#0369a1" /> {resolvePlayerName(turn.legWinnerPlayerId, playerA, playerB)}
+        <Text style={{ marginTop: 4, fontSize: 13, color: tournamentColors.liveAccent, fontWeight: '600' }}>
+          Lag won <AppIcon name="arrowRight" size={13} color={tournamentColors.liveAccent} />{' '}
+          {resolvePlayerName(turn.legWinnerPlayerId, playerA, playerB)}
         </Text>
       )}
     </View>
@@ -73,7 +81,7 @@ export function CollapsibleTurnLog({ session }) {
       style={{
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: 'rgba(148, 163, 184, 0.35)',
+        borderColor: tournamentColors.livePanelBorder,
         backgroundColor: tournamentColors.white,
         overflow: 'hidden',
       }}
@@ -126,13 +134,13 @@ export function LiveMatchTurnTimeline({ session }) {
           padding: 20,
           borderRadius: 16,
           borderWidth: 1,
-          borderColor: 'rgba(56, 189, 248, 0.35)',
-          backgroundColor: 'rgba(15, 23, 42, 0.04)',
+          borderColor: tournamentColors.liveEmptyBorder,
+          backgroundColor: tournamentColors.liveEmptyBg,
           alignItems: 'center',
         }}
       >
         <Text style={{ color: tournamentColors.textMuted, fontSize: 14, textAlign: 'center' }}>
-          No visits logged yet. Game 1: mark leg won first. Later games: pass the table to track visits.
+          No visits logged yet. Game 1: mark lag won first. Later games: pass the table to track visits.
         </Text>
       </View>
     );
@@ -147,7 +155,7 @@ export function LiveMatchTurnTimeline({ session }) {
               fontSize: 11,
               fontWeight: '800',
               letterSpacing: 1.2,
-              color: group.inProgress ? '#0284c7' : '#64748b',
+              color: group.inProgress ? tournamentColors.liveCurrentLabel : tournamentColors.mutedIcon,
               marginBottom: 8,
             }}
           >
@@ -201,13 +209,13 @@ export function CompletedGamesStrip({ session }) {
               justifyContent: 'space-between',
               padding: 12,
               borderRadius: 12,
-              backgroundColor: '#f1f5f9',
+              backgroundColor: tournamentColors.inputFill,
               borderWidth: 1,
               borderColor: tournamentColors.borderLight,
             }}
           >
             <Text style={{ fontWeight: '700', color: tournamentColors.text }}>Game {entry.gameNumber}</Text>
-            <Text style={{ fontWeight: '800', color: winnerIsA ? '#166534' : '#b91c1c' }}>
+            <Text style={{ fontWeight: '800', color: winnerIsA ? tournamentColors.accentGreen : tournamentColors.accentRed }}>
               {entry.playerAScore}–{entry.playerBScore}
             </Text>
             {entry.endReason && (

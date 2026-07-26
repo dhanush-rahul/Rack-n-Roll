@@ -35,6 +35,7 @@ export function FinaleTab({
   onCompleteWithFinale,
   onStartGame,
   finalStageProctored = false,
+  scoringStyle = 'individualGames',
 }) {
   const matchCount = useMemo(
     () =>
@@ -137,7 +138,8 @@ export function FinaleTab({
           isLoading={isLoadingFinaleTab}
           useLiveSessionScoring={finalStageProctored}
           onStartGame={onStartGame}
-          showSaveButton={!finalStageProctored}
+          showSaveButton={false}
+          scoringStyle={scoringStyle}
         />
       </SectionCard>
 

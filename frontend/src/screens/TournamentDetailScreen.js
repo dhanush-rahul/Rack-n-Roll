@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -14,7 +14,6 @@ import { formatApiError, useScreenFeedback } from '../hooks/useScreenFeedback';
 import { logApiError } from '../utils/errorLogger';
 import { ScreenScrollShell } from '../components/layout/ScreenScrollShell';
 import { EmptyStateCard } from '../components/tournament/TournamentChrome';
-import { ScreenSkeleton } from '../components/ui/ScreenSkeleton';
 import { HostTournamentTabLayout } from '../components/layout/TournamentTabLayout';
 import { useHostTournamentDetail } from '../hooks/queries/useHostTournamentDetail';
 import { useHostTournamentRegistrations } from '../hooks/queries/useHostTournamentRegistrations';
@@ -31,7 +30,7 @@ import {
   useProctorActions,
   useRegistrationActions,
 } from '../hooks/tournamentDetail';
-import { tournamentUi } from '../styles/tournamentUi';
+import { tournamentUi, tournamentColors } from '../styles/tournamentUi';
 import {
   buildFixtureSectionsFromGames,
   buildKnockoutStandingsFromGames,
@@ -47,6 +46,8 @@ import { GamesTab } from './tournamentDetail/GamesTab';
 import { GroupsTab } from './tournamentDetail/GroupsTab';
 import { HostInfoModal } from './tournamentDetail/HostInfoModal';
 import { RegistrationsTab } from './tournamentDetail/RegistrationsTab';
+import { TrackerTab } from '../components/tournament/tracker/TrackerTab';
+import { useTournamentTracker } from '../hooks/queries/useTournamentTracker';
 import {
   formatProgressionLabel,
   SuccessBanner,
@@ -111,6 +112,14 @@ export function TournamentDetailScreen({ route, navigation }) {
     refetch: refetchRegistrations,
   } = useHostTournamentRegistrations(tournamentId);
 
+  const {
+    data: trackerData,
+    isLoading: isTrackerLoading,
+    isError: isTrackerError,
+    refetch: refetchTracker,
+    error: trackerError,
+  } = useTournamentTracker(tournamentId, {}, { enabled: Boolean(tournamentId) });
+
   const registrations = registrationsData?.items ?? [];
 
   const [activeTab, setActiveTab] = useState('registrations');
@@ -163,6 +172,8 @@ export function TournamentDetailScreen({ route, navigation }) {
   const configuredFinalStageBestOfFromDetail = detail?.competitionConfig?.finalStageBestOf;
   const groupStageProctored = Boolean(detail?.competitionConfig?.groupStageProctored);
   const finalStageProctored = Boolean(detail?.competitionConfig?.finalStageProctored);
+  const scoringStyle =
+    detail?.competitionConfig?.scoringStyle === 'totalPoints' ? 'totalPoints' : 'individualGames';
   const isDoubles = detail?.competitionConfig?.format === 'doubles';
   const pairFormationMode = detail?.competitionConfig?.pairFormationMode || 'playerPicksPartner';
 
@@ -171,6 +182,7 @@ export function TournamentDetailScreen({ route, navigation }) {
   const scoreInputs = useScoreInputs({
     groupStageBestOf,
     finalStageBestOf: configuredFinalStageBestOfFromDetail ?? 3,
+    scoringStyle,
   });
 
   const {
@@ -1138,7 +1150,33 @@ export function TournamentDetailScreen({ route, navigation }) {
   }
 
   if (isDetailQueryLoading && !detail) {
-    return <ScreenSkeleton />;
+    return (
+      <ScreenScrollShell contentContainerStyle={{ gap: 16 }}>
+        <View style={{ marginBottom: 16 }}>
+          <TournamentScreenHero
+            eyebrow="HOST DASHBOARD"
+            title={tournamentTitle}
+            subtitle="Tap for tournament snapshot · manage players, groups, and fixtures."
+            badges={[{ label: 'Loading…', tone: 'neutral' }]}
+            stats={[
+              { label: 'ROSTER', value: '…' },
+              { label: 'PENDING', value: '…' },
+              { label: 'GROUPS', value: '…' },
+            ]}
+          />
+        </View>
+        <HostTournamentTabLayout
+          activeTab="registrations"
+          onSelectTab={() => {}}
+          stageTabs={[]}
+          showGamesTab={false}
+        >
+          <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+            <ActivityIndicator color={tournamentColors.primary} />
+          </View>
+        </HostTournamentTabLayout>
+      </ScreenScrollShell>
+    );
   }
 
   if (isDetailQueryError && !detail) {
@@ -1171,18 +1209,18 @@ export function TournamentDetailScreen({ route, navigation }) {
           ]}
           stats={[
             {
-              label: 'ROSTER',
-              value: `${approvedItems.length} · target ${detail?.maxParticipants || '—'}`,
-              accent: '#86efac',
+              label: 'PROGRESS',
+              value: trackerData?.progress ? `${trackerData.progress.percentComplete || 0}%` : '…',
+            },
+            {
+              label: 'COMPLETED',
+              value: trackerData?.progress ? String(trackerData.progress.completedGames || 0) : '…',
+              accent: tournamentColors.accentMint,
             },
             {
               label: 'PENDING',
-              value: String(pendingItems.length),
-              accent: '#fde68a',
-            },
-            {
-              label: 'GROUPS',
-              value: String(detail?.competitionConfig?.groupCount || groupsTabItems.length || 0),
+              value: trackerData?.progress ? String(trackerData.progress.pendingGames || 0) : '…',
+              accent: tournamentColors.accentSky,
             },
           ]}
         />
@@ -1236,6 +1274,16 @@ export function TournamentDetailScreen({ route, navigation }) {
           replaceTarget={replaceTarget}
           onCancelReplace={onCancelReplace}
           scrollRef={scrollRef}
+        />
+      )}
+
+      {activeTab === 'tracker' && (
+        <TrackerTab
+          trackerData={trackerData}
+          isLoading={isTrackerLoading}
+          isError={isTrackerError}
+          errorMessage={trackerError ? formatApiError(trackerError, 'Unable to load tracker') : ''}
+          onRetry={() => refetchTracker()}
         />
       )}
 
@@ -1324,6 +1372,7 @@ export function TournamentDetailScreen({ route, navigation }) {
           }
           onScheduleMatch={onScheduleMatch}
           groupStageProctored={groupStageProctored}
+          scoringStyle={scoringStyle}
         />
       )}
 
@@ -1415,6 +1464,7 @@ export function TournamentDetailScreen({ route, navigation }) {
               (detail?.progressionPlan?.stages || []).length - 1
             }
             isProgressing={loading.progressing}
+            scoringStyle={scoringStyle}
           />
         ) : null;
       })}

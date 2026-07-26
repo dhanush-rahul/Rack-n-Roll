@@ -163,6 +163,8 @@ const loadTournamentScoresheet = async (tournamentId, userId, query = {}) => {
     groupStageProctored: Boolean(tournamentMeta?.competitionConfig?.groupStageProctored),
     progressionPlan: tournamentMeta?.progressionPlan || { stages: [] },
     finalStageProctored: Boolean(tournamentMeta?.competitionConfig?.finalStageProctored),
+    scoringStyle:
+      tournamentMeta?.competitionConfig?.scoringStyle === 'totalPoints' ? 'totalPoints' : 'individualGames',
     hostUserId: tournamentMeta?.hostUserId ? String(tournamentMeta.hostUserId) : null,
     proctors: editorUserIds.map((editorId) => ({
       userId: editorId,
@@ -235,9 +237,14 @@ const updateGameScores = async (tournamentId, gameId, userId, payload = {}) => {
 
   await assertCanEditGameScores(tournamentId, userId, existingGame);
 
+  const scoringStyle =
+    tournament.competitionConfig?.scoringStyle === 'totalPoints' ? 'totalPoints' : 'individualGames';
+
   let effectiveBestOf = parseBestOf(existingGame.bestOf, 1);
 
-  if (gameStageId === GROUP_STAGE_ID) {
+  if (scoringStyle === 'totalPoints') {
+    effectiveBestOf = 1;
+  } else if (gameStageId === GROUP_STAGE_ID) {
     const configuredGroupStageBestOf = parseBestOf(tournament.competitionConfig?.groupStageBestOf, effectiveBestOf);
     effectiveBestOf = Math.max(effectiveBestOf, configuredGroupStageBestOf);
   }
@@ -250,7 +257,8 @@ const updateGameScores = async (tournamentId, gameId, userId, payload = {}) => {
   effectiveBestOf = Math.max(effectiveBestOf, normalizedScoreEntries.length);
   const seriesOutcome = computeSeriesOutcome(
     { ...existingGame, bestOf: effectiveBestOf },
-    normalizedScoreEntries
+    normalizedScoreEntries,
+    scoringStyle
   );
   const isSeriesComplete = Boolean(seriesOutcome.winnerPlayerId || seriesOutcome.winnerTeamId);
   const nextStatus =
@@ -455,6 +463,8 @@ const upsertAndScoreGroupStageGame = async (tournamentId, userId, payload = {}) 
   }).lean();
 
   const normalizedScoreEntries = normalizeScoreEntries(payload.scoreEntries);
+  const scoringStyle =
+    tournament.competitionConfig?.scoringStyle === 'totalPoints' ? 'totalPoints' : 'individualGames';
 
   if (!game) {
     const division = await Division.findOne({
@@ -465,8 +475,12 @@ const upsertAndScoreGroupStageGame = async (tournamentId, userId, payload = {}) 
       .lean();
 
     const configuredGroupStageBestOf = parseBestOf(tournament.competitionConfig?.groupStageBestOf, 1);
-    const bestOf = parseBestOf(payload.bestOf, configuredGroupStageBestOf);
-    const seriesOutcome = computeSeriesOutcome({ bestOf, playerAId, playerBId }, normalizedScoreEntries);
+    const bestOf = scoringStyle === 'totalPoints' ? 1 : parseBestOf(payload.bestOf, configuredGroupStageBestOf);
+    const seriesOutcome = computeSeriesOutcome(
+      { bestOf, playerAId, playerBId },
+      normalizedScoreEntries,
+      scoringStyle
+    );
     const isSeriesComplete = Boolean(seriesOutcome.winnerPlayerId);
     const nextStatus =
       payload.status === 'scheduled'
@@ -492,7 +506,7 @@ const upsertAndScoreGroupStageGame = async (tournamentId, userId, payload = {}) 
 
     game = createdGame.toObject();
   } else {
-    const seriesOutcome = computeSeriesOutcome(game, normalizedScoreEntries);
+    const seriesOutcome = computeSeriesOutcome(game, normalizedScoreEntries, scoringStyle);
     const isSeriesComplete = Boolean(seriesOutcome.winnerPlayerId);
     const nextStatus =
       payload.status === 'scheduled'

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { ScaledText as Text } from '../ui/ScaledText';
 import { LoadingPlaceholder } from '../ui/LoadingPlaceholder';
@@ -30,6 +30,16 @@ export function ScoresheetGroupsTab({
 
   const hasProgressionStandings = progressionStandingsSections.length > 0;
 
+  const progressionStageNames = useMemo(
+    () => new Set(progressionStandingsSections.map((section) => section.stageName)),
+    [progressionStandingsSections]
+  );
+
+  const groupStageItems = useMemo(
+    () => groupsTabItems.filter((group) => !progressionStageNames.has(group.divisionName)),
+    [groupsTabItems, progressionStageNames]
+  );
+
   const standingsToggle = isDoubles ? (
     <View style={{ flexDirection: 'row', gap: 6 }}>
       {['team', 'player'].map((view) => {
@@ -44,14 +54,14 @@ export function ScoresheetGroupsTab({
               borderRadius: 999,
               borderWidth: 1,
               borderColor: selected ? tournamentColors.primary : tournamentColors.border,
-              backgroundColor: selected ? '#eff6ff' : tournamentColors.white,
+              backgroundColor: selected ? tournamentColors.primary : tournamentColors.surfaceRaised,
             }}
           >
             <Text
               style={{
                 fontSize: 12,
                 fontWeight: '700',
-                color: selected ? tournamentColors.primary : tournamentColors.textMuted,
+                color: selected ? tournamentColors.onPrimary || '#ffffff' : tournamentColors.textMuted,
               }}
             >
               {view === 'team' ? 'Teams' : 'Players'}
@@ -63,7 +73,7 @@ export function ScoresheetGroupsTab({
   ) : null;
 
   return (
-    <View style={{ gap: 14 }}>
+    <View style={{ gap: 10 }}>
       {hasProgressionStandings &&
         progressionStandingsSections.map((section) => {
           const displayStandings =
@@ -81,6 +91,7 @@ export function ScoresheetGroupsTab({
                 groupName={section.stageName}
                 standings={displayStandings}
                 showScoresheetStats={false}
+                embedded
               />
             </SectionCard>
           );
@@ -100,11 +111,11 @@ export function ScoresheetGroupsTab({
           </View>
         }
       >
-        {isLoadingGroupsTab && groupsTabItems.length === 0 && (
+        {isLoadingGroupsTab && groupStageItems.length === 0 && (
           <LoadingPlaceholder message="Loading standings…" compact />
         )}
 
-        {!isLoadingGroupsTab && groupsTabItems.length === 0 && (
+        {!isLoadingGroupsTab && groupStageItems.length === 0 && (
           <EmptyStateCard
             icon="clipboardList"
             title="No groups yet"
@@ -112,14 +123,14 @@ export function ScoresheetGroupsTab({
           />
         )}
 
-        {groupsTabItems.map((group) => {
+        {groupStageItems.map((group) => {
           const displayStandings =
             isDoubles && standingsView === 'team'
               ? mapTeamStandingsForDisplay(group.teamStandings || [])
               : group.standings || [];
 
           return (
-            <View key={group.divisionId} style={{ marginBottom: 12 }}>
+            <View key={group.divisionId} style={{ marginBottom: 8, width: '100%' }}>
               <GroupStandingsCard
                 groupName={group.divisionName}
                 standings={displayStandings}

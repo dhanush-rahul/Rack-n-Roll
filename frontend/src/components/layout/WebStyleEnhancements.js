@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
+import { useTheme } from '../../context/ThemeContext';
 
-const WEB_STYLES = `
+function buildWebStyles(colors) {
+  return `
   html, body, #root {
     height: 100%;
     min-height: 100%;
@@ -9,13 +11,32 @@ const WEB_STYLES = `
 
   body {
     margin: 0;
-    background: #eef2f6;
+    background: ${colors.backgroundAlt || colors.background};
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
 
   input, textarea, select {
     font-size: 16px;
+  }
+
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active,
+  textarea:-webkit-autofill,
+  textarea:-webkit-autofill:hover,
+  textarea:-webkit-autofill:focus,
+  textarea:-webkit-autofill:active,
+  select:-webkit-autofill,
+  select:-webkit-autofill:hover,
+  select:-webkit-autofill:focus,
+  select:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 1000px ${colors.surfaceAlt || colors.inputFill} inset !important;
+    box-shadow: 0 0 0 1000px ${colors.surfaceAlt || colors.inputFill} inset !important;
+    -webkit-text-fill-color: ${colors.text} !important;
+    caret-color: ${colors.text};
+    transition: background-color 99999s ease-out 0s;
   }
 
   [role="button"], button, a {
@@ -30,7 +51,7 @@ const WEB_STYLES = `
   }
 
   *:focus-visible {
-    outline: 2px solid #2563eb;
+    outline: 2px solid ${colors.primary};
     outline-offset: 2px;
   }
 
@@ -40,7 +61,7 @@ const WEB_STYLES = `
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
+    background: ${colors.border};
     border-radius: 999px;
   }
 
@@ -48,27 +69,29 @@ const WEB_STYLES = `
     background: transparent;
   }
 `;
+}
 
 export function WebStyleEnhancements() {
+  const { colors } = useTheme();
+
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') {
       return undefined;
     }
 
     const styleId = 'racknroll-web-styles';
-    if (document.getElementById(styleId)) {
-      return undefined;
+    let style = document.getElementById(styleId);
+
+    if (!style) {
+      style = document.createElement('style');
+      style.id = styleId;
+      document.head.appendChild(style);
     }
 
-    const style = document.createElement('style');
-    style.id = styleId;
-    style.textContent = WEB_STYLES;
-    document.head.appendChild(style);
+    style.textContent = buildWebStyles(colors);
 
-    return () => {
-      style.remove();
-    };
-  }, []);
+    return undefined;
+  }, [colors]);
 
   return null;
 }

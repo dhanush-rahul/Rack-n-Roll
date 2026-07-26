@@ -4,6 +4,7 @@ const {
 	createTournamentController,
 	discoverTournamentsController,
 	discoverMyRegisteredTournamentsController,
+	listMyTournamentsController,
 	getHostTournamentDetailController,
 	validateInviteCodeController,
 	submitRegistrationRequestController,
@@ -43,6 +44,7 @@ const {
 	assignRandomGroupsController,
 	regenerateGroupStageFixturesController,
 	listGroupStandingsForHostController,
+	getTournamentTrackerController,
 	startFinalStageFromGroupsController,
 	finalizeTournamentWithoutFinalStageController,
 	finalizeTournamentWithFinalStageController,
@@ -70,6 +72,7 @@ const {
   randomPairTeamsController,
 } = require('../controllers/team.controller');
 
+router.get('/my-tournaments', requireAuth, listMyTournamentsController);
 router.get('/discover/registered', requireAuth, discoverMyRegisteredTournamentsController);
 router.get('/discover', discoverTournamentsController);
 router.get('/:tournamentId/host-detail', requireAuth, getHostTournamentDetailController);
@@ -103,6 +106,7 @@ router.post('/:tournamentId/proctor-transfer', requireAuth, requestProctorTransf
 router.post('/:tournamentId/proctor-transfer/accept', requireAuth, acceptProctorTransferController);
 router.post('/:tournamentId/proctor-transfer/decline', requireAuth, declineProctorTransferController);
 router.get('/:tournamentId/scoresheet', listTournamentScoresheetController);
+router.get('/:tournamentId/tracker', getTournamentTrackerController);
 router.post('/:tournamentId/games/:gameId/start', requireAuth, startGameSessionController);
 router.get('/:tournamentId/games/:gameId/live', requireAuth, getLiveMatchStateController);
 router.post('/:tournamentId/games/:gameId/live/takeover-request', requireAuth, requestLiveMatchTakeoverController);

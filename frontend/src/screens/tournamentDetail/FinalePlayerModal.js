@@ -3,7 +3,7 @@ import { Button, Modal, Pressable, ScrollView, View } from 'react-native';
 import { ScaledText as Text } from '../../components/ui/ScaledText';
 import { AppIcon } from '../../components/ui/AppIcon';
 import { useTypography } from '../../context/TypographyContext';
-import { tournamentUi } from '../../styles/tournamentUi';
+import { tournamentColors, tournamentUi } from '../../styles/tournamentUi';
 import { getWebModalStyles } from '../../utils/modalStyles';
 
 const FINAL_BEST_OF_OPTIONS = ['1', '3', '5'];
@@ -37,10 +37,10 @@ export function FinalePlayerModal({
           <Text style={[tournamentUi.modalTitle, webModal?.title]}>
             {isDoubles ? 'Select Finale Teams' : 'Select Finale Players'}
           </Text>
-          <Text style={{ marginTop: 4 }}>
+          <Text style={{ marginTop: 4, color: tournamentColors.textMuted }}>
             Pick {isDoubles ? 'teams' : 'players'} from groups to move to finale (minimum 2).
           </Text>
-          <Text style={{ marginTop: 4, color: '#065f46' }}>Selected: {selectedFinalistCount}</Text>
+          <Text style={{ marginTop: 4, color: tournamentColors.success }}>Selected: {selectedFinalistCount}</Text>
 
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
             {FINAL_BEST_OF_OPTIONS.map((option) => {
@@ -55,11 +55,11 @@ export function FinalePlayerModal({
                     paddingVertical: 8,
                     borderRadius: 8,
                     borderWidth: 1,
-                    borderColor: selected ? '#2563eb' : '#d1d5db',
-                    backgroundColor: selected ? '#2563eb' : '#ffffff',
+                    borderColor: selected ? tournamentColors.primary : tournamentColors.border,
+                    backgroundColor: selected ? tournamentColors.primary : tournamentColors.white,
                   }}
                 >
-                  <Text style={{ color: selected ? '#ffffff' : '#2563eb', fontWeight: '600' }}>
+                  <Text style={{ color: selected ? tournamentColors.onPrimary || '#ffffff' : tournamentColors.primary, fontWeight: '600' }}>
                     Best of {option}
                   </Text>
                 </Pressable>
@@ -69,7 +69,7 @@ export function FinalePlayerModal({
 
           {!isDoubles && (
             <>
-              <Text style={{ marginTop: 12, fontWeight: '600' }}>Finale scoring</Text>
+              <Text style={{ marginTop: 12, fontWeight: '600', color: tournamentColors.text }}>Finale scoring</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
                 <Pressable
                   onPress={() => onFinalStageProctoredChange?.(false)}
@@ -80,12 +80,12 @@ export function FinalePlayerModal({
                     paddingVertical: 10,
                     borderRadius: 8,
                     borderWidth: 1,
-                    borderColor: !finalStageProctored ? '#2563eb' : '#d1d5db',
-                    backgroundColor: !finalStageProctored ? '#eff6ff' : '#ffffff',
+                    borderColor: !finalStageProctored ? tournamentColors.primary : tournamentColors.border,
+                    backgroundColor: !finalStageProctored ? tournamentColors.chipSelectedBg : tournamentColors.white,
                   }}
                 >
-                  <Text style={{ color: !finalStageProctored ? '#2563eb' : '#374151', fontWeight: '700' }}>Manual</Text>
-                  <Text style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>Grid scores on the Finale tab</Text>
+                  <Text style={{ color: !finalStageProctored ? tournamentColors.primary : tournamentColors.text, fontWeight: '700' }}>Manual</Text>
+                  <Text style={{ color: tournamentColors.textMuted, fontSize: 12, marginTop: 4 }}>Grid scores on the Finale tab</Text>
                 </Pressable>
                 <Pressable
                   onPress={() => onFinalStageProctoredChange?.(true)}
@@ -96,26 +96,28 @@ export function FinalePlayerModal({
                     paddingVertical: 10,
                     borderRadius: 8,
                     borderWidth: 1,
-                    borderColor: finalStageProctored ? '#2563eb' : '#d1d5db',
-                    backgroundColor: finalStageProctored ? '#eff6ff' : '#ffffff',
+                    borderColor: finalStageProctored ? tournamentColors.primary : tournamentColors.border,
+                    backgroundColor: finalStageProctored ? tournamentColors.chipSelectedBg : tournamentColors.white,
                   }}
                 >
-                  <Text style={{ color: finalStageProctored ? '#2563eb' : '#374151', fontWeight: '700' }}>Proctored</Text>
-                  <Text style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>Live match scoring with proctors</Text>
+                  <Text style={{ color: finalStageProctored ? tournamentColors.primary : tournamentColors.text, fontWeight: '700' }}>Proctored</Text>
+                  <Text style={{ color: tournamentColors.textMuted, fontSize: 12, marginTop: 4 }}>Live match scoring with proctors</Text>
                 </Pressable>
               </View>
             </>
           )}
 
           {isDoubles && (
-            <Text style={{ marginTop: 12, color: '#64748b', fontSize: 13 }}>
+            <Text style={{ marginTop: 12, color: tournamentColors.textMuted, fontSize: 13 }}>
               Doubles finale uses manual team scoring only.
             </Text>
           )}
 
-          {isLoadingFinaleCandidates && <Text style={{ marginTop: 8 }}>Loading group standings...</Text>}
+          {isLoadingFinaleCandidates && (
+            <Text style={{ marginTop: 8, color: tournamentColors.textMuted }}>Loading group standings...</Text>
+          )}
           {!isLoadingFinaleCandidates && groupStandings.length === 0 && (
-            <Text style={{ marginTop: 8 }}>No group standings available.</Text>
+            <Text style={{ marginTop: 8, color: tournamentColors.textMuted }}>No group standings available.</Text>
           )}
 
           <ScrollView style={{ marginTop: 10 }} contentContainerStyle={{ gap: 8 }}>
@@ -125,9 +127,16 @@ export function FinalePlayerModal({
               return (
                 <View
                   key={group.divisionId}
-                  style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, padding: 8, gap: 6 }}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: tournamentColors.borderLight,
+                    borderRadius: 8,
+                    padding: 8,
+                    gap: 6,
+                    backgroundColor: tournamentColors.surfaceAlt,
+                  }}
                 >
-                  <Text style={{ fontWeight: '600' }}>{group.divisionName}</Text>
+                  <Text style={{ fontWeight: '600', color: tournamentColors.text }}>{group.divisionName}</Text>
                   {entries.map((entry) => {
                     const finalistId = isDoubles ? entry.teamId : entry.playerId;
                     const label = isDoubles
@@ -147,7 +156,7 @@ export function FinalePlayerModal({
                           paddingVertical: 6,
                           paddingHorizontal: 4,
                           borderRadius: 6,
-                          backgroundColor: selected ? '#eff6ff' : 'transparent',
+                          backgroundColor: selected ? tournamentColors.chipSelectedBg : 'transparent',
                         }}
                       >
                         <View
@@ -156,20 +165,20 @@ export function FinalePlayerModal({
                             height: 22,
                             borderRadius: 4,
                             borderWidth: 2,
-                            borderColor: selected ? '#2563eb' : '#9ca3af',
-                            backgroundColor: selected ? '#2563eb' : '#ffffff',
+                            borderColor: selected ? tournamentColors.primary : tournamentColors.placeholder,
+                            backgroundColor: selected ? tournamentColors.primary : tournamentColors.white,
                             alignItems: 'center',
                             justifyContent: 'center',
                           }}
                         >
-                          {selected ? <AppIcon name="check" size={16} color="#ffffff" /> : null}
+                          {selected ? <AppIcon name="check" size={16} color={tournamentColors.onPrimary || '#ffffff'} /> : null}
                         </View>
                         <View style={{ flex: 1, gap: 2 }}>
-                          <Text>
+                          <Text style={{ color: tournamentColors.text }}>
                             #{entry.rank} {label} ({entry.points} pts)
                           </Text>
                           {isSuggested ? (
-                            <Text style={{ color: '#2563eb', fontSize: 12, fontWeight: '600' }}>Top 2 suggested</Text>
+                            <Text style={{ color: tournamentColors.primary, fontSize: 12, fontWeight: '600' }}>Top 2 suggested</Text>
                           ) : null}
                         </View>
                       </Pressable>
@@ -193,7 +202,7 @@ export function FinalePlayerModal({
                 style={({ pressed }) => [
                   tournamentUi.primaryButton,
                   {
-                    backgroundColor: canStartFinale ? '#2563eb' : '#94a3b8',
+                    backgroundColor: canStartFinale ? tournamentColors.primary : tournamentColors.primaryMuted,
                     opacity: pressed && canStartFinale ? 0.85 : 1,
                   },
                 ]}

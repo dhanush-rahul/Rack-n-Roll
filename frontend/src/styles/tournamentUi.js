@@ -99,7 +99,11 @@ export const tournamentUi = {
     height: 56,
     borderRadius: 28,
     backgroundColor:
-      tone === 'success' ? '#ecfdf5' : tone === 'danger' ? '#fef2f2' : tone === 'celebrate' ? '#eff6ff' : '#eff4ff',
+      tone === 'success'
+        ? tournamentColors.successSurface
+        : tone === 'danger'
+          ? tournamentColors.errorSurface
+          : tournamentColors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,

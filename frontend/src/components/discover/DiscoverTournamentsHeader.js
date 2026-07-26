@@ -5,6 +5,7 @@ import { AppIcon } from '../ui/AppIcon';
 import { tournamentColors } from '../../styles/tournamentUi';
 
 export function DiscoverTournamentsHeader({
+  title = 'Upcoming tournaments',
   shownCount,
   activeFilterCount,
   filtersExpanded,
@@ -20,7 +21,7 @@ export function DiscoverTournamentsHeader({
         gap: 10,
       }}
     >
-      <Text style={{ flex: 1, fontSize: 16, fontWeight: '800', color: tournamentColors.text }}>Tournaments</Text>
+      <Text style={{ flex: 1, fontSize: 16, fontWeight: '800', color: tournamentColors.text }}>{title}</Text>
 
       {!hideFilterToggle ? (
         <Pressable

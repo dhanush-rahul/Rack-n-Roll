@@ -126,8 +126,65 @@ const updateUserEmail = async (userId, email) => {
   return getUserProfile(userId);
 };
 
+const getPublicUserProfile = async (usernameInput) => {
+  const username = String(usernameInput || '').trim().toLowerCase();
+
+  if (!username) {
+    throw new ApiError(400, 'INVALID_USERNAME', 'Username is required');
+  }
+
+  const user = await User.findOne({ username }).lean();
+
+  if (!user) {
+    throw new ApiError(404, 'USER_NOT_FOUND', 'Player not found');
+  }
+
+  const playerRecords = await Player.find({ userId: user._id, status: 'active' }).select('_id').lean();
+  const playerIds = playerRecords.map((record) => record._id);
+
+  const matchFilter =
+    playerIds.length === 0
+      ? null
+      : {
+          status: 'completed',
+          $or: [{ playerAId: { $in: playerIds } }, { playerBId: { $in: playerIds } }],
+        };
+
+  const [tournamentsHosted, tournamentsJoined, matchesPlayed, matchesWon] = await Promise.all([
+    Tournament.countDocuments({ hostUserId: user._id }),
+    TournamentRegistration.countDocuments({ userId: user._id, status: 'approved' }),
+    matchFilter ? Game.countDocuments(matchFilter) : Promise.resolve(0),
+    playerIds.length === 0
+      ? Promise.resolve(0)
+      : Game.countDocuments({
+          status: 'completed',
+          winnerPlayerId: { $in: playerIds },
+        }),
+  ]);
+
+  const matchesLost = Math.max(matchesPlayed - matchesWon, 0);
+
+  return {
+    user: {
+      username: user.username,
+      name: user.name,
+      memberSince: user.createdAt,
+      handicap: Number(user.handicap ?? 0),
+    },
+    stats: {
+      tournamentsHosted,
+      tournamentsJoined,
+      matchesPlayed,
+      matchesWon,
+      matchesLost,
+      winRate: matchesPlayed > 0 ? Math.round((matchesWon / matchesPlayed) * 100) : null,
+    },
+  };
+};
+
 module.exports = {
   getUserProfile,
+  getPublicUserProfile,
   updateUserHandicap,
   updateUserEmail,
 };

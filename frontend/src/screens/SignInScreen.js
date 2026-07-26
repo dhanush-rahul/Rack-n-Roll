@@ -85,7 +85,7 @@ export function SignInScreen({ navigation, route }) {
         await clearRememberedCredentials();
       }
 
-      navigateAfterAuth(navigation, route.params?.returnTo);
+      await navigateAfterAuth(navigation, route.params?.returnTo);
     } catch (error) {
       setErrorText(getAuthErrorMessage(error, 'Invalid username or password. Please try again.'));
     } finally {
@@ -148,6 +148,8 @@ export function SignInScreen({ navigation, route }) {
           error={fieldErrors.username}
           autoCapitalize="none"
           autoCorrect={false}
+          autoComplete="username"
+          textContentType="username"
           maxLength={20}
         />
 
@@ -164,6 +166,7 @@ export function SignInScreen({ navigation, route }) {
           secureTextEntry
           autoCapitalize="none"
           autoCorrect={false}
+          autoComplete="current-password"
           textContentType="password"
           maxLength={72}
         />
@@ -188,15 +191,17 @@ export function SignInScreen({ navigation, route }) {
         </Pressable>
 
         <View style={{ marginBottom: 8 }}>
-          <ActionButton label="Forgot password?" onPress={() => navigation.navigate('ForgotPassword')} variant="ghost" fullWidth />
+          <AuthPrimaryButton
+            label="Sign in"
+            onPress={onSubmit}
+            disabled={isSubmitting || isGoogleSubmitting || isLoadingRememberedCredentials}
+            loading={isSubmitting}
+          />
         </View>
 
-        <AuthPrimaryButton
-          label="Sign in"
-          onPress={onSubmit}
-          disabled={isSubmitting || isGoogleSubmitting || isLoadingRememberedCredentials}
-          loading={isSubmitting}
-        />
+        <View style={{ marginBottom: 8 }}>
+          <ActionButton label="Forgot password?" onPress={() => navigation.navigate('ForgotPassword')} variant="ghost" fullWidth />
+        </View>
 
         {isGoogleSignInAvailable() ? (
           <GoogleSignInSection

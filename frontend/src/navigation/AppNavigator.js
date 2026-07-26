@@ -9,15 +9,15 @@ import { SignOutProvider } from '../context/SignOutContext';
 import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 import { ScaledText as Text } from '../components/ui/ScaledText';
 import { AppIcon } from '../components/ui/AppIcon';
-import { tournamentColors } from '../styles/tournamentUi';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
-import { HomeScreen } from '../screens/HomeScreen';
+import { useTheme } from '../context/ThemeContext';
+import { MainTabNavigator } from './MainTabNavigator';
+import { AppMenuDrawer } from '../components/navigation/AppMenuDrawer';
 import { SignInScreen } from '../screens/SignInScreen';
 import { SignUpScreen } from '../screens/SignUpScreen';
 import { ChooseUsernameScreen } from '../screens/ChooseUsernameScreen';
 import { ForgotPasswordScreen } from '../screens/ForgotPasswordScreen';
-import { CreateTournamentScreen } from '../screens/CreateTournamentScreen';
 import { CreateTournamentWalkthroughScreen } from '../screens/CreateTournamentWalkthroughScreen';
 import { ScoresheetScreen } from '../screens/ScoresheetScreen';
 import { LiveMatchSessionScreen } from '../screens/LiveMatchSessionScreen';
@@ -38,8 +38,21 @@ function TournamentDetailScreenWithBoundary(props) {
 import { AppBootstrapScreen, BOOTSTRAP_BACKGROUND } from '../screens/AppBootstrapScreen';
 import { GlobalLoadingOverlay } from '../components/ui/GlobalLoadingOverlay';
 import { ProfileScreen } from '../screens/ProfileScreen';
+import { SettingsScreen } from '../screens/SettingsScreen';
+import { PlayerCardScreen } from '../screens/PlayerCardScreen';
+import { HelpScreen } from '../screens/HelpScreen';
+import { PublicPlayerProfileScreen } from '../screens/PublicPlayerProfileScreen';
 import { DiscoverWalkthroughScreen } from '../screens/DiscoverWalkthroughScreen';
+import {
+  getFocusedRouteName,
+  getMainTabTitle,
+  isMainTabScreen,
+  resolveActiveTabName,
+} from './navigationRouteUtils';
 import { useWebBrowserBackGuard } from '../hooks/useWebBrowserBackGuard';
+import { useAppHeaderInsets } from '../hooks/useAppHeaderInsets';
+import { markIgnoreNextPopState } from '../utils/navigationGuard';
+import { publicProfileLinking } from './publicProfileLinking';
 
 const Stack = createNativeStackNavigator();
 const navigationRef = createNavigationContainerRef();
@@ -49,14 +62,13 @@ const AppHeader = memo(function AppHeader({
   navigation,
   title,
   showBack,
-  showHomeActions = false,
   showGuestActions = false,
-  onSignOut,
   onSignIn,
   onSignUp,
   onInfoPress,
 }) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   const topInset = insets.top;
   const titleText = String(title || '');
   const displayTitle = titleText.length > 20 ? `${titleText.slice(0, 20)}...` : titleText;
@@ -96,20 +108,20 @@ const AppHeader = memo(function AppHeader({
               height: HEADER_CONTROL_SIZE,
               borderRadius: HEADER_CONTROL_SIZE / 2,
               borderWidth: 1,
-              borderColor: '#cbd5e1',
-              backgroundColor: pressed ? '#e2e8f0' : '#ffffff',
+              borderColor: colors.border,
+              backgroundColor: pressed ? colors.borderLight : colors.surface,
               alignItems: 'center',
               justifyContent: 'center',
               opacity: pressed ? 0.85 : 1,
             })}
           >
-            <AppIcon name="chevronLeft" size={22} color={tournamentColors.text} />
+            <AppIcon name="chevronLeft" size={22} color={colors.text} />
           </Pressable>
         ) : null}
         <Text
           numberOfLines={1}
           ellipsizeMode="tail"
-          style={{ fontSize: 20, fontWeight: '600', lineHeight: 24, flexShrink: 1 }}
+          style={{ fontSize: 20, fontWeight: '600', lineHeight: 24, flexShrink: 1, color: colors.text }}
         >
           {displayTitle}
         </Text>
@@ -131,13 +143,13 @@ const AppHeader = memo(function AppHeader({
               opacity: pressed ? 0.6 : 1,
             })}
           >
-            <AppIcon name="info" size={22} color={tournamentColors.text} />
+            <AppIcon name="info" size={22} color={colors.text} />
           </Pressable>
         ) : null}
         {showGuestActions && (
           <>
             <Pressable onPress={onSignIn} hitSlop={8}>
-              <Text style={{ fontSize: 14, fontWeight: '700', color: '#1e293b' }}>Sign in</Text>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }}>Sign in</Text>
             </Pressable>
             <Pressable
               onPress={onSignUp}
@@ -146,35 +158,10 @@ const AppHeader = memo(function AppHeader({
                 paddingHorizontal: 12,
                 paddingVertical: 6,
                 borderRadius: 999,
-                backgroundColor: pressed ? '#4338ca' : '#4f46e5',
+                backgroundColor: pressed ? colors.primaryMuted : colors.primary,
               })}
             >
-              <Text style={{ fontSize: 13, fontWeight: '700', color: '#ffffff' }}>Sign up</Text>
-            </Pressable>
-          </>
-        )}
-        {showHomeActions && (
-          <>
-            <Pressable
-              onPress={() => navigation.navigate('Profile')}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Open profile"
-              style={({ pressed }) => ({
-                width: HEADER_CONTROL_SIZE,
-                height: HEADER_CONTROL_SIZE,
-                borderRadius: HEADER_CONTROL_SIZE / 2,
-                borderWidth: 1,
-                borderColor: '#cbd5e1',
-                backgroundColor: pressed ? '#e2e8f0' : '#ffffff',
-                alignItems: 'center',
-                justifyContent: 'center',
-              })}
-            >
-              <AppIcon name="person" size={20} color={tournamentColors.text} />
-            </Pressable>
-            <Pressable onPress={onSignOut} hitSlop={8} accessibilityRole="button" accessibilityLabel="Sign out">
-              <AppIcon name="logout" size={20} color={tournamentColors.text} />
+              <Text style={{ fontSize: 13, fontWeight: '700', color: colors.onPrimary }}>Sign up</Text>
             </Pressable>
           </>
         )}
@@ -185,13 +172,20 @@ const AppHeader = memo(function AppHeader({
 });
 
 const ROUTE_TITLES = {
-  Home: 'Rack-N-Roll',
+  MainTabs: 'Rack-N-Roll',
+  Discover: 'Rack-N-Roll',
+  MyTournaments: 'My Events',
+  CreateTab: 'Create Tournament',
+  Profile: 'Profile',
   DiscoverWalkthrough: 'Rack-N-Roll',
   SignIn: 'Sign In',
   SignUp: 'Create Account',
   ChooseUsername: 'Choose Username',
   ForgotPassword: 'Forgot Password',
-  Profile: 'My Profile',
+  Settings: 'Settings',
+  PlayerCard: 'Player Card',
+  Help: 'Help',
+  PublicPlayerProfile: 'Player Card',
   CreateTournamentWalkthrough: 'Create Tournament',
   CreateTournament: 'Create Tournament',
   TournamentDetail: 'Tournament',
@@ -206,22 +200,25 @@ function resolveRouteTitle(route) {
   if (route.name === 'TournamentDetail' || route.name === 'Scoresheet') {
     return route.params?.tournamentName || ROUTE_TITLES[route.name];
   }
+  if (route.name === 'PublicPlayerProfile') {
+    return route.params?.username ? `@${route.params.username}` : ROUTE_TITLES[route.name];
+  }
   return ROUTE_TITLES[route.name] || route.name;
 }
 
 function RootStack() {
+  const { colors } = useTheme();
+
   return (
     <Stack.Navigator
-      initialRouteName="Home"
+      initialRouteName="MainTabs"
       screenOptions={{
         animation: 'slide_from_right',
-        contentStyle: { backgroundColor: '#f8fafc' },
-        // The header lives outside the navigator so it stays fixed in the
-        // background while only the screen content animates underneath it.
+        contentStyle: { backgroundColor: colors.background },
         headerShown: false,
       }}
     >
-      <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'Rack-N-Roll' }} />
+      <Stack.Screen name="MainTabs" component={MainTabNavigator} options={{ title: 'Rack-N-Roll' }} />
       <Stack.Screen
         name="DiscoverWalkthrough"
         component={DiscoverWalkthroughScreen}
@@ -231,19 +228,21 @@ function RootStack() {
       <Stack.Screen name="SignUp" component={SignUpScreen} options={{ title: 'Create Account' }} />
       <Stack.Screen name="ChooseUsername" component={ChooseUsernameScreen} options={{ title: 'Choose Username' }} />
       <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} options={{ title: 'Forgot Password' }} />
-      <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'My Profile' }} />
+      <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
+      <Stack.Screen name="PlayerCard" component={PlayerCardScreen} options={{ title: 'Player Card' }} />
+      <Stack.Screen name="Help" component={HelpScreen} options={{ title: 'Help' }} />
+      <Stack.Screen name="PublicPlayerProfile" component={PublicPlayerProfileScreen} options={{ title: 'Player Card' }} />
       <Stack.Screen
         name="CreateTournamentWalkthrough"
         component={CreateTournamentWalkthroughScreen}
         options={{ title: 'Create Tournament' }}
       />
-      <Stack.Screen name="CreateTournament" component={CreateTournamentScreen} options={{ title: 'Create Tournament' }} />
       <Stack.Screen
         name="TournamentDetail"
         component={TournamentDetailScreenWithBoundary}
-        options={{ title: 'Tournament' }}
+        options={{ title: 'Tournament', animation: 'fade' }}
       />
-      <Stack.Screen name="Scoresheet" component={ScoresheetScreen} options={{ title: 'Scoresheet' }} />
+      <Stack.Screen name="Scoresheet" component={ScoresheetScreen} options={{ title: 'Scoresheet', animation: 'fade' }} />
       <Stack.Screen name="LiveMatchSession" component={LiveMatchSessionScreen} options={{ title: 'Live match' }} />
     </Stack.Navigator>
   );
@@ -251,14 +250,17 @@ function RootStack() {
 
 export function AppNavigator() {
   const { isAuthenticated, isLoading, bootstrapMessage, signOut } = useAuth();
+  const { colors } = useTheme();
+  const { contentPaddingTop } = useAppHeaderInsets();
   const nativeSplashHiddenRef = useRef(false);
   const [signOutConfirmVisible, setSignOutConfirmVisible] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   const [currentRoute, setCurrentRoute] = useState({
-    name: 'Home',
+    name: 'MainTabs',
     params: undefined,
     canGoBack: false,
+    focusedRouteName: 'Discover',
   });
 
   const [isBootstrapOverlayVisible, setIsBootstrapOverlayVisible] = useState(true);
@@ -280,10 +282,12 @@ export function AppNavigator() {
     if (!route) {
       return;
     }
+    const rootState = navigationRef.getRootState();
     setCurrentRoute({
       name: route.name,
       params: route.params,
       canGoBack: navigationRef.canGoBack(),
+      focusedRouteName: getFocusedRouteName(rootState),
     });
   }, []);
 
@@ -292,6 +296,7 @@ export function AppNavigator() {
       canGoBack: () => navigationRef.isReady() && navigationRef.canGoBack(),
       pop: () => {
         if (navigationRef.isReady() && navigationRef.canGoBack()) {
+          markIgnoreNextPopState();
           navigationRef.goBack();
         }
       },
@@ -310,6 +315,7 @@ export function AppNavigator() {
     cancelExit: cancelWebExit,
   } = useWebBrowserBackGuard({
     enabled: !isLoading,
+    navigationRef,
   });
 
   const requestSignOut = useCallback(() => {
@@ -336,7 +342,7 @@ export function AppNavigator() {
         navigationRef.dispatch(
           CommonActions.reset({
             index: 0,
-            routes: [{ name: 'Home' }],
+            routes: [{ name: 'MainTabs', params: { screen: 'Discover' } }],
           })
         );
       }
@@ -368,40 +374,43 @@ export function AppNavigator() {
     return () => animation.stop();
   }, [bootstrapOverlayOpacity, hideNativeSplash, isLoading]);
 
-  const showHomeActions = currentRoute.name === 'Home' && isAuthenticated;
-  const showGuestActions = currentRoute.name === 'Home' && !isAuthenticated;
+  const activeTabName = resolveActiveTabName(
+    navigationRef.isReady() ? navigationRef.getRootState() : null,
+    currentRoute.name
+  );
+  const onMainTab = isMainTabScreen(activeTabName);
+  const headerTitle = onMainTab ? getMainTabTitle(activeTabName) : resolveRouteTitle(currentRoute);
+  const showBack = !onMainTab && currentRoute.canGoBack;
 
   let onInfoPress;
-  if (currentRoute.name === 'Home') {
-    onInfoPress = () => headerNavigation.navigate('DiscoverWalkthrough');
-  } else if (currentRoute.name === 'CreateTournament') {
+  if (activeTabName === 'CreateTab') {
     onInfoPress = () => headerNavigation.navigate('CreateTournamentWalkthrough');
   }
 
   return (
     <SignOutProvider requestSignOut={requestSignOut}>
-      <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
         {!isLoading && (
           <NavigationContainer
             ref={navigationRef}
+            linking={publicProfileLinking}
             onReady={handleNavigationStateChange}
             onStateChange={handleNavigationStateChange}
           >
             <View style={{ flex: 1 }}>
               <AppHeader
-                navigation={headerNavigation}
-                title={resolveRouteTitle(currentRoute)}
-                showBack={currentRoute.canGoBack}
-                showHomeActions={showHomeActions}
-                showGuestActions={showGuestActions}
-                onSignOut={requestSignOut}
-                onSignIn={() => headerNavigation.navigate('SignIn', { returnTo: { screen: 'Home' } })}
-                onSignUp={() => headerNavigation.navigate('SignUp', { returnTo: { screen: 'Home' } })}
-                onInfoPress={onInfoPress}
-              />
-              <View style={{ flex: 1 }}>
+                  navigation={headerNavigation}
+                  title={headerTitle}
+                  showBack={showBack}
+                  showGuestActions={onMainTab && !isAuthenticated}
+                  onSignIn={() => headerNavigation.navigate('SignIn', { returnTo: { screen: 'MainTabs', params: { screen: 'Discover' } } })}
+                  onSignUp={() => headerNavigation.navigate('SignUp', { returnTo: { screen: 'MainTabs', params: { screen: 'Discover' } } })}
+                  onInfoPress={onInfoPress}
+                />
+              <View style={{ flex: 1, paddingTop: contentPaddingTop }}>
                 <RootStack />
               </View>
+              <AppMenuDrawer navigation={headerNavigation} />
               <WebDesktopFooter />
             </View>
           </NavigationContainer>

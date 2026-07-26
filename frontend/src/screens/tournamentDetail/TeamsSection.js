@@ -134,7 +134,7 @@ export function TeamsSection({
           borderRadius: 999,
           borderWidth: 1,
           borderColor: tournamentColors.primary,
-          backgroundColor: pressed ? '#eff6ff' : tournamentColors.white,
+          backgroundColor: pressed ? tournamentColors.chipSelectedBg : tournamentColors.white,
           opacity: busyAction ? 0.6 : 1,
         })}
       >
