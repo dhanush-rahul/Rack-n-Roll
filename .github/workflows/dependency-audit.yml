@@ -10,6 +10,7 @@ on:
     branches:
       - main
       - production/v1.2.0
+      - production/v1.3.4
     paths:
       - backend/**
       - frontend/**

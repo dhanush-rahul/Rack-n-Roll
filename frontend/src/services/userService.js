@@ -15,6 +15,11 @@ export async function fetchMyProfile() {
   return response.data;
 }
 
+export async function fetchPublicProfile(username) {
+  const response = await apiGet(`/api/users/public/${encodeURIComponent(username)}`);
+  return response.data;
+}
+
 export async function updateMyHandicap(handicap) {
   const response = await apiPatch('/api/users/me/handicap', { handicap });
   return response.data;

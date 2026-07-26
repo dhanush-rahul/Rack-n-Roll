@@ -11,6 +11,9 @@ export function invalidateTournamentCache(queryClient, tournamentId) {
     tasks.push(
       queryClient.invalidateQueries({ queryKey: ['tournament', tournamentId, 'scoresheet'] })
     );
+    tasks.push(
+      queryClient.invalidateQueries({ queryKey: ['tournament', tournamentId, 'tracker'] })
+    );
   }
 
   return Promise.all(tasks);

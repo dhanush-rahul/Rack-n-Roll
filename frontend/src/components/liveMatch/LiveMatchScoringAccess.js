@@ -30,7 +30,7 @@ export function LiveMatchScoringAccess({
         padding: 16,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: 'rgba(148, 163, 184, 0.4)',
+        borderColor: tournamentColors.livePanelBorder,
         backgroundColor: tournamentColors.white,
         gap: 10,
       }}
@@ -43,7 +43,7 @@ export function LiveMatchScoringAccess({
       </Text>
 
       {session.canMarkSession && !session.canHandOffScoring ? (
-        <Text style={{ fontSize: 14, fontWeight: '700', color: '#166534' }}>
+        <Text style={{ fontSize: 14, fontWeight: '700', color: tournamentColors.statusSuccessText }}>
           You are the active scorer for this match.
         </Text>
       ) : session.sessionController ? (
@@ -58,7 +58,7 @@ export function LiveMatchScoringAccess({
 
       {session.canHandOffScoring && (
         <View style={{ gap: 8 }}>
-          <Text style={{ fontSize: 13, color: '#15803d', lineHeight: 18 }}>
+          <Text style={{ fontSize: 13, color: tournamentColors.success, lineHeight: 18 }}>
             {requesterName} requested takeover. Hand off scoring to let them mark this match, or decline.
           </Text>
           <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -124,7 +124,7 @@ export function LiveMatchScoringAccess({
 
       {session.canCancelTakeoverRequest && (
         <View style={{ gap: 6 }}>
-          <Text style={{ fontSize: 13, color: '#1d4ed8', lineHeight: 18 }}>
+          <Text style={{ fontSize: 13, color: tournamentColors.statusInfoText, lineHeight: 18 }}>
             Waiting for {controllerName} to hand off scoring.
           </Text>
           <ActionButton

@@ -19,7 +19,7 @@ export function FixtureFilterPanel({
       style={{
         padding: 12,
         borderRadius: 12,
-        backgroundColor: '#f8fafc',
+        backgroundColor: tournamentColors.surfaceAlt,
         borderWidth: 1,
         borderColor: tournamentColors.borderLight,
         marginBottom: 12,

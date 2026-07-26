@@ -3,9 +3,8 @@ import { Animated, Easing } from 'react-native';
 
 export const PAGE_SIZE_OPTIONS = [10, 20, 30];
 export const FILTER_OPTIONS = [
-  { id: 'all', label: 'All' },
-  { id: 'open', label: 'Open' },
-  { id: 'mine', label: 'My events' },
+  { id: 'all', label: 'All upcoming' },
+  { id: 'open', label: 'Open registration' },
 ];
 export const SORT_OPTIONS = [
   { id: 'newest', label: 'Newest' },
@@ -51,19 +50,13 @@ export function useDiscoverFilters({ isAuthenticated, requireAuth }) {
     setPage(1);
   }, [sortId]);
 
-  const onFilterChange = useCallback(
-    (nextFilterId) => {
-      if (nextFilterId === 'mine' && !isAuthenticated) {
-        requireAuth(undefined, {
-          message: 'Sign in to see tournaments you host.',
-          returnTo: { screen: 'Home', params: { filterId: 'mine' } },
-        });
-        return;
-      }
-      setFilterId(nextFilterId);
-    },
-    [isAuthenticated, requireAuth]
-  );
+  useEffect(() => {
+    setPage(1);
+  }, [filterId]);
+
+  const onFilterChange = useCallback((nextFilterId) => {
+    setFilterId(nextFilterId);
+  }, []);
 
   const onPageSizeChange = useCallback((size) => {
     setPageSize(size);

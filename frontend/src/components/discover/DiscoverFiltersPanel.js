@@ -18,6 +18,8 @@ export function DiscoverFiltersPanel({
   searchQuery,
   sortId,
   filterId,
+  filterIds = [],
+  filterMultiSelect = false,
   pageSize,
   isRefreshing,
   onRefresh,
@@ -25,7 +27,15 @@ export function DiscoverFiltersPanel({
   onClearSearch,
   onSortChange,
   onFilterChange,
+  onFilterToggle,
   onPageSizeChange,
+  filterOptions = FILTER_OPTIONS,
+  sortOptions = SORT_OPTIONS,
+  pageSizeOptions = PAGE_SIZE_OPTIONS,
+  showPageSize = true,
+  searchPlaceholder = 'Search by tournament name',
+  panelTitle = 'Search & filters',
+  filterSectionLabel = 'FILTER',
 }) {
   if (!expanded) {
     return null;
@@ -48,7 +58,7 @@ export function DiscoverFiltersPanel({
       <Animated.View style={panelBodyStyle}>
         <View style={{ gap: 14, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 18 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={{ fontSize: 14, fontWeight: '800', color: tournamentColors.text }}>Search & filters</Text>
+            <Text style={{ fontSize: 14, fontWeight: '800', color: tournamentColors.text }}>{panelTitle}</Text>
             <Pressable
               onPress={onRefresh}
               disabled={isRefreshing}
@@ -57,7 +67,7 @@ export function DiscoverFiltersPanel({
                 paddingHorizontal: 10,
                 paddingVertical: 6,
                 borderRadius: 8,
-                backgroundColor: '#f1f5f9',
+                backgroundColor: tournamentColors.inputFill,
                 opacity: isRefreshing ? 0.6 : 1,
               }}
             >
@@ -78,7 +88,7 @@ export function DiscoverFiltersPanel({
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <TextInput
                 style={[tournamentUi.input, { flex: 1, paddingVertical: 11 }]}
-                placeholder="Search by tournament name"
+                placeholder={searchPlaceholder}
                 value={searchQuery}
                 onChangeText={onSearchQueryChange}
                 autoCapitalize="none"
@@ -93,7 +103,7 @@ export function DiscoverFiltersPanel({
                     paddingHorizontal: 12,
                     paddingVertical: 11,
                     borderRadius: 10,
-                    backgroundColor: '#f1f5f9',
+                    backgroundColor: tournamentColors.inputFill,
                   }}
                 >
                   <Text style={{ fontWeight: '700', color: tournamentColors.textMuted }}>Clear</Text>
@@ -107,7 +117,7 @@ export function DiscoverFiltersPanel({
               SORT BY
             </Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {SORT_OPTIONS.map((option) => {
+              {sortOptions.map((option) => {
                 const selected = sortId === option.id;
                 return (
                   <Pressable
@@ -119,7 +129,7 @@ export function DiscoverFiltersPanel({
                       borderRadius: 999,
                       borderWidth: 1,
                       borderColor: selected ? tournamentColors.primary : tournamentColors.border,
-                      backgroundColor: selected ? '#dbeafe' : '#f8fafc',
+                      backgroundColor: selected ? tournamentColors.chipSelectedBg : tournamentColors.surfaceRaised,
                     }}
                   >
                     <Text
@@ -139,22 +149,33 @@ export function DiscoverFiltersPanel({
 
           <View style={{ gap: 8 }}>
             <Text style={{ fontSize: 12, fontWeight: '700', color: tournamentColors.textMuted, letterSpacing: 0.6 }}>
-              FILTER
+              {filterSectionLabel}
             </Text>
+            {filterMultiSelect ? (
+              <Text style={{ fontSize: 12, color: tournamentColors.textMuted }}>Select one or more</Text>
+            ) : null}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {FILTER_OPTIONS.map((option) => {
-                const selected = filterId === option.id;
+              {filterOptions.map((option) => {
+                const selected = filterMultiSelect
+                  ? option.id === 'all'
+                    ? filterIds.length === 0
+                    : filterIds.includes(option.id)
+                  : filterId === option.id;
+                const onPress = filterMultiSelect
+                  ? () => onFilterToggle?.(option.id)
+                  : () => onFilterChange?.(option.id);
+
                 return (
                   <Pressable
                     key={option.id}
-                    onPress={() => onFilterChange(option.id)}
+                    onPress={onPress}
                     style={{
                       paddingHorizontal: 14,
                       paddingVertical: 8,
                       borderRadius: 999,
                       borderWidth: 1,
                       borderColor: selected ? tournamentColors.primary : tournamentColors.border,
-                      backgroundColor: selected ? '#dbeafe' : '#f8fafc',
+                      backgroundColor: selected ? tournamentColors.chipSelectedBg : tournamentColors.surfaceRaised,
                     }}
                   >
                     <Text
@@ -172,10 +193,11 @@ export function DiscoverFiltersPanel({
             </View>
           </View>
 
+          {showPageSize ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <Text style={{ fontSize: 12, fontWeight: '600', color: tournamentColors.textMuted }}>Per page</Text>
             <View style={{ flexDirection: 'row', gap: 6 }}>
-              {PAGE_SIZE_OPTIONS.map((size) => {
+              {pageSizeOptions.map((size) => {
                 const selected = pageSize === size;
                 return (
                   <Pressable
@@ -187,7 +209,7 @@ export function DiscoverFiltersPanel({
                       borderRadius: 10,
                       borderWidth: 1,
                       borderColor: selected ? tournamentColors.primary : tournamentColors.border,
-                      backgroundColor: selected ? '#dbeafe' : tournamentColors.white,
+                      backgroundColor: selected ? tournamentColors.chipSelectedBg : tournamentColors.white,
                       alignItems: 'center',
                       justifyContent: 'center',
                     }}
@@ -206,6 +228,7 @@ export function DiscoverFiltersPanel({
               })}
             </View>
           </View>
+          ) : null}
         </View>
       </Animated.View>
     </View>

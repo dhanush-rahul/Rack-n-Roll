@@ -34,6 +34,11 @@ export async function fetchDiscoverTournaments(params = {}) {
   return response.data;
 }
 
+export async function fetchMyTournaments(params = {}) {
+  const response = await apiGet('/api/tournaments/my-tournaments', { params });
+  return response.data;
+}
+
 export async function fetchMyRegisteredDiscoverTournaments() {
   const response = await apiGet('/api/tournaments/discover/registered');
   return response.data;
@@ -121,6 +126,11 @@ export async function assignTournamentGroupsRandomly(tournamentId, payload = {})
 
 export async function fetchTournamentGroupStandings(tournamentId, params = {}) {
   const response = await apiGet(`/api/tournaments/${tournamentId}/groups/standings`, { params });
+  return response.data;
+}
+
+export async function fetchTournamentTracker(tournamentId, params = {}) {
+  const response = await apiGet(`/api/tournaments/${tournamentId}/tracker`, { params });
   return response.data;
 }
 

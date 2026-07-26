@@ -75,7 +75,7 @@ function SnapshotSection({ title, children }) {
         borderRadius: 14,
         borderWidth: 1,
         borderColor: tournamentColors.borderLight,
-        backgroundColor: '#fafbfc',
+        backgroundColor: tournamentColors.surfaceAlt,
         padding: 14,
         marginBottom: 12,
       }}
@@ -88,10 +88,26 @@ function SnapshotSection({ title, children }) {
 
 function StatusPill({ label, tone = 'neutral' }) {
   const palette = {
-    neutral: { bg: '#f1f5f9', text: '#475569', border: '#e2e8f0' },
-    primary: { bg: '#dbeafe', text: '#1d4ed8', border: '#bfdbfe' },
-    success: { bg: '#dcfce7', text: '#166534', border: '#bbf7d0' },
-    warning: { bg: '#fef3c7', text: '#b45309', border: '#fde68a' },
+    neutral: {
+      bg: tournamentColors.statusNeutralBg,
+      text: tournamentColors.statusNeutralText,
+      border: tournamentColors.borderLight,
+    },
+    primary: {
+      bg: tournamentColors.statusInfoBg,
+      text: tournamentColors.statusInfoText,
+      border: tournamentColors.primaryTint,
+    },
+    success: {
+      bg: tournamentColors.statusSuccessBg,
+      text: tournamentColors.statusSuccessText,
+      border: tournamentColors.successBorder,
+    },
+    warning: {
+      bg: tournamentColors.statusWarningBg,
+      text: tournamentColors.statusWarningText,
+      border: tournamentColors.warning,
+    },
   }[tone];
 
   return (
@@ -161,11 +177,11 @@ function InviteCodeRow({ inviteCode }) {
         padding: 12,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: '#fde68a',
-        backgroundColor: '#fffbeb',
+        borderColor: tournamentColors.warning,
+        backgroundColor: tournamentColors.statusWarningBg,
       }}
     >
-      <Text style={{ color: '#b45309', fontSize: 12, fontWeight: '700' }}>Invite code</Text>
+      <Text style={{ color: tournamentColors.statusWarningText, fontSize: 12, fontWeight: '700' }}>Invite code</Text>
       <View
         style={{
           flexDirection: 'row',
@@ -193,7 +209,7 @@ function InviteCodeRow({ inviteCode }) {
             paddingVertical: 8,
             paddingHorizontal: 14,
             borderRadius: 10,
-            backgroundColor: pressed ? '#1d4ed8' : tournamentColors.primary,
+            backgroundColor: pressed ? tournamentColors.primaryMuted : tournamentColors.primary,
           })}
         >
           <Text style={{ color: tournamentColors.white, fontWeight: '700', fontSize: 13 }}>
@@ -307,7 +323,7 @@ export function HostInfoModal({
                   justifyContent: 'center',
                   borderWidth: 1,
                   borderColor: tournamentColors.borderLight,
-                  backgroundColor: pressed ? '#f1f5f9' : tournamentColors.white,
+                  backgroundColor: pressed ? tournamentColors.inputFill : tournamentColors.white,
                 })}
               >
                 <Text style={{ color: tournamentColors.textMuted, fontSize: 20, lineHeight: 22 }}>×</Text>
@@ -324,8 +340,8 @@ export function HostInfoModal({
             </View>
 
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-              <StatChip label="Approved" value={String(detail?.approvedParticipantsCount ?? 0)} accent="#2563eb" />
-              <StatChip label="Pending" value={String(detail?.pendingParticipantsCount ?? 0)} accent="#b45309" />
+              <StatChip label="Approved" value={String(detail?.approvedParticipantsCount ?? 0)} accent={tournamentColors.primary} />
+              <StatChip label="Pending" value={String(detail?.pendingParticipantsCount ?? 0)} accent={tournamentColors.warning} />
               <StatChip label="Target" value={String(detail?.maxParticipants ?? '—')} />
             </View>
 
@@ -368,7 +384,7 @@ export function HostInfoModal({
               paddingBottom: Math.max(insets.bottom, 14),
               borderTopWidth: 1,
               borderTopColor: tournamentColors.borderLight,
-              backgroundColor: '#f8fafc',
+              backgroundColor: tournamentColors.surfaceAlt,
               gap: 8,
             }}
           >

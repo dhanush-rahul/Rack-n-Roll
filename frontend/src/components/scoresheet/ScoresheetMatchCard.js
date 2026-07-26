@@ -2,6 +2,7 @@ import React from 'react';
 import { Platform, View } from 'react-native';
 import { ScaledText as Text } from '../ui/ScaledText';
 import { ScaledTextInput as TextInput } from '../ui/ScaledTextInput';
+import { tournamentColors } from '../../styles/tournamentUi';
 
 const isPlayedScoreEntry = (entry) => {
   const playerAScore = Number(entry?.playerAScore);
@@ -39,11 +40,12 @@ export function ScoresheetMatchCard({ game, matchNumber, scoresByGameId }) {
 
   const scoreInputStyle = {
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: tournamentColors.border,
     borderRadius: 8,
     paddingVertical: 6,
     paddingHorizontal: 8,
-    backgroundColor: '#fff',
+    backgroundColor: tournamentColors.inputFill,
+    color: tournamentColors.text,
     flex: 1,
     minWidth: 0,
     maxWidth: Platform.OS === 'web' ? 72 : undefined,
@@ -54,21 +56,29 @@ export function ScoresheetMatchCard({ game, matchNumber, scoresByGameId }) {
     <View
       style={{
         borderWidth: 1,
-        borderColor: '#d1d5db',
+        borderColor: tournamentColors.border,
         borderRadius: 8,
         padding: 10,
         gap: 8,
-        backgroundColor: '#f9fafb',
+        backgroundColor: tournamentColors.surfaceAlt,
       }}
     >
-      <Text style={{ fontWeight: '600' }}>
+      <Text style={{ fontWeight: '600', color: tournamentColors.text }}>
         Match {matchNumber}: {playerAName} vs {playerBName}
       </Text>
-      <Text style={{ color: '#4b5563' }}>
+      <Text style={{ color: tournamentColors.textMuted }}>
         Best of {game.bestOf} • Status: {game.status} • {completedGamesCount}/{expectedEntriesCount}
       </Text>
 
-      <View style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, backgroundColor: '#fff' }}>
+      <View
+        style={{
+          borderWidth: 1,
+          borderColor: tournamentColors.borderLight,
+          borderRadius: 8,
+          backgroundColor: tournamentColors.white,
+          overflow: 'hidden',
+        }}
+      >
         <View
           style={{
             flexDirection: 'row',
@@ -77,17 +87,18 @@ export function ScoresheetMatchCard({ game, matchNumber, scoresByGameId }) {
             paddingHorizontal: 8,
             paddingVertical: 6,
             borderBottomWidth: 1,
-            borderBottomColor: '#e5e7eb',
+            borderBottomColor: tournamentColors.borderLight,
+            backgroundColor: tournamentColors.surfaceRaised,
           }}
         >
-          <Text style={{ width: 48, fontWeight: '600', color: '#374151', fontSize: 12 }}>Game</Text>
+          <Text style={{ width: 48, fontWeight: '600', color: tournamentColors.textMuted, fontSize: 12 }}>Game</Text>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={{ fontWeight: '600', color: '#374151', fontSize: 12 }} numberOfLines={1}>
+            <Text style={{ fontWeight: '600', color: tournamentColors.textMuted, fontSize: 12 }} numberOfLines={1}>
               {playerAName}
             </Text>
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={{ fontWeight: '600', color: '#374151', fontSize: 12 }} numberOfLines={1}>
+            <Text style={{ fontWeight: '600', color: tournamentColors.textMuted, fontSize: 12 }} numberOfLines={1}>
               {playerBName}
             </Text>
           </View>
@@ -107,16 +118,18 @@ export function ScoresheetMatchCard({ game, matchNumber, scoresByGameId }) {
                 paddingHorizontal: 8,
                 paddingVertical: 6,
                 borderBottomWidth: isLastEntry ? 0 : 1,
-                borderBottomColor: '#f3f4f6',
+                borderBottomColor: tournamentColors.borderLight,
+                backgroundColor: entryIndex % 2 === 0 ? tournamentColors.white : tournamentColors.rowStripe,
               }}
             >
-              <Text style={{ width: 48, color: '#111827', fontWeight: '600', fontSize: 12 }}>
+              <Text style={{ width: 48, color: tournamentColors.text, fontWeight: '600', fontSize: 12 }}>
                 G{entryIndex + 1}
               </Text>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <TextInput
                   style={scoreInputStyle}
                   placeholder="0"
+                  placeholderTextColor={tournamentColors.placeholder}
                   value={safeEntry.playerAScore}
                   keyboardType="numeric"
                   editable={false}
@@ -126,6 +139,7 @@ export function ScoresheetMatchCard({ game, matchNumber, scoresByGameId }) {
                 <TextInput
                   style={scoreInputStyle}
                   placeholder="0"
+                  placeholderTextColor={tournamentColors.placeholder}
                   value={safeEntry.playerBScore}
                   keyboardType="numeric"
                   editable={false}

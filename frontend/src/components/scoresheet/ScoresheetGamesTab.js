@@ -25,6 +25,7 @@ export function ScoresheetGamesTab({
   showMyGamesToggle = false,
   isMyGamesView = false,
   onSetGamesView,
+  scoringStyle = 'individualGames',
 }) {
   return (
     <FixturesTabPanel
@@ -60,6 +61,7 @@ export function ScoresheetGamesTab({
       activeRoundKey={activeRoundKey}
       showSaveButton={false}
       viewOnly
+      scoringStyle={scoringStyle}
       emptyTitle="No group-stage games"
       emptyMessage="Fixtures will show here once the host generates the schedule."
     />

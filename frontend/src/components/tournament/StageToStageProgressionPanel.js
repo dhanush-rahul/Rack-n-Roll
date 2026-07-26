@@ -130,7 +130,7 @@ export function StageToStageProgressionPanel({
               borderColor: tournamentColors.border,
               borderRadius: 12,
               padding: 12,
-              backgroundColor: '#eff6ff',
+              backgroundColor: tournamentColors.primarySoft,
             }}
           >
             <Text style={{ fontWeight: '700', color: tournamentColors.text }}>
@@ -223,7 +223,7 @@ export function StageToStageProgressionPanel({
             borderColor: tournamentColors.border,
             borderRadius: 12,
             padding: 12,
-            backgroundColor: '#eff6ff',
+            backgroundColor: tournamentColors.primarySoft,
           }}
         >
           <Text style={{ fontWeight: '700', color: tournamentColors.text }}>

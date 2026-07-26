@@ -1,7 +1,9 @@
 const Game = require('../../models/game.model');
+const Tournament = require('../../models/tournament.model');
 const ApiError = require('../../utils/ApiError');
 const cache = require('../../utils/cache');
 const { assertCanEditTournamentScores, recomputeLeaderboardForScope } = require('../tournament');
+const { computeSeriesOutcome } = require('../tournament/shared');
 
 const invalidateScoresheetCache = (tournamentId) => {
   cache.delByPrefix(`tournament:${String(tournamentId)}:scoresheet:`);
@@ -160,15 +162,33 @@ const endSeriesGame = async (tournamentId, gameId, userId, payload = {}) => {
   const { entries, entry, activeGameNumber } = getActiveEntry(game.toObject());
   const isPlayerAWinner = String(winnerPlayerId) === String(game.playerAId);
 
-  entry.playerAScore = isPlayerAWinner ? 1 : 0;
-  entry.playerBScore = isPlayerAWinner ? 0 : 1;
+  const tournament = await Tournament.findById(tournamentId).select({ competitionConfig: 1 }).lean();
+  const scoringStyle =
+    tournament?.competitionConfig?.scoringStyle === 'totalPoints' ? 'totalPoints' : 'individualGames';
+
+  if (scoringStyle === 'totalPoints') {
+    const playerAPoints = Number(payload.playerAPoints);
+    const playerBPoints = Number(payload.playerBPoints);
+    const hasExplicitPoints = Number.isFinite(playerAPoints) && Number.isFinite(playerBPoints);
+
+    entry.playerAScore = hasExplicitPoints ? playerAPoints : isPlayerAWinner ? 1 : 0;
+    entry.playerBScore = hasExplicitPoints ? playerBPoints : isPlayerAWinner ? 0 : 1;
+  } else {
+    entry.playerAScore = isPlayerAWinner ? 1 : 0;
+    entry.playerBScore = isPlayerAWinner ? 0 : 1;
+  }
   entry.endReason = endReason;
 
-  const seriesWins = computeSeriesWinsFromEntries(entries);
   const bestOf = parseBestOf(game.bestOf, 1);
   const winsRequired = winsRequiredForBestOf(bestOf);
-  const seriesComplete =
+  const seriesWins = computeSeriesWinsFromEntries(entries);
+  const gamesPlayed = entries.filter((scoreEntry) => scoreEntry?.endReason).length;
+  let seriesComplete =
     seriesWins.playerASeriesWins >= winsRequired || seriesWins.playerBSeriesWins >= winsRequired;
+
+  if (scoringStyle === 'totalPoints') {
+    seriesComplete = seriesComplete || gamesPlayed >= bestOf;
+  }
 
   let nextGameNumber = null;
   if (!seriesComplete && activeGameNumber < bestOf) {
@@ -203,8 +223,19 @@ const endSeriesGame = async (tournamentId, gameId, userId, payload = {}) => {
 
   if (seriesComplete) {
     game.status = 'completed';
-    game.winnerPlayerId =
-      seriesWins.playerASeriesWins > seriesWins.playerBSeriesWins ? game.playerAId : game.playerBId;
+    if (scoringStyle === 'totalPoints') {
+      const seriesOutcome = computeSeriesOutcome(game.toObject(), entries, scoringStyle);
+      game.winnerPlayerId =
+        seriesOutcome.winnerPlayerId ||
+        (seriesOutcome.scoreForA === seriesOutcome.scoreForB
+          ? null
+          : seriesOutcome.scoreForA > seriesOutcome.scoreForB
+            ? game.playerAId
+            : game.playerBId);
+    } else {
+      game.winnerPlayerId =
+        seriesWins.playerASeriesWins > seriesWins.playerBSeriesWins ? game.playerAId : game.playerBId;
+    }
     game.seriesState = clearTakeoverRequest({
       activeGameNumber,
       startedAt: seriesBase.startedAt,

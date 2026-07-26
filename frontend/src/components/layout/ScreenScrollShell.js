@@ -2,6 +2,7 @@ import React, { forwardRef } from 'react';
 import { Platform, ScrollView } from 'react-native';
 import { useScreenInsets } from '../../hooks/useScreenInsets';
 import { tournamentUi } from '../../styles/tournamentUi';
+import { useTheme } from '../../context/ThemeContext';
 import { centeredContentStyle, useResponsiveLayout } from '../../utils/responsive';
 
 export const ScreenScrollShell = forwardRef(function ScreenScrollShell(
@@ -15,13 +16,15 @@ export const ScreenScrollShell = forwardRef(function ScreenScrollShell(
 ) {
   const { contentMaxWidth, horizontalPadding, isDesktopWeb } = useResponsiveLayout();
   const { scrollPaddingBottom } = useScreenInsets();
+  const { colors } = useTheme();
 
   return (
     <ScrollView
       ref={ref}
       style={[
         tournamentUi.screen,
-        isDesktopWeb && { backgroundColor: '#eef2f6' },
+        { backgroundColor: colors.background },
+        isDesktopWeb && { backgroundColor: colors.backgroundAlt },
         style,
       ]}
       contentContainerStyle={[

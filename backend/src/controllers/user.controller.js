@@ -1,4 +1,4 @@
-const { getUserProfile, updateUserHandicap, updateUserEmail } = require('../services/user.service');
+const { getUserProfile, getPublicUserProfile, updateUserHandicap, updateUserEmail } = require('../services/user.service');
 const { setAccountPassword, changeAccountPassword } = require('../services/auth.service');
 const { changeUsername } = require('../services/username.service');
 
@@ -79,8 +79,22 @@ const updateMyEmailController = async (req, res, next) => {
   }
 };
 
+const getPublicUserProfileController = async (req, res, next) => {
+  try {
+    const result = await getPublicUserProfile(req.params.username);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getMyProfileController,
+  getPublicUserProfileController,
   updateMyHandicapController,
   setMyPasswordController,
   changeMyUsernameController,

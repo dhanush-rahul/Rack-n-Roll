@@ -100,6 +100,8 @@ const normalizeTournamentInput = (input, hostUserId) => {
   const format = input?.competitionConfig?.format === 'doubles' ? 'doubles' : 'singles';
   const pairFormationMode =
     input?.competitionConfig?.pairFormationMode === 'hostAssigns' ? 'hostAssigns' : 'playerPicksPartner';
+  const scoringStyle =
+    input?.competitionConfig?.scoringStyle === 'totalPoints' ? 'totalPoints' : 'individualGames';
 
   const groupCount = parsePositiveInteger(
     input?.competitionConfig?.groupCount ?? input?.groupCount,
@@ -141,6 +143,7 @@ const normalizeTournamentInput = (input, hostUserId) => {
         format === 'doubles'
           ? false
           : Boolean(input?.competitionConfig?.groupStageProctored ?? input?.groupStageProctored ?? false),
+      scoringStyle,
       finalStageEnabled: progressionPlan.stages.length > 0,
     },
   };
@@ -285,6 +288,7 @@ const mapHostTournamentDetail = (tournament, pendingParticipantsCount = 0) => ({
     handicapEnabled: Boolean(tournament.competitionConfig?.handicapEnabled),
     groupStageProctored: Boolean(tournament.competitionConfig?.groupStageProctored),
     finalStageProctored: Boolean(tournament.competitionConfig?.finalStageProctored),
+    scoringStyle: tournament.competitionConfig?.scoringStyle === 'totalPoints' ? 'totalPoints' : 'individualGames',
   },
   createdAt: tournament.createdAt,
   updatedAt: tournament.updatedAt,
@@ -396,9 +400,25 @@ const buildPlayerSummaryById = async (playerIds = []) => {
 const buildDiscoverFilter = (query = {}) => {
   const filter = {};
   const searchTerm = String(query.q || query.search || '').trim();
+  const upcomingFlag = String(query.upcoming || '').trim().toLowerCase();
 
   if (searchTerm.length > 0) {
     filter.name = { $regex: escapeRegex(searchTerm), $options: 'i' };
+  }
+
+  if (upcomingFlag === 'true' || upcomingFlag === '1') {
+    filter.startsAt = { $gt: new Date() };
+  }
+
+  const ongoingFlag = String(query.ongoing || '').trim().toLowerCase();
+  if (ongoingFlag === 'true' || ongoingFlag === '1') {
+    filter.startsAt = { $lte: new Date() };
+    filter.status = { $nin: ['completed', 'cancelled'] };
+  }
+
+  const registrationOpenFlag = String(query.registrationOpen || '').trim().toLowerCase();
+  if (registrationOpenFlag === 'true' || registrationOpenFlag === '1') {
+    filter.registrationStatus = 'open';
   }
 
   return filter;
@@ -645,7 +665,48 @@ const normalizeScoreEntries = (scoreEntries) => {
   return normalizedEntries.sort((a, b) => a.gameNumber - b.gameNumber);
 };
 
-const computeSeriesOutcome = (game, scoreEntries = []) => {
+const computeSeriesOutcome = (game, scoreEntries = [], scoringStyle = 'individualGames') => {
+  if (scoringStyle === 'totalPoints') {
+    const totals = (scoreEntries || []).reduce(
+      (accumulator, entry) => {
+        accumulator.playerAScore += Number(entry?.playerAScore || 0);
+        accumulator.playerBScore += Number(entry?.playerBScore || 0);
+        return accumulator;
+      },
+      { playerAScore: 0, playerBScore: 0 }
+    );
+
+    const scoreForA = totals.playerAScore;
+    const scoreForB = totals.playerBScore;
+    const playerAWins = scoreForA > scoreForB;
+    const playerBWins = scoreForB > scoreForA;
+
+    const winnerPlayerId =
+      !game?.teamAId && playerAWins
+        ? game.playerAId
+        : !game?.teamAId && playerBWins
+          ? game.playerBId
+          : null;
+
+    const winnerTeamId =
+      game?.teamAId && playerAWins
+        ? game.teamAId
+        : game?.teamAId && playerBWins
+          ? game.teamBId
+          : null;
+
+    return {
+      bestOf: 1,
+      winsRequired: 1,
+      playerASeriesWins: playerAWins ? 1 : 0,
+      playerBSeriesWins: playerBWins ? 1 : 0,
+      winnerPlayerId,
+      winnerTeamId,
+      scoreForA,
+      scoreForB,
+    };
+  }
+
   const bestOf = parseBestOf(game?.bestOf, 1);
   const winsRequired = Math.floor(bestOf / 2) + 1;
 

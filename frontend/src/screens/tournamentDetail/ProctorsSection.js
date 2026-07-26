@@ -177,9 +177,9 @@ export function ProctorsSection({
                       ? tournamentColors.primary
                       : tournamentColors.borderLight,
                   backgroundColor: isDisabled
-                    ? '#f8fafc'
+                    ? tournamentColors.surfaceRaised
                     : isSelected
-                      ? 'rgba(37, 99, 235, 0.08)'
+                      ? tournamentColors.selectedSoftBg
                       : tournamentColors.white,
                   opacity: isDisabled ? 0.85 : 1,
                 }}
@@ -196,7 +196,7 @@ export function ProctorsSection({
                         ? tournamentColors.primary
                         : tournamentColors.border,
                     backgroundColor: isDisabled
-                      ? '#e2e8f0'
+                      ? tournamentColors.inputDisabled
                       : isSelected
                         ? tournamentColors.primary
                         : 'transparent',
@@ -213,7 +213,7 @@ export function ProctorsSection({
                     {entry.name}
                   </Text>
                   {entry.isAssigned ? (
-                    <Text style={{ fontSize: 12, color: '#166534', fontWeight: '600' }}>Already assigned</Text>
+                    <Text style={{ fontSize: 12, color: tournamentColors.statusSuccessText, fontWeight: '600' }}>Already assigned</Text>
                   ) : (
                     Boolean(entry.email) && (
                       <Text style={{ fontSize: 12, color: tournamentColors.textMuted }}>{entry.email}</Text>

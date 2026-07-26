@@ -12,7 +12,7 @@ export function EmptyStateCard({ icon = 'pool', title, message }) {
           width: 56,
           height: 56,
           borderRadius: 28,
-          backgroundColor: '#eff4ff',
+          backgroundColor: tournamentColors.primarySoft,
           alignItems: 'center',
           justifyContent: 'center',
         }}

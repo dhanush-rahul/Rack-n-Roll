@@ -12,7 +12,7 @@ export function ListRowCard({ title, subtitle, children }) {
         borderRadius: 12,
         padding: 12,
         gap: 8,
-        backgroundColor: '#fafbfc',
+        backgroundColor: tournamentColors.surfaceAlt,
       }}
     >
       <View style={{ gap: 2 }}>

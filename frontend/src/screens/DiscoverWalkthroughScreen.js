@@ -53,7 +53,7 @@ function WalkthroughTournamentCard({ item, highlighted }) {
       <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: tournamentColors.primary }} />
       <View style={{ padding: 14, paddingLeft: 16, gap: 10 }}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
-          <View style={[discoverUi.monogram, { backgroundColor: '#dbeafe' }]}>
+          <View style={[discoverUi.monogram, { backgroundColor: tournamentColors.chipSelectedBg }]}>
             <Text style={{ fontSize: 16, fontWeight: '800', color: tournamentColors.primary }}>{monogram}</Text>
           </View>
           <View style={{ flex: 1, gap: 6 }}>
@@ -96,7 +96,7 @@ export function DiscoverWalkthroughScreen({ navigation }) {
     await setDiscoverWalkthroughCompleted(true);
 
     InteractionManager.runAfterInteractions(() => {
-      exitWalkthroughTo(navigation, 'Home');
+      exitWalkthroughTo(navigation, 'MainTabs', { screen: 'Discover' });
     });
   }, [navigation]);
 
@@ -284,7 +284,7 @@ export function DiscoverWalkthroughScreen({ navigation }) {
           <Text style={{ fontSize: 15, fontWeight: '600', color: tournamentColors.textMuted }}>Skip</Text>
         </Pressable>
         {stepIndex !== 0 ? (
-          <Text style={{ fontSize: 13, fontWeight: '600', color: '#94a3b8' }}>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: tournamentColors.heroSubtext }}>
             {stepIndex + 1} / {DISCOVER_WALKTHROUGH_STEPS.length}
           </Text>
         ) : (

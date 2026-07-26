@@ -1,7 +1,7 @@
 import React from 'react';
 import { Modal, Pressable, View } from 'react-native';
 import { ScaledText as Text } from './ui/ScaledText';
-import { ActionButton } from './tournament/TournamentChrome';
+import { ActionButton } from './tournament/chrome/ActionButton';
 import { AppIcon } from './ui/AppIcon';
 import { useTypography } from '../context/TypographyContext';
 import { tournamentColors, tournamentUi } from '../styles/tournamentUi';

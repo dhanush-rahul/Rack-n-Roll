@@ -219,6 +219,11 @@ const tournamentSchema = new mongoose.Schema(
         type: Boolean,
         default: false,
       },
+      scoringStyle: {
+        type: String,
+        enum: ['individualGames', 'totalPoints'],
+        default: 'individualGames',
+      },
     },
     progressionPlan: {
       deferred: {

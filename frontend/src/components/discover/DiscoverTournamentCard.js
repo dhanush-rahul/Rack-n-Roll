@@ -47,19 +47,43 @@ const getTournamentMonogram = (name) => {
 };
 
 const getAccentColor = (item, isHostTournament) => {
-  if (isHostTournament) return '#7c3aed';
-  if (item.registrationMode === 'inviteOnly') return '#d97706';
+  if (isHostTournament) return tournamentColors.accentPurple;
+  if (item.registrationMode === 'inviteOnly') return tournamentColors.accentAmber;
   return tournamentColors.primary;
 };
 
 function Badge({ label, tone = 'neutral' }) {
   const palette = {
-    neutral: { bg: '#f1f5f9', text: '#475569', border: '#e2e8f0' },
-    primary: { bg: '#dbeafe', text: '#1d4ed8', border: '#bfdbfe' },
-    success: { bg: '#dcfce7', text: '#166534', border: '#bbf7d0' },
-    warning: { bg: '#fef3c7', text: '#b45309', border: '#fde68a' },
-    host: { bg: '#ede9fe', text: '#6d28d9', border: '#ddd6fe' },
-    new: { bg: '#cffafe', text: '#0e7490', border: '#a5f3fc' },
+    neutral: {
+      bg: tournamentColors.statusNeutralBg,
+      text: tournamentColors.statusNeutralText,
+      border: tournamentColors.borderLight,
+    },
+    primary: {
+      bg: tournamentColors.statusInfoBg,
+      text: tournamentColors.statusInfoText,
+      border: tournamentColors.primaryTint,
+    },
+    success: {
+      bg: tournamentColors.statusSuccessBg,
+      text: tournamentColors.statusSuccessText,
+      border: tournamentColors.successBorder,
+    },
+    warning: {
+      bg: tournamentColors.statusWarningBg,
+      text: tournamentColors.statusWarningText,
+      border: tournamentColors.warning,
+    },
+    host: {
+      bg: tournamentColors.badgeHostBg,
+      text: tournamentColors.badgeHostText,
+      border: tournamentColors.badgeHostBorder,
+    },
+    new: {
+      bg: tournamentColors.primarySoft,
+      text: tournamentColors.liveAccent,
+      border: tournamentColors.primaryTint,
+    },
   }[tone];
 
   return (
@@ -104,16 +128,16 @@ function DiscoverActionButton({ label, onPress, disabled, variant = 'primary', f
   const styles = {
     primary: {
       backgroundColor: disabled ? tournamentColors.primaryMuted : tournamentColors.primary,
-      text: tournamentColors.white,
+      text: tournamentColors.onPrimary || '#ffffff',
       border: tournamentColors.primary,
     },
     secondary: {
-      backgroundColor: tournamentColors.white,
+      backgroundColor: tournamentColors.surfaceRaised,
       text: tournamentColors.primary,
       border: tournamentColors.primary,
     },
     ghost: {
-      backgroundColor: '#f8fafc',
+      backgroundColor: tournamentColors.surfaceRaised,
       text: tournamentColors.text,
       border: tournamentColors.border,
     },
@@ -191,7 +215,7 @@ export function DiscoverTournamentCard({
 
   const cardShellStyle = {
     ...discoverUi.listCard,
-    borderColor: isExpanded ? '#93c5fd' : tournamentColors.borderLight,
+    borderColor: isExpanded ? tournamentColors.primaryTint : tournamentColors.borderLight,
   };
 
   const animatedShellStyle = isHighlighted
@@ -200,7 +224,7 @@ export function DiscoverTournamentCard({
         borderWidth: 2,
         borderColor: highlightBlinkAnimation.interpolate({
           inputRange: [0, 1],
-          outputRange: ['#93c5fd', '#2563eb'],
+          outputRange: [tournamentColors.primaryTint, tournamentColors.primary],
         }),
         shadowOpacity: highlightBlinkAnimation.interpolate({
           inputRange: [0, 1],
@@ -215,7 +239,7 @@ export function DiscoverTournamentCard({
     ? {
         backgroundColor: highlightBlinkAnimation.interpolate({
           inputRange: [0, 1],
-          outputRange: ['#ffffff', '#eff6ff'],
+          outputRange: [tournamentColors.surface, tournamentColors.primarySoft],
         }),
       }
     : null;
@@ -249,7 +273,7 @@ export function DiscoverTournamentCard({
                     width: 30,
                     height: 30,
                     borderRadius: 15,
-                    backgroundColor: isExpanded ? '#dbeafe' : '#f1f5f9',
+                    backgroundColor: isExpanded ? tournamentColors.chipSelectedBg : tournamentColors.inputFill,
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}
@@ -294,7 +318,7 @@ export function DiscoverTournamentCard({
               paddingLeft: 16,
               borderTopWidth: 1,
               borderTopColor: tournamentColors.borderLight,
-              backgroundColor: '#fafbfc',
+              backgroundColor: tournamentColors.surfaceAlt,
             }}
           >
             <View style={{ gap: 8, marginTop: 10 }}>

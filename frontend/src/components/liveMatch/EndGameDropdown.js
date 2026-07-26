@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { ScaledText as Text } from '../ui/ScaledText';
+import { ScaledTextInput as TextInput } from '../ui/ScaledTextInput';
 import { ActionButton } from '../tournament/TournamentChrome';
 import { AppIcon } from '../ui/AppIcon';
 import { tournamentColors } from '../../styles/tournamentUi';
@@ -18,6 +19,10 @@ export function EndGameDropdown({
   onSelectWinner,
   selectedEndReason,
   onSelectEndReason,
+  playerAPointsInput = '',
+  playerBPointsInput = '',
+  onChangePlayerAPoints,
+  onChangePlayerBPoints,
   onConfirm,
   isBusy,
   disabled,
@@ -26,6 +31,7 @@ export function EndGameDropdown({
   const playerAId = session?.playerA?.id;
   const playerBId = session?.playerB?.id;
   const reasons = session?.endGameReasonOptions || Object.keys(END_REASON_LABELS);
+  const isTotalPoints = session?.scoringStyle === 'totalPoints';
 
   const summaryLabel =
     selectedWinnerId && selectedEndReason
@@ -46,7 +52,7 @@ export function EndGameDropdown({
           borderRadius: 12,
           borderWidth: 1,
           borderColor: isOpen ? tournamentColors.primary : tournamentColors.border,
-          backgroundColor: isOpen ? '#eff6ff' : tournamentColors.white,
+          backgroundColor: isOpen ? tournamentColors.primarySoft : tournamentColors.white,
           opacity: pressed || disabled ? 0.85 : 1,
         })}
       >
@@ -65,7 +71,7 @@ export function EndGameDropdown({
             borderRadius: 14,
             borderWidth: 1,
             borderColor: tournamentColors.borderLight,
-            backgroundColor: '#f8fafc',
+            backgroundColor: tournamentColors.surfaceRaised,
             padding: 12,
             gap: 12,
           }}
@@ -90,7 +96,7 @@ export function EndGameDropdown({
                       borderRadius: 10,
                       borderWidth: 2,
                       borderColor: selected ? tournamentColors.primary : tournamentColors.border,
-                      backgroundColor: selected ? '#eff6ff' : tournamentColors.white,
+                      backgroundColor: selected ? tournamentColors.primarySoft : tournamentColors.white,
                     }}
                   >
                     <Text style={{ fontWeight: '700', textAlign: 'center', fontSize: 14 }}>{label}</Text>
@@ -117,7 +123,7 @@ export function EndGameDropdown({
                     borderRadius: 10,
                     borderWidth: 1,
                     borderColor: selected ? tournamentColors.primary : tournamentColors.borderLight,
-                    backgroundColor: selected ? '#eff6ff' : tournamentColors.white,
+                    backgroundColor: selected ? tournamentColors.primarySoft : tournamentColors.white,
                   }}
                 >
                   <Text style={{ fontSize: 14, fontWeight: selected ? '700' : '500', color: tournamentColors.text }}>
@@ -128,13 +134,48 @@ export function EndGameDropdown({
             })}
           </View>
 
+          {isTotalPoints ? (
+            <View>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: tournamentColors.textMuted, marginBottom: 8 }}>
+                Points this game
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={{ fontSize: 11, color: tournamentColors.textMuted }}>{session.playerA?.displayName}</Text>
+                  <TextInput
+                    style={{ borderWidth: 1, borderColor: tournamentColors.border, borderRadius: 8, padding: 10, fontSize: 16, fontWeight: '700' }}
+                    value={playerAPointsInput}
+                    onChangeText={onChangePlayerAPoints}
+                    keyboardType="number-pad"
+                    placeholder="0"
+                  />
+                </View>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={{ fontSize: 11, color: tournamentColors.textMuted }}>{session.playerB?.displayName}</Text>
+                  <TextInput
+                    style={{ borderWidth: 1, borderColor: tournamentColors.border, borderRadius: 8, padding: 10, fontSize: 16, fontWeight: '700' }}
+                    value={playerBPointsInput}
+                    onChangeText={onChangePlayerBPoints}
+                    keyboardType="number-pad"
+                    placeholder="0"
+                  />
+                </View>
+              </View>
+            </View>
+          ) : null}
+
           <ActionButton
             label={isBusy ? 'Saving…' : 'Confirm end game'}
             onPress={() => {
               setIsOpen(false);
               onConfirm();
             }}
-            disabled={isBusy || !selectedWinnerId || !selectedEndReason}
+            disabled={
+              isBusy ||
+              !selectedWinnerId ||
+              !selectedEndReason ||
+              (isTotalPoints && (playerAPointsInput.trim() === '' || playerBPointsInput.trim() === ''))
+            }
             fullWidth
           />
         </View>

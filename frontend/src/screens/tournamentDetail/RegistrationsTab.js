@@ -47,16 +47,16 @@ function ReplaceBanner({ replaceTarget, onCancelReplace }) {
         transform: [{ translateY: slideAnim }],
         padding: 14,
         borderRadius: 12,
-        backgroundColor: '#eff6ff',
+        backgroundColor: tournamentColors.statusInfoBg,
         borderWidth: 1,
-        borderColor: '#93c5fd',
+        borderColor: tournamentColors.primaryTint,
         gap: 8,
       }}
     >
-      <Text style={{ fontWeight: '800', color: '#1e40af', fontSize: 15 }}>
+      <Text style={{ fontWeight: '800', color: tournamentColors.statusInfoText, fontSize: 15 }}>
         Replacing {formatRosterRowTitle(replaceTarget)}
       </Text>
-      <Text style={{ color: '#1d4ed8', fontSize: 13, lineHeight: 18 }}>
+      <Text style={{ color: tournamentColors.textMuted, fontSize: 13, lineHeight: 18 }}>
         Use Search & add players below to find a registered user or add a guest. Scheduled group matches will carry
         over to the replacement.
       </Text>
@@ -75,7 +75,7 @@ function ApprovedRosterRow({ item, onRequestRemoveParticipant, removeDisabled })
         borderColor: tournamentColors.borderLight,
         borderRadius: 12,
         padding: 12,
-        backgroundColor: '#fafbfc',
+        backgroundColor: tournamentColors.surfaceAlt,
       }}
     >
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
@@ -92,10 +92,10 @@ function ApprovedRosterRow({ item, onRequestRemoveParticipant, removeDisabled })
                 paddingHorizontal: 8,
                 paddingVertical: 3,
                 borderRadius: 999,
-                backgroundColor: '#fef3c7',
+                backgroundColor: tournamentColors.statusWarningBg,
               }}
             >
-              <Text style={{ fontSize: 11, fontWeight: '700', color: '#92400e' }}>No account yet</Text>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: tournamentColors.statusWarningText }}>No account yet</Text>
             </View>
           ) : null}
         </View>
@@ -188,13 +188,13 @@ export function RegistrationsTab({
           style={{
             padding: 14,
             borderRadius: 12,
-            backgroundColor: '#fff7ed',
+            backgroundColor: tournamentColors.statusWarningBg,
             borderWidth: 1,
-            borderColor: '#fed7aa',
+            borderColor: tournamentColors.warning,
           }}
         >
-          <Text style={{ fontWeight: '800', color: '#9a3412', fontSize: 15 }}>Registration closed</Text>
-          <Text style={{ color: '#c2410c', fontSize: 13, lineHeight: 18, marginTop: 4 }}>
+          <Text style={{ fontWeight: '800', color: tournamentColors.statusWarningText, fontSize: 15 }}>Registration closed</Text>
+          <Text style={{ color: tournamentColors.textMuted, fontSize: 13, lineHeight: 18, marginTop: 4 }}>
             The roster is locked for players. You can still add participants manually as host and they will be placed
             into a group when fixtures exist.
           </Text>
@@ -362,10 +362,10 @@ export function RegistrationsTab({
                       paddingHorizontal: 10,
                       paddingVertical: 4,
                       borderRadius: 999,
-                      backgroundColor: '#ecfdf5',
+                      backgroundColor: tournamentColors.statusSuccessBg,
                     }}
                   >
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#166534' }}>On roster</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: tournamentColors.statusSuccessText }}>On roster</Text>
                   </View>
                 ) : (
                   <ActionButton

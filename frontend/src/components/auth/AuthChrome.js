@@ -14,7 +14,7 @@ export function AuthHero({ eyebrow, title, subtitle, compact = false }) {
   return (
     <View style={[authUi.hero, compact && { padding: 18 }]}>
       <View style={[authUi.heroGlow, { top: -30, right: -20 }]} />
-      <View style={[authUi.heroGlow, { bottom: -40, left: -10, backgroundColor: 'rgba(124, 58, 237, 0.28)' }]} />
+      <View style={[authUi.heroGlow, { bottom: -40, left: -10, backgroundColor: tournamentColors.heroGlowAlt }]} />
       {Boolean(eyebrow) && <Text style={authUi.heroEyebrow}>{eyebrow}</Text>}
       <Text style={[authUi.heroTitle, compact && { fontSize: 22, lineHeight: 28 }]}>{title}</Text>
       {Boolean(subtitle) && <Text style={authUi.heroSubtitle}>{subtitle}</Text>}
@@ -41,13 +41,13 @@ export function AuthSidePanel({ eyebrow, title, subtitle, features = [] }) {
         {
           width: '100%',
           position: 'relative',
-          backgroundColor: '#0f172a',
+          backgroundColor: tournamentColors.heroBg,
         },
       ]}
     >
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
         <View style={[authUi.heroGlow, { top: -30, right: -20 }]} />
-        <View style={[authUi.heroGlow, { bottom: -40, left: -10, backgroundColor: 'rgba(124, 58, 237, 0.28)' }]} />
+        <View style={[authUi.heroGlow, { bottom: -40, left: -10, backgroundColor: tournamentColors.heroGlowAlt }]} />
       </View>
 
       <View style={{ position: 'relative', zIndex: 1 }}>
@@ -120,7 +120,7 @@ export function AuthLandingHero({
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[authUi.landingImageCard, { paddingTop: insets.top, backgroundColor: '#0f172a' }]}>
+    <View style={[authUi.landingImageCard, { paddingTop: insets.top, backgroundColor: tournamentColors.heroBg }]}>
       <Image source={source} style={[authUi.landingImage, { height: imageHeight }]} resizeMode="cover" />
       <View style={authUi.landingImageOverlay}>
         {Boolean(eyebrow) && <Text style={authUi.heroEyebrow}>{eyebrow}</Text>}
@@ -223,7 +223,7 @@ export function AuthScreenShell({ children, sidePanel, keyboardVerticalOffset = 
 
   return (
     <KeyboardAvoidingView
-      style={[authUi.screen, isDesktopWeb && { backgroundColor: '#eef2f6' }]}
+      style={[authUi.screen, isDesktopWeb && { backgroundColor: tournamentColors.backgroundAlt }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={keyboardVerticalOffset}
     >
@@ -247,7 +247,7 @@ export function AuthScreenShell({ children, sidePanel, keyboardVerticalOffset = 
   );
 }
 
-export function AuthFormCard({ title, subtitle, children }) {
+export function AuthFormCard({ title, subtitle, children, preventAutofill = false }) {
   const { formMaxWidth, isDesktopWeb } = useResponsiveLayout();
   const widthStyle =
     formMaxWidth && !isDesktopWeb
@@ -256,9 +256,28 @@ export function AuthFormCard({ title, subtitle, children }) {
 
   return (
     <View style={[authUi.formCard, widthStyle]}>
+      {preventAutofill ? <AuthAutofillDecoyFields /> : null}
       {Boolean(title) && <Text style={authUi.formTitle}>{title}</Text>}
       {Boolean(subtitle) && <Text style={authUi.formSubtitle}>{subtitle}</Text>}
       {children}
+    </View>
+  );
+}
+
+function AuthAutofillDecoyFields() {
+  if (Platform.OS !== 'web') {
+    return null;
+  }
+
+  return (
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={{ position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden' }}
+      pointerEvents="none"
+    >
+      <TextInput autoComplete="username" tabIndex={-1} editable={false} />
+      <TextInput secureTextEntry autoComplete="current-password" tabIndex={-1} editable={false} />
     </View>
   );
 }
@@ -290,15 +309,15 @@ export function AuthFeature({ icon, title, description, variant = 'dark' }) {
       <View
         style={[
           authUi.featureIcon,
-          isLight && { backgroundColor: '#eff6ff', borderWidth: 1, borderColor: '#dbeafe' },
+          isLight && { backgroundColor: tournamentColors.modeSelectedBg, borderWidth: 1, borderColor: tournamentColors.primaryTint },
         ]}
       >
-        <AppIcon name={icon} size={18} color={isLight ? tournamentColors.primary : '#f8fafc'} />
+        <AppIcon name={icon} size={18} color={isLight ? tournamentColors.primary : tournamentColors.heroText} />
       </View>
       <View style={{ flex: 1 }}>
         <Text
           style={{
-            color: isLight ? tournamentColors.text : '#f8fafc',
+            color: isLight ? tournamentColors.text : tournamentColors.heroText,
             fontWeight: '700',
             fontSize: 14,
           }}
@@ -307,7 +326,7 @@ export function AuthFeature({ icon, title, description, variant = 'dark' }) {
         </Text>
         <Text
           style={{
-            color: isLight ? tournamentColors.textMuted : '#94a3b8',
+            color: isLight ? tournamentColors.textMuted : tournamentColors.heroSubtext,
             fontSize: 13,
             lineHeight: 18,
             marginTop: 2,

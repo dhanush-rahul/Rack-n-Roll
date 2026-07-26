@@ -1,6 +1,6 @@
 import { navigateAfterAuth } from './navigateAfterAuth';
 
-export function navigateAfterGoogleAuth(navigation, route, result) {
+export async function navigateAfterGoogleAuth(navigation, route, result) {
   if (result?.isNewUser) {
     navigation.navigate('ChooseUsername', {
       returnTo: route.params?.returnTo,
@@ -9,5 +9,5 @@ export function navigateAfterGoogleAuth(navigation, route, result) {
     return;
   }
 
-  navigateAfterAuth(navigation, route.params?.returnTo);
+  await navigateAfterAuth(navigation, route.params?.returnTo);
 }

@@ -22,7 +22,7 @@ export function TournamentMatchScoringPanel({
   onOpenFinaleModal,
   onCompleteWithoutFinals,
   onAddSeriesGame,
-  showSaveButton = true,
+  showSaveButton = false,
   showAddSeriesButton = true,
   showFinaleActions = false,
   collapsibleSections = true,
@@ -33,6 +33,7 @@ export function TournamentMatchScoringPanel({
   onStartGame,
   onScheduleMatch,
   viewOnly = false,
+  scoringStyle = 'individualGames',
 }) {
   return (
     <>
@@ -68,6 +69,7 @@ export function TournamentMatchScoringPanel({
           onStartGame={onStartGame}
           onScheduleMatch={onScheduleMatch}
           viewOnly={viewOnly}
+          scoringStyle={scoringStyle}
         />
       )}
     </>

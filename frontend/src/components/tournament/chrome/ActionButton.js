@@ -1,18 +1,30 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Pressable } from 'react-native';
 import { ScaledText as Text } from '../../ui/ScaledText';
-import { tournamentColors } from '../../../styles/tournamentUi';
-
-const buttonStyles = {
-  primary: { bg: tournamentColors.primary, text: tournamentColors.white, border: tournamentColors.primary },
-  secondary: { bg: tournamentColors.white, text: tournamentColors.primary, border: tournamentColors.primary },
-  danger: { bg: '#fef2f2', text: '#b91c1c', border: '#fecaca' },
-  ghost: { bg: '#f8fafc', text: tournamentColors.text, border: tournamentColors.border },
-  muted: { bg: '#e2e8f0', text: '#64748b', border: '#cbd5e1' },
-};
+import { useTheme } from '../../../context/ThemeContext';
 
 export function ActionButton({ label, onPress, disabled, variant = 'primary', fullWidth = false }) {
-  const styles = buttonStyles[variant];
+  const { colors } = useTheme();
+
+  const styles = useMemo(() => {
+    const variants = {
+      primary: { bg: colors.primary, text: colors.onPrimary, border: colors.primary },
+      secondary: {
+        bg: colors.surfaceRaised,
+        text: colors.primary,
+        border: colors.primaryTint || colors.primary,
+      },
+      danger: { bg: colors.errorSurface, text: colors.error, border: colors.errorBorder },
+      ghost: { bg: colors.inputFill, text: colors.text, border: colors.borderLight },
+      muted: { bg: colors.inputDisabled, text: colors.textMuted, border: colors.border },
+    };
+
+    return variants[variant] || variants.primary;
+  }, [colors, variant]);
+
+  const backgroundColor =
+    disabled && variant === 'primary' ? colors.primaryMuted : styles.bg;
+  const textColor = disabled ? colors.textMuted : styles.text;
 
   return (
     <Pressable
@@ -24,13 +36,13 @@ export function ActionButton({ label, onPress, disabled, variant = 'primary', fu
         paddingHorizontal: 14,
         borderRadius: 11,
         borderWidth: 1,
-        borderColor: styles.border,
-        backgroundColor: disabled && variant === 'primary' ? tournamentColors.primaryMuted : styles.bg,
+        borderColor: disabled ? colors.border : styles.border,
+        backgroundColor,
         alignItems: 'center',
         opacity: pressed || disabled ? 0.72 : 1,
       })}
     >
-      <Text style={{ fontWeight: '700', fontSize: 14, color: styles.text, numberOfLines: 2 }}>
+      <Text style={{ fontWeight: '700', fontSize: 14, color: textColor, numberOfLines: 2 }}>
         {label}
       </Text>
     </Pressable>

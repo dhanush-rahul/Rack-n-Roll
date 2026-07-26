@@ -16,12 +16,17 @@ const isPlayedScoreEntry = (entry) => {
   return !(playerAScore === 0 && playerBScore === 0);
 };
 
-export function useScoreInputs({ groupStageBestOf = 1, finalStageBestOf = 3 } = {}) {
+export function useScoreInputs({
+  groupStageBestOf = 1,
+  finalStageBestOf = 3,
+  scoringStyle = 'individualGames',
+} = {}) {
   const [scoreInputsByGameId, setScoreInputsByGameId] = useState({});
   const [savingGameId, setSavingGameId] = useState(null);
 
   const configuredGroupStageBestOf = Math.max(Number(groupStageBestOf || 1), 1);
   const configuredFinalStageBestOf = Math.max(Number(finalStageBestOf || 3), 1);
+  const isTotalPoints = scoringStyle === 'totalPoints';
 
   const hydrateScoreInputState = useCallback(
     (games, { merge = false } = {}) => {
@@ -53,23 +58,40 @@ export function useScoreInputs({ groupStageBestOf = 1, finalStageBestOf = 3 } = 
               ? configuredFinalStageBestOf
               : Math.max(Number(game.bestOf || 1), 1);
 
-          const seriesMaxGames = Math.max(
-            Number(game.bestOf || 1),
-            configuredBestOf,
-            savedEntries.length,
-            1
-          );
+          const seriesMaxGames = isTotalPoints
+            ? 1
+            : Math.max(Number(game.bestOf || 1), configuredBestOf, savedEntries.length, 1);
 
-          const entries = Array.from({ length: seriesMaxGames }, (_, index) => {
-            const gameNumber = index + 1;
-            return (
-              existingEntriesByGameNumber.get(gameNumber) || {
-                gameNumber,
-                playerAScore: '',
-                playerBScore: '',
-              }
+          let entries;
+          if (isTotalPoints) {
+            const totals = savedEntries.reduce(
+              (accumulator, entry) => {
+                accumulator.playerAScore += Number(entry?.playerAScore || 0);
+                accumulator.playerBScore += Number(entry?.playerBScore || 0);
+                return accumulator;
+              },
+              { playerAScore: 0, playerBScore: 0 }
             );
-          });
+            const hasTotals = savedEntries.length > 0;
+            entries = [
+              {
+                gameNumber: 1,
+                playerAScore: hasTotals ? String(totals.playerAScore) : '',
+                playerBScore: hasTotals ? String(totals.playerBScore) : '',
+              },
+            ];
+          } else {
+            entries = Array.from({ length: seriesMaxGames }, (_, index) => {
+              const gameNumber = index + 1;
+              return (
+                existingEntriesByGameNumber.get(gameNumber) || {
+                  gameNumber,
+                  playerAScore: '',
+                  playerBScore: '',
+                }
+              );
+            });
+          }
 
           nextState[game.id] = {
             status: game.status || 'scheduled',
@@ -81,7 +103,7 @@ export function useScoreInputs({ groupStageBestOf = 1, finalStageBestOf = 3 } = 
         return nextState;
       });
     },
-    [configuredFinalStageBestOf, configuredGroupStageBestOf]
+    [configuredFinalStageBestOf, configuredGroupStageBestOf, isTotalPoints]
   );
 
   const onChangeScoreInput = useCallback((gameId, entryIndex, field, value) => {
@@ -196,12 +218,9 @@ export function useScoreInputs({ groupStageBestOf = 1, finalStageBestOf = 3 } = 
             : !isFinalStageGame && !isGroupStageGame && savedGame?.stage
               ? String(savedGame.stage)
               : null;
-        const seriesMaxGames = Math.max(
-          Number(scoreInputs.seriesMaxGames || 0),
-          Number(bestOf || 1),
-          configuredSeriesBestOf,
-          1
-        );
+        const seriesMaxGames = isTotalPoints
+          ? 1
+          : Math.max(Number(scoreInputs.seriesMaxGames || 0), Number(bestOf || 1), configuredSeriesBestOf, 1);
         let playerASeriesWins = 0;
         let playerBSeriesWins = 0;
         const normalizedEntries = (scoreInputs.entries || [])
@@ -222,19 +241,37 @@ export function useScoreInputs({ groupStageBestOf = 1, finalStageBestOf = 3 } = 
           }))
           .filter((entry) => isPlayedScoreEntry(entry));
 
-        const effectiveBestOf = Math.max(seriesMaxGames, normalizedEntries.length);
-        const winsRequired = Math.floor(effectiveBestOf / 2) + 1;
+        const effectiveBestOf = isTotalPoints
+          ? 1
+          : Math.max(seriesMaxGames, normalizedEntries.length);
+        const winsRequired = isTotalPoints ? 1 : Math.floor(effectiveBestOf / 2) + 1;
 
-        normalizedEntries.forEach((entry) => {
-          if (entry.playerAScore > entry.playerBScore) {
-            playerASeriesWins += 1;
-            return;
+        if (isTotalPoints) {
+          const totals = normalizedEntries.reduce(
+            (accumulator, entry) => {
+              accumulator.playerAScore += entry.playerAScore;
+              accumulator.playerBScore += entry.playerBScore;
+              return accumulator;
+            },
+            { playerAScore: 0, playerBScore: 0 }
+          );
+          if (totals.playerAScore > totals.playerBScore) {
+            playerASeriesWins = 1;
+          } else if (totals.playerBScore > totals.playerAScore) {
+            playerBSeriesWins = 1;
           }
+        } else {
+          normalizedEntries.forEach((entry) => {
+            if (entry.playerAScore > entry.playerBScore) {
+              playerASeriesWins += 1;
+              return;
+            }
 
-          if (entry.playerBScore > entry.playerAScore) {
-            playerBSeriesWins += 1;
-          }
-        });
+            if (entry.playerBScore > entry.playerAScore) {
+              playerBSeriesWins += 1;
+            }
+          });
+        }
 
         const normalizedStatus =
           playerASeriesWins >= winsRequired || playerBSeriesWins >= winsRequired
@@ -277,7 +314,7 @@ export function useScoreInputs({ groupStageBestOf = 1, finalStageBestOf = 3 } = 
         setSavingGameId(null);
       }
     },
-    [configuredFinalStageBestOf, configuredGroupStageBestOf, scoreInputsByGameId]
+    [configuredFinalStageBestOf, configuredGroupStageBestOf, isTotalPoints, scoreInputsByGameId]
   );
 
   return {

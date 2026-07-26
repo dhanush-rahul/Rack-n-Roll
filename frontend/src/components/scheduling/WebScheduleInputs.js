@@ -1,7 +1,7 @@
-import React, { createElement } from 'react';
+import React, { createElement, useMemo } from 'react';
 import { Platform, View } from 'react-native';
 import { ScaledText as Text } from '../ui/ScaledText';
-import { tournamentColors } from '../../styles/tournamentUi';
+import { useTheme } from '../../context/ThemeContext';
 
 const toDateInputValue = (date) => {
   const year = date.getFullYear();
@@ -16,25 +16,31 @@ const toTimeInputValue = (date) => {
   return `${hours}:${minutes}`;
 };
 
-const inputStyle = {
-  width: '100%',
-  borderWidth: 1,
-  borderStyle: 'solid',
-  borderColor: tournamentColors.border,
-  borderRadius: 10,
-  padding: 12,
-  fontSize: 15,
-  fontWeight: 600,
-  color: tournamentColors.text,
-  backgroundColor: tournamentColors.white,
-  boxSizing: 'border-box',
-};
-
-function FieldLabel({ children }) {
-  return <Text style={{ fontSize: 13, fontWeight: '600', color: tournamentColors.textMuted }}>{children}</Text>;
+function FieldLabel({ children, color }) {
+  return <Text style={{ fontSize: 13, fontWeight: '600', color }}>{children}</Text>;
 }
 
 export function WebScheduleInputs({ value, onChange, dateLabel = 'Date', timeLabel = 'Time', minDate }) {
+  const { colors, isDark } = useTheme();
+
+  const inputStyle = useMemo(
+    () => ({
+      width: '100%',
+      borderWidth: 1,
+      borderStyle: 'solid',
+      borderColor: colors.border,
+      borderRadius: 10,
+      padding: 12,
+      fontSize: 15,
+      fontWeight: 600,
+      color: colors.text,
+      backgroundColor: colors.inputFill,
+      boxSizing: 'border-box',
+      colorScheme: isDark ? 'dark' : 'light',
+    }),
+    [colors.border, colors.inputFill, colors.text, isDark]
+  );
+
   if (Platform.OS !== 'web') {
     return null;
   }
@@ -66,7 +72,7 @@ export function WebScheduleInputs({ value, onChange, dateLabel = 'Date', timeLab
   return (
     <View style={{ flexDirection: 'row', gap: 10 }}>
       <View style={{ flex: 1, gap: 6 }}>
-        <FieldLabel>{dateLabel}</FieldLabel>
+        <FieldLabel color={colors.textMuted}>{dateLabel}</FieldLabel>
         {createElement('input', {
           type: 'date',
           value: toDateInputValue(value),
@@ -76,7 +82,7 @@ export function WebScheduleInputs({ value, onChange, dateLabel = 'Date', timeLab
         })}
       </View>
       <View style={{ flex: 1, gap: 6 }}>
-        <FieldLabel>{timeLabel}</FieldLabel>
+        <FieldLabel color={colors.textMuted}>{timeLabel}</FieldLabel>
         {createElement('input', {
           type: 'time',
           value: toTimeInputValue(value),

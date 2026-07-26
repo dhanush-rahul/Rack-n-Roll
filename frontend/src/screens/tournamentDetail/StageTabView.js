@@ -49,6 +49,7 @@ export function StageTabView({
   showMyGamesToggle = false,
   isMyGamesView = false,
   onSetGamesView,
+  scoringStyle = 'individualGames',
 }) {
   if (stage?.status === 'preview' || stage?.isBypassPreview) {
     return (
@@ -111,8 +112,9 @@ export function StageTabView({
       useLiveSessionScoring={useLiveSessionScoring}
       onStartGame={onStartGame}
       onScheduleMatch={onScheduleMatch}
-      showSaveButton={showSaveButton}
+      showSaveButton={false}
       viewOnly={viewOnly}
+      scoringStyle={scoringStyle}
       isProgressing={isProgressing}
       emptyTitle={`No ${stageName} fixtures yet`}
       emptyMessage={`Matches for ${stageName} appear here once the round starts.`}

@@ -1,80 +1,210 @@
 import React, { useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { ScaledText as Text } from '../../ui/ScaledText';
 import { FeedbackModal } from '../../FeedbackModal';
 import { AppIcon, MEDAL_COLORS } from '../../ui/AppIcon';
 import { useTypography } from '../../../context/TypographyContext';
-import { discoverUi, tournamentColors } from '../../../styles/tournamentUi';
+import { useTheme } from '../../../context/ThemeContext';
+import { discoverUi } from '../../../styles/tournamentUi';
+import { STANDINGS_STAT_HELP, StandingsStatHeaderCell } from './standingsStatHelp';
 
-const MEDAL_ROW_STYLE_BY_RANK = {
-  1: { backgroundColor: '#fffbeb' },
-  2: { backgroundColor: '#f8fafc' },
-  3: { backgroundColor: '#fff7ed' },
+const getMedalRowStyleByRank = (rank, colors) => {
+  if (rank === 1) return { backgroundColor: colors.statusWarningBg };
+  if (rank === 2) return { backgroundColor: colors.surfaceRaised };
+  if (rank === 3) return { backgroundColor: colors.primarySoft };
+  return null;
 };
 
-const STANDINGS_STAT_HELP = {
-  HCP: {
-    title: 'HCP (Handicap)',
-    message:
-      'Skill rating for this player. A lower number means a stronger player. When handicap is enabled for the tournament, upsets can earn bonus standing points.',
-    icon: 'target',
-  },
-  W: {
-    title: 'W (Wins)',
-    message: 'Number of matches won in this group.',
-    icon: 'success',
-  },
-  L: {
-    title: 'L (Losses)',
-    message: 'Number of matches lost in this group.',
-    icon: 'close-circle-outline',
-  },
-  'Win%': {
-    title: 'Win%',
-    message: 'Match win percentage: wins divided by total matches played in this group.',
-    icon: 'chart',
-  },
-  PPM: {
-    title: 'PPM (Points Per Match)',
-    message:
-      'Average match points scored per match — your offense. In APA-style scoring, this reflects balls/points earned across games in each series, not just whether you won.',
-    icon: 'pool',
-  },
-  PAA: {
-    title: 'PAA (Points Against Average)',
-    message:
-      'Average match points your opponents scored against you per match — your defense. Lower PAA usually means you give up fewer points.',
-    icon: 'shield',
-  },
+const STANDINGS_TABLE_TYPE = {
+  header: 12,
+  body: 14,
+  player: 15,
+  rank: 14,
+  rowPadH: 10,
+  rowPadV: 10,
+  stat: 36,
+  pts: 40,
+  rankCol: 32,
+  playerMin: 120,
 };
 
-function StandingsStatHeaderCell({ label, width, textAlign = 'left', headerCell, onPress }) {
-  if (!onPress) {
-    return <Text style={{ ...headerCell, width, textAlign }}>{label}</Text>;
-  }
+function ScrollableTableFrame({ tableMinWidth, children }) {
+  const { colors } = useTheme();
 
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`${label}. Tap for explanation.`}
-      style={({ pressed }) => ({
-        width,
-        opacity: pressed ? 0.75 : 1,
-      })}
+    <View
+      style={{
+        width: '100%',
+        alignSelf: 'stretch',
+        borderWidth: 1,
+        borderColor: colors.border,
+        borderRadius: 10,
+        overflow: 'hidden',
+      }}
     >
-      <Text
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator
+        nestedScrollEnabled
+        bounces={false}
+        style={{ width: '100%' }}
+        contentContainerStyle={{ flexGrow: 1 }}
+      >
+        <View style={{ width: '100%', minWidth: tableMinWidth }}>{children}</View>
+      </ScrollView>
+    </View>
+  );
+}
+
+function BasicGroupStandingsTable({
+  groupName,
+  standings,
+  resolvePlayerGameStats,
+  showExtendedStats,
+  showTopThreeMedals,
+  medalCount,
+  entityLabel,
+  col,
+}) {
+  const { colors } = useTheme();
+  const [activeStatHelp, setActiveStatHelp] = useState(null);
+  const rankWidth = col(STANDINGS_TABLE_TYPE.rankCol);
+  const playerMinWidth = col(STANDINGS_TABLE_TYPE.playerMin);
+  const gpWidth = col(STANDINGS_TABLE_TYPE.stat);
+  const statWidth = col(STANDINGS_TABLE_TYPE.stat);
+  const drawWidth = col(52);
+  const ptsWidth = col(STANDINGS_TABLE_TYPE.pts);
+  const rowPaddingH = col(STANDINGS_TABLE_TYPE.rowPadH);
+  const rowPaddingV = col(STANDINGS_TABLE_TYPE.rowPadV);
+  const headerFontSize = col(STANDINGS_TABLE_TYPE.header);
+  const bodyFontSize = col(STANDINGS_TABLE_TYPE.body);
+  const playerFontSize = col(STANDINGS_TABLE_TYPE.player);
+  const rankFontSize = col(STANDINGS_TABLE_TYPE.rank);
+  const tableMinWidth = showExtendedStats
+    ? rankWidth + playerMinWidth + gpWidth * 2 + statWidth * 2 + drawWidth + ptsWidth + rowPaddingH * 2
+    : rankWidth + playerMinWidth + statWidth * 3 + drawWidth + ptsWidth + rowPaddingH * 2;
+
+  const rowStyle = {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: rowPaddingH,
+    paddingVertical: rowPaddingV,
+    width: '100%',
+    minWidth: tableMinWidth,
+  };
+
+  const headerCell = {
+    fontWeight: '700',
+    fontSize: headerFontSize,
+    color: colors.textMuted,
+  };
+
+  const bodyCell = {
+    fontSize: bodyFontSize,
+    color: colors.text,
+  };
+
+  const openHelp = (key) => () => setActiveStatHelp(key);
+
+  return (
+    <>
+    <ScrollableTableFrame tableMinWidth={tableMinWidth}>
+      <View
         style={{
-          ...headerCell,
-          textAlign,
-          color: tournamentColors.primary,
-          textDecorationLine: 'underline',
-          textDecorationStyle: 'dotted',
+          ...rowStyle,
+          backgroundColor: colors.surfaceRaised,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.border,
         }}
       >
-        {label}
-      </Text>
-    </Pressable>
+        <Text style={{ ...headerCell, width: rankWidth }}>#</Text>
+        <Text style={{ ...headerCell, flex: 1, minWidth: playerMinWidth }}>{entityLabel}</Text>
+        {showExtendedStats ? (
+          <>
+            <StandingsStatHeaderCell label="GP" width={gpWidth} textAlign="right" headerCell={headerCell} onPress={openHelp('GP')} />
+            <StandingsStatHeaderCell label="GR" width={gpWidth} textAlign="right" headerCell={headerCell} onPress={openHelp('GR')} />
+            <StandingsStatHeaderCell label="W" width={statWidth} textAlign="right" headerCell={headerCell} onPress={openHelp('W')} />
+            <StandingsStatHeaderCell label="D" width={drawWidth} textAlign="right" headerCell={headerCell} onPress={openHelp('Draw')} />
+            <StandingsStatHeaderCell label="L" width={statWidth} textAlign="right" headerCell={headerCell} onPress={openHelp('L')} />
+            <StandingsStatHeaderCell label="Pts" width={ptsWidth} textAlign="right" headerCell={headerCell} onPress={openHelp('Pts')} />
+          </>
+        ) : (
+          <>
+            <StandingsStatHeaderCell label="W" width={statWidth} textAlign="right" headerCell={headerCell} onPress={openHelp('W')} />
+            <StandingsStatHeaderCell label="D" width={drawWidth} textAlign="right" headerCell={headerCell} onPress={openHelp('Draw')} />
+            <StandingsStatHeaderCell label="L" width={statWidth} textAlign="right" headerCell={headerCell} onPress={openHelp('L')} />
+            <StandingsStatHeaderCell label="Pts" width={ptsWidth} textAlign="right" headerCell={headerCell} onPress={openHelp('Pts')} />
+          </>
+        )}
+      </View>
+
+      {standings.map((entry, index) => {
+        const isLastRow = index === standings.length - 1;
+        const rankNumber = Number(entry.rank || index + 1);
+        const hasMedal = showTopThreeMedals && rankNumber >= 1 && rankNumber <= medalCount;
+        const playerGameStats = resolvePlayerGameStats
+          ? resolvePlayerGameStats(entry)
+          : { gamesPlayed: 0, gamesRemaining: 0 };
+
+        return (
+          <View
+            key={`${groupName}-${entry.playerId}`}
+            style={{
+              ...rowStyle,
+              borderBottomWidth: isLastRow ? 0 : 1,
+              borderBottomColor: colors.border,
+              ...(hasMedal ? getMedalRowStyleByRank(rankNumber, colors) : null),
+            }}
+          >
+            <Text style={{ width: rankWidth, color: colors.text, fontWeight: '700', fontSize: rankFontSize }}>
+              {hasMedal ? <AppIcon name="medal" size={col(14)} color={MEDAL_COLORS[rankNumber]} /> : `#${rankNumber}`}
+            </Text>
+            <Text
+              style={{
+                flex: 1,
+                minWidth: playerMinWidth,
+                color: colors.text,
+                fontWeight: hasMedal ? '700' : '500',
+                fontSize: playerFontSize,
+              }}
+              numberOfLines={entityLabel === 'Team' ? 2 : 1}
+            >
+              {entry.player?.displayName || entry.playerName || entry.playerId}
+            </Text>
+            {showExtendedStats ? (
+              <>
+                <Text style={{ ...bodyCell, width: gpWidth, textAlign: 'right' }}>{playerGameStats.gamesPlayed}</Text>
+                <Text style={{ ...bodyCell, width: gpWidth, textAlign: 'right' }}>{playerGameStats.gamesRemaining}</Text>
+                <Text style={{ ...bodyCell, width: statWidth, textAlign: 'right' }}>{entry.wins || 0}</Text>
+                <Text style={{ ...bodyCell, width: drawWidth, textAlign: 'right' }}>{entry.draws || 0}</Text>
+                <Text style={{ ...bodyCell, width: statWidth, textAlign: 'right' }}>{entry.losses || 0}</Text>
+                <Text style={{ ...bodyCell, width: ptsWidth, textAlign: 'right', fontWeight: '700' }}>
+                  {entry.points || 0}
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={{ ...bodyCell, width: statWidth, textAlign: 'right' }}>{entry.wins || 0}</Text>
+                <Text style={{ ...bodyCell, width: drawWidth, textAlign: 'right' }}>{entry.draws || 0}</Text>
+                <Text style={{ ...bodyCell, width: statWidth, textAlign: 'right' }}>{entry.losses || 0}</Text>
+                <Text style={{ ...bodyCell, width: ptsWidth, textAlign: 'right', fontWeight: '700' }}>
+                  {entry.points || 0}
+                </Text>
+              </>
+            )}
+          </View>
+        );
+      })}
+    </ScrollableTableFrame>
+
+    <FeedbackModal
+      visible={Boolean(activeStatHelp && STANDINGS_STAT_HELP[activeStatHelp])}
+      title={STANDINGS_STAT_HELP[activeStatHelp]?.title || ''}
+      message={STANDINGS_STAT_HELP[activeStatHelp]?.message || ''}
+      icon={STANDINGS_STAT_HELP[activeStatHelp]?.icon || 'info'}
+      onDismiss={() => setActiveStatHelp(null)}
+    />
+    </>
   );
 }
 
@@ -86,28 +216,33 @@ function ScoresheetStandingsTable({
   medalCount,
   col,
 }) {
+  const { colors } = useTheme();
   const [activeStatHelp, setActiveStatHelp] = useState(null);
-  const playerWidth = col(148);
+  const rankWidth = col(STANDINGS_TABLE_TYPE.rankCol);
+  const playerWidth = col(STANDINGS_TABLE_TYPE.playerMin);
   const hcpWidth = col(48);
-  const statWidth = col(44);
+  const statWidth = col(STANDINGS_TABLE_TYPE.stat);
+  const drawWidth = col(52);
   const winPctWidth = col(56);
-  const headerFontSize = col(12);
-  const bodyFontSize = col(14);
-  const playerFontSize = col(15);
-  const rowPaddingH = col(10);
-  const rowPaddingV = col(10);
+  const ptsWidth = col(STANDINGS_TABLE_TYPE.pts);
+  const headerFontSize = col(STANDINGS_TABLE_TYPE.header);
+  const bodyFontSize = col(STANDINGS_TABLE_TYPE.body);
+  const playerFontSize = col(STANDINGS_TABLE_TYPE.player);
+  const rankFontSize = col(STANDINGS_TABLE_TYPE.rank);
+  const rowPaddingH = col(STANDINGS_TABLE_TYPE.rowPadH);
+  const rowPaddingV = col(STANDINGS_TABLE_TYPE.rowPadV);
   const tableMinWidth =
-    playerWidth + (handicapEnabled ? hcpWidth : 0) + statWidth * 4 + winPctWidth;
+    rankWidth + playerWidth + (handicapEnabled ? hcpWidth : 0) + statWidth * 4 + drawWidth + winPctWidth + ptsWidth;
 
   const headerCell = {
     fontWeight: '700',
     fontSize: headerFontSize,
-    color: tournamentColors.textMuted,
+    color: colors.textMuted,
   };
 
   const bodyCell = {
     fontSize: bodyFontSize,
-    color: tournamentColors.text,
+    color: colors.text,
   };
 
   const renderHeader = () => (
@@ -115,15 +250,17 @@ function ScoresheetStandingsTable({
       style={{
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#f8fafc',
+        backgroundColor: colors.surfaceRaised,
         borderBottomWidth: 1,
-        borderBottomColor: tournamentColors.borderLight,
+        borderBottomColor: colors.border,
         paddingHorizontal: rowPaddingH,
         paddingVertical: rowPaddingV,
+        width: '100%',
         minWidth: tableMinWidth,
       }}
     >
-      <Text style={{ ...headerCell, width: playerWidth }}>Player</Text>
+      <Text style={{ ...headerCell, width: rankWidth }}>#</Text>
+      <Text style={{ ...headerCell, flex: 1, minWidth: playerWidth }}>Player</Text>
       {handicapEnabled ? (
         <StandingsStatHeaderCell
           label="HCP"
@@ -139,6 +276,13 @@ function ScoresheetStandingsTable({
         textAlign="right"
         headerCell={headerCell}
         onPress={() => setActiveStatHelp('W')}
+      />
+      <StandingsStatHeaderCell
+        label="D"
+        width={drawWidth}
+        textAlign="right"
+        headerCell={headerCell}
+        onPress={() => setActiveStatHelp('Draw')}
       />
       <StandingsStatHeaderCell
         label="L"
@@ -168,6 +312,13 @@ function ScoresheetStandingsTable({
         headerCell={headerCell}
         onPress={() => setActiveStatHelp('PAA')}
       />
+      <StandingsStatHeaderCell
+        label="Pts"
+        width={ptsWidth}
+        textAlign="right"
+        headerCell={headerCell}
+        onPress={() => setActiveStatHelp('Pts')}
+      />
     </View>
   );
 
@@ -186,24 +337,25 @@ function ScoresheetStandingsTable({
           paddingHorizontal: rowPaddingH,
           paddingVertical: rowPaddingV,
           borderBottomWidth: isLastRow ? 0 : 1,
-          borderBottomColor: '#f1f5f9',
+          borderBottomColor: colors.border,
+          width: '100%',
           minWidth: tableMinWidth,
-          ...(hasMedal ? MEDAL_ROW_STYLE_BY_RANK[rankNumber] || null : null),
+          ...(hasMedal ? getMedalRowStyleByRank(rankNumber, colors) : null),
         }}
       >
+        <Text style={{ width: rankWidth, color: colors.text, fontWeight: '700', fontSize: rankFontSize }}>
+          {hasMedal ? <AppIcon name="medal" size={col(14)} color={MEDAL_COLORS[rankNumber]} /> : `#${rankNumber}`}
+        </Text>
         <Text
           style={{
-            width: playerWidth,
-            color: tournamentColors.text,
+            flex: 1,
+            minWidth: playerWidth,
+            color: colors.text,
             fontWeight: hasMedal ? '700' : '500',
             fontSize: playerFontSize,
           }}
           numberOfLines={2}
         >
-          {hasMedal ? (
-            <AppIcon name="medal" size={playerFontSize} color={MEDAL_COLORS[rankNumber]} />
-          ) : null}
-          {hasMedal ? '  ' : ''}
           {playerName}
         </Text>
         {handicapEnabled ? (
@@ -214,24 +366,26 @@ function ScoresheetStandingsTable({
         <Text style={{ ...bodyCell, width: statWidth, textAlign: 'right' }}>
           {entry.stats?.matchesWon ?? entry.wins ?? 0}
         </Text>
+        <Text style={{ ...bodyCell, width: drawWidth, textAlign: 'right' }}>{entry.draws || 0}</Text>
         <Text style={{ ...bodyCell, width: statWidth, textAlign: 'right' }}>{entry.losses || 0}</Text>
         <Text style={{ ...bodyCell, width: winPctWidth, textAlign: 'right' }}>
           {entry.stats?.winPct ?? 0}%
         </Text>
         <Text style={{ ...bodyCell, width: statWidth, textAlign: 'right' }}>{entry.stats?.ppm ?? 0}</Text>
         <Text style={{ ...bodyCell, width: statWidth, textAlign: 'right' }}>{entry.stats?.paa ?? 0}</Text>
+        <Text style={{ ...bodyCell, width: ptsWidth, textAlign: 'right', fontWeight: '700' }}>
+          {entry.points || 0}
+        </Text>
       </View>
     );
   };
 
   return (
     <>
-      <ScrollView horizontal showsHorizontalScrollIndicator nestedScrollEnabled bounces={false}>
-        <View style={{ minWidth: tableMinWidth }}>
-          {renderHeader()}
-          {standings.map(renderRow)}
-        </View>
-      </ScrollView>
+      <ScrollableTableFrame tableMinWidth={tableMinWidth}>
+        {renderHeader()}
+        {standings.map(renderRow)}
+      </ScrollableTableFrame>
 
       <FeedbackModal
         visible={Boolean(activeStatHelp && STANDINGS_STAT_HELP[activeStatHelp])}
@@ -254,134 +408,48 @@ export function GroupStandingsCard({
   showTopThreeMedals = false,
   medalCount = 3,
   entityLabel = 'Player',
+  embedded = false,
 }) {
+  const { colors } = useTheme();
   const { sp, isWide } = useTypography();
   const col = (width) => (isWide ? sp(width) : width);
 
+  const tableContent =
+    standings.length === 0 ? (
+      <Text style={{ color: colors.textMuted, fontSize: 13 }}>No players in this group yet.</Text>
+    ) : showScoresheetStats ? (
+      <ScoresheetStandingsTable
+        groupName={groupName}
+        standings={standings}
+        handicapEnabled={handicapEnabled}
+        showTopThreeMedals={showTopThreeMedals}
+        medalCount={medalCount}
+        col={col}
+      />
+    ) : (
+      <BasicGroupStandingsTable
+        groupName={groupName}
+        standings={standings}
+        resolvePlayerGameStats={resolvePlayerGameStats}
+        showExtendedStats={showExtendedStats}
+        showTopThreeMedals={showTopThreeMedals}
+        medalCount={medalCount}
+        entityLabel={entityLabel}
+        col={col}
+      />
+    );
+
+  const wrappedContent = <View style={{ width: '100%', alignSelf: 'stretch' }}>{tableContent}</View>;
+
+  if (embedded) {
+    return wrappedContent;
+  }
+
   return (
-    <View style={discoverUi.listCard}>
-      <View style={{ padding: isWide ? sp(14) : 14, gap: isWide ? sp(10) : 10 }}>
-        <Text style={{ fontSize: 16, fontWeight: '800', color: tournamentColors.text }}>{groupName}</Text>
-
-        {standings.length === 0 ? (
-          <Text style={{ color: tournamentColors.textMuted, fontSize: 13 }}>No players in this group yet.</Text>
-        ) : showScoresheetStats ? (
-          <View style={{ borderWidth: 1, borderColor: tournamentColors.borderLight, borderRadius: 10, overflow: 'hidden' }}>
-            <ScoresheetStandingsTable
-              groupName={groupName}
-              standings={standings}
-              handicapEnabled={handicapEnabled}
-              showTopThreeMedals={showTopThreeMedals}
-              medalCount={medalCount}
-              col={col}
-            />
-          </View>
-        ) : (
-          <View style={{ borderWidth: 1, borderColor: tournamentColors.borderLight, borderRadius: 10, overflow: 'hidden' }}>
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                backgroundColor: '#f8fafc',
-                borderBottomWidth: 1,
-                borderBottomColor: tournamentColors.borderLight,
-                paddingHorizontal: 8,
-                paddingVertical: 8,
-              }}
-            >
-              <Text style={{ width: col(28), fontWeight: '700', fontSize: 10, color: tournamentColors.textMuted }}>#</Text>
-              <Text style={{ flex: 1, minWidth: col(72), fontWeight: '700', fontSize: 10, color: tournamentColors.textMuted }}>
-                {entityLabel}
-              </Text>
-              {showExtendedStats ? (
-                <>
-                  <Text style={{ width: col(34), textAlign: 'right', fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }}>
-                    GP
-                  </Text>
-                  <Text style={{ width: col(34), textAlign: 'right', fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }}>
-                    GR
-                  </Text>
-                  <Text style={{ width: col(30), textAlign: 'right', fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }}>W</Text>
-                  <Text style={{ width: col(30), textAlign: 'right', fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }}>L</Text>
-                  <Text style={{ width: col(36), textAlign: 'right', fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }}>Pts</Text>
-                </>
-              ) : (
-                <>
-                  <Text style={{ width: col(30), textAlign: 'right', fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }}>W</Text>
-                  <Text style={{ width: col(30), textAlign: 'right', fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }}>L</Text>
-                  <Text style={{ width: col(36), textAlign: 'right', fontWeight: '700', fontSize: 11, color: tournamentColors.textMuted }}>Pts</Text>
-                </>
-              )}
-            </View>
-
-            {standings.map((entry, index) => {
-              const isLastRow = index === standings.length - 1;
-              const rankNumber = Number(entry.rank || index + 1);
-              const hasMedal = showTopThreeMedals && rankNumber >= 1 && rankNumber <= medalCount;
-              const playerGameStats = resolvePlayerGameStats
-                ? resolvePlayerGameStats(entry)
-                : { gamesPlayed: 0, gamesRemaining: 0 };
-
-              return (
-                <View
-                  key={`${groupName}-${entry.playerId}`}
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    paddingHorizontal: 8,
-                    paddingVertical: 8,
-                    borderBottomWidth: isLastRow ? 0 : 1,
-                    borderBottomColor: '#f1f5f9',
-                    ...(hasMedal ? MEDAL_ROW_STYLE_BY_RANK[rankNumber] || null : null),
-                  }}
-                >
-                  <Text style={{ width: col(28), color: tournamentColors.text, fontWeight: '700', fontSize: 12 }}>
-                    {hasMedal ? (
-                      <AppIcon name="medal" size={col(14)} color={MEDAL_COLORS[rankNumber]} />
-                    ) : (
-                      `#${rankNumber}`
-                    )}
-                  </Text>
-                  <Text
-                    style={{
-                      flex: 1,
-                      minWidth: col(72),
-                      color: tournamentColors.text,
-                      fontWeight: hasMedal ? '700' : '400',
-                      fontSize: 12,
-                    }}
-                    numberOfLines={entityLabel === 'Team' ? 2 : 1}
-                  >
-                    {entry.player?.displayName || entry.playerName || entry.playerId}
-                  </Text>
-                  {showExtendedStats ? (
-                    <>
-                      <Text style={{ width: col(34), textAlign: 'right', color: tournamentColors.text, fontSize: 12 }}>
-                        {playerGameStats.gamesPlayed}
-                      </Text>
-                      <Text style={{ width: col(34), textAlign: 'right', color: tournamentColors.text, fontSize: 12 }}>
-                        {playerGameStats.gamesRemaining}
-                      </Text>
-                      <Text style={{ width: col(30), textAlign: 'right', color: tournamentColors.text, fontSize: 12 }}>{entry.wins || 0}</Text>
-                      <Text style={{ width: col(30), textAlign: 'right', color: tournamentColors.text, fontSize: 12 }}>{entry.losses || 0}</Text>
-                      <Text style={{ width: col(36), textAlign: 'right', color: tournamentColors.text, fontWeight: '700', fontSize: 12 }}>
-                        {entry.points || 0}
-                      </Text>
-                    </>
-                  ) : (
-                    <>
-                      <Text style={{ width: col(30), textAlign: 'right', color: tournamentColors.text, fontSize: 12 }}>{entry.wins || 0}</Text>
-                      <Text style={{ width: col(30), textAlign: 'right', color: tournamentColors.text, fontSize: 12 }}>{entry.losses || 0}</Text>
-                      <Text style={{ width: col(36), textAlign: 'right', color: tournamentColors.text, fontWeight: '700', fontSize: 12 }}>
-                        {entry.points || 0}
-                      </Text>
-                    </>
-                  )}
-                </View>
-              );
-            })}
-          </View>
-        )}
+    <View style={[discoverUi.listCard, { width: '100%', alignSelf: 'stretch' }]}>
+      <View style={{ padding: isWide ? sp(12) : 12, gap: isWide ? sp(8) : 8, width: '100%' }}>
+        <Text style={{ fontSize: 16, fontWeight: '800', color: colors.text }}>{groupName}</Text>
+        {wrappedContent}
       </View>
     </View>
   );

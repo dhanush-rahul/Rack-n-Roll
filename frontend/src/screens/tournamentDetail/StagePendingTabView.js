@@ -37,7 +37,7 @@ function MatchupRow({ slotA, slotB, bestOf = 3 }) {
         borderColor: tournamentColors.border,
         borderRadius: 10,
         padding: 12,
-        backgroundColor: '#f8fafc',
+        backgroundColor: tournamentColors.surfaceAlt,
         gap: 6,
       }}
     >

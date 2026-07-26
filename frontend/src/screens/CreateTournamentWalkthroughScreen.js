@@ -70,7 +70,7 @@ function MockChip({ label, selected }) {
         borderRadius: 999,
         borderWidth: 1,
         borderColor: selected ? tournamentColors.primary : tournamentColors.border,
-        backgroundColor: selected ? '#dbeafe' : tournamentColors.white,
+        backgroundColor: selected ? tournamentColors.chipSelectedBg : tournamentColors.white,
       }}
     >
       <Text style={{ fontWeight: '600', color: selected ? tournamentColors.primary : tournamentColors.text }}>
@@ -89,7 +89,7 @@ function MockModeOption({ label, description, selected }) {
         borderColor: selected ? tournamentColors.primary : tournamentColors.border,
         borderRadius: 12,
         padding: 12,
-        backgroundColor: selected ? '#eff6ff' : tournamentColors.white,
+        backgroundColor: selected ? tournamentColors.modeSelectedBg : tournamentColors.white,
         gap: 4,
       }}
     >
@@ -280,8 +280,8 @@ function LaunchSection({ highlighted }) {
           {
             borderRadius: 14,
             borderWidth: 1,
-            borderColor: highlighted ? tournamentColors.primary : '#bfdbfe',
-            backgroundColor: '#f8fafc',
+            borderColor: highlighted ? tournamentColors.primary : tournamentColors.previewBorder,
+            backgroundColor: tournamentColors.previewBg,
             padding: 14,
             gap: 6,
           },
@@ -300,7 +300,7 @@ function LaunchSection({ highlighted }) {
           alignItems: 'center',
           backgroundColor: tournamentColors.primary,
           borderWidth: highlighted ? 2 : 0,
-          borderColor: highlighted ? '#1d4ed8' : 'transparent',
+          borderColor: highlighted ? tournamentColors.statusInfoText : 'transparent',
         }}
       >
         <Text style={{ color: tournamentColors.white, fontSize: 16, fontWeight: '700' }}>Launch tournament</Text>
@@ -417,7 +417,7 @@ export function CreateTournamentWalkthroughScreen({ navigation }) {
     await setCreateTournamentWalkthroughCompleted(true);
 
     InteractionManager.runAfterInteractions(() => {
-      exitWalkthroughTo(navigation, 'CreateTournament');
+      exitWalkthroughTo(navigation, 'MainTabs', { screen: 'CreateTab' });
     });
   }, [navigation]);
 
@@ -546,7 +546,7 @@ export function CreateTournamentWalkthroughScreen({ navigation }) {
           <Text style={{ fontSize: 15, fontWeight: '600', color: tournamentColors.textMuted }}>Skip</Text>
         </Pressable>
         {stepIndex !== 0 ? (
-          <Text style={{ fontSize: 13, fontWeight: '600', color: '#94a3b8' }}>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: tournamentColors.heroSubtext }}>
             {stepIndex + 1} / {CREATE_TOURNAMENT_WALKTHROUGH_STEPS.length}
           </Text>
         ) : (

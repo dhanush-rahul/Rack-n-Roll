@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
+import { ignoreNextPopStateRef } from '../utils/navigationGuard';
 
 const GUARD_STATE = { racknrollBackGuard: true };
 
 /**
- * Traps the browser Back button on web and always asks whether the user wants to
- * leave the app or stay. In-app navigation should use the header back control.
+ * Traps the browser Back button on web at the app root and asks whether the user wants to leave.
+ * In-app navigation (tabs, stack back) should not trigger the exit prompt.
  */
-export function useWebBrowserBackGuard({ enabled = true }) {
+export function useWebBrowserBackGuard({ enabled = true, navigationRef } = {}) {
   const [exitConfirmVisible, setExitConfirmVisible] = useState(false);
   const isExitingRef = useRef(false);
   const guardInstalledRef = useRef(false);
@@ -74,10 +75,20 @@ export function useWebBrowserBackGuard({ enabled = true }) {
         return;
       }
 
+      if (ignoreNextPopStateRef.current) {
+        pushGuardState();
+        return;
+      }
+
       window.setTimeout(() => {
+        if (navigationRef?.isReady?.() && navigationRef.canGoBack()) {
+          pushGuardState();
+          return;
+        }
+
         setExitConfirmVisible(true);
+        pushGuardState();
       }, 0);
-      pushGuardState();
     };
 
     window.addEventListener('popstate', onPopState);
@@ -86,7 +97,7 @@ export function useWebBrowserBackGuard({ enabled = true }) {
       window.removeEventListener('popstate', onPopState);
       guardInstalledRef.current = false;
     };
-  }, [enabled, installHistoryGuard, pushGuardState]);
+  }, [enabled, installHistoryGuard, navigationRef, pushGuardState]);
 
   return {
     exitConfirmVisible,

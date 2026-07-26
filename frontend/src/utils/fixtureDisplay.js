@@ -266,6 +266,8 @@ export const mapGameToDisplayMatch = (game, { groupStageBestOf = 1, isPlayedScor
     canEditMatch: Boolean(game.canEditMatch),
     canScheduleMatch: Boolean(game.canScheduleMatch),
     scheduledStartAt: game.scheduledStartAt || null,
+    matchStartedAt: game.matchStartedAt || null,
+    matchDurationMs: Number.isFinite(Number(game.matchDurationMs)) ? Number(game.matchDurationMs) : null,
   };
 };
 

@@ -52,8 +52,8 @@ export function LegalConsent({ checked, onToggle, error }) {
           padding: 12,
           borderRadius: 10,
           borderWidth: 1,
-          borderColor: error ? '#fca5a5' : '#e5e7eb',
-          backgroundColor: error ? '#fef2f2' : '#f8fafc',
+          borderColor: error ? tournamentColors.errorInputBorder : tournamentColors.borderLight,
+          backgroundColor: error ? tournamentColors.errorSurface : tournamentColors.surfaceMuted,
         }}
       >
         <Pressable

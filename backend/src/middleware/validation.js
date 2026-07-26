@@ -155,6 +155,11 @@ const validateCreateTournament = (req) => {
   if (handicapFlag !== undefined && typeof handicapFlag !== 'boolean') {
     throw new ApiError(400, 'INVALID_HANDICAP_FLAG', 'handicapEnabled must be a boolean');
   }
+
+  const scoringStyle = body.competitionConfig?.scoringStyle;
+  if (scoringStyle !== undefined && !['individualGames', 'totalPoints'].includes(scoringStyle)) {
+    throw new ApiError(400, 'INVALID_SCORING_STYLE', 'scoringStyle must be individualGames or totalPoints');
+  }
 };
 
 const validateInviteCodePayload = (req) => {
@@ -379,7 +384,7 @@ const validateRoundRobinPatternRead = (req) => {
 };
 
 const validateDiscoveryQuery = (req) => {
-  const { page, pageSize, sort, q, search } = req.query || {};
+  const { page, pageSize, sort, q, search, upcoming, ongoing } = req.query || {};
 
   if (page !== undefined && (!Number.isInteger(Number(page)) || Number(page) < 1)) {
     throw new ApiError(400, 'INVALID_PAGE', 'page must be a positive integer');
@@ -387,6 +392,14 @@ const validateDiscoveryQuery = (req) => {
 
   if (pageSize !== undefined && (!Number.isInteger(Number(pageSize)) || Number(pageSize) < 1)) {
     throw new ApiError(400, 'INVALID_PAGE_SIZE', 'pageSize must be a positive integer');
+  }
+
+  if (upcoming !== undefined && !['true', 'false', '1', '0'].includes(String(upcoming).trim().toLowerCase())) {
+    throw new ApiError(400, 'INVALID_UPCOMING', 'upcoming must be true or false');
+  }
+
+  if (ongoing !== undefined && !['true', 'false', '1', '0'].includes(String(ongoing).trim().toLowerCase())) {
+    throw new ApiError(400, 'INVALID_ONGOING', 'ongoing must be true or false');
   }
 
   if (sort !== undefined && !['newest', 'oldest', 'startsSoon', 'startsLatest'].includes(sort)) {
@@ -404,8 +417,47 @@ const validateDiscoveryQuery = (req) => {
   }
 };
 
+const validateMyTournamentsQuery = (req) => {
+  const { page, pageSize, sort, filter, q, search } = req.query || {};
+  const allowedFilters = new Set(['all', 'hosting', 'playing', 'pending']);
+
+  if (page !== undefined && (!Number.isInteger(Number(page)) || Number(page) < 1)) {
+    throw new ApiError(400, 'INVALID_PAGE', 'page must be a positive integer');
+  }
+
+  if (pageSize !== undefined && (!Number.isInteger(Number(pageSize)) || Number(pageSize) < 1)) {
+    throw new ApiError(400, 'INVALID_PAGE_SIZE', 'pageSize must be a positive integer');
+  }
+
+  if (sort !== undefined && !['activity', 'startsSoon', 'name', 'newest'].includes(sort)) {
+    throw new ApiError(400, 'INVALID_SORT', 'sort must be activity, startsSoon, name, or newest');
+  }
+
+  if (filter !== undefined) {
+    const filterParts = String(filter)
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+    if (filterParts.length === 0 || filterParts.some((part) => !allowedFilters.has(part))) {
+      throw new ApiError(
+        400,
+        'INVALID_FILTER',
+        'filter must be all or a comma-separated list of hosting, playing, and/or pending'
+      );
+    }
+  }
+
+  const searchTerm = typeof q === 'string' ? q : typeof search === 'string' ? search : '';
+
+  if (searchTerm.length > 120) {
+    throw new ApiError(400, 'INVALID_SEARCH', 'search query must be 120 characters or fewer');
+  }
+};
+
 const routeValidators = [
   { method: 'GET', regex: /^\/api\/tournaments\/discover$/, validate: validateDiscoveryQuery },
+  { method: 'GET', regex: /^\/api\/tournaments\/my-tournaments$/, validate: validateMyTournamentsQuery },
   { method: 'POST', regex: /^\/api\/tournaments$/, validate: validateCreateTournament },
   {
     method: 'GET',
@@ -490,6 +542,7 @@ const routeValidators = [
     validate: validateProctorTransferAction,
   },
   { method: 'GET', regex: /^\/api\/tournaments\/[^/]+\/scoresheet$/, validate: validateScoresheetList },
+  { method: 'GET', regex: /^\/api\/tournaments\/[^/]+\/tracker$/, validate: validateScoresheetList },
   {
     method: 'POST',
     regex: /^\/api\/tournaments\/[^/]+\/games\/[^/]+\/start$/,

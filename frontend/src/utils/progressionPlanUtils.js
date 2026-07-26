@@ -24,8 +24,8 @@ export const nextPowerOfTwo = (value) => {
 
 export const buildDefaultProgressionState = () => ({
   enabled: false,
-  deferAfterGroups: true,
-  plannedGroupCount: '4',
+  deferAfterGroups: null,
+  plannedGroupCount: '',
   stages: [],
 });
 
@@ -119,6 +119,10 @@ export const computeStageInputCount = (progressionState, stage, stageIndex) => {
 export const validateProgressionPlan = (progressionState) => {
   const errors = [];
   if (!progressionState.enabled) {
+    if (progressionState.deferAfterGroups === null || progressionState.deferAfterGroups === undefined) {
+      errors.push('Choose what happens after group stage.');
+      return { valid: false, errors, pipeline: [] };
+    }
     return { valid: true, errors: [], pipeline: [] };
   }
 

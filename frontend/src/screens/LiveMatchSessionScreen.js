@@ -28,6 +28,8 @@ function PlayerSpotlight({
   player,
   isActive,
   seriesWins,
+  totalPoints,
+  scoreLabel = 'series wins',
   visits,
   showLegWonFooter,
   currentInning,
@@ -39,8 +41,8 @@ function PlayerSpotlight({
         padding: 16,
         borderRadius: 16,
         borderWidth: 2,
-        borderColor: isActive ? '#38bdf8' : 'rgba(226, 232, 240, 0.9)',
-        backgroundColor: isActive ? 'rgba(15, 23, 42, 0.92)' : 'rgba(248, 250, 252, 0.98)',
+        borderColor: isActive ? tournamentColors.liveActiveBorder : tournamentColors.liveWaitingBorder,
+        backgroundColor: isActive ? tournamentColors.liveActivePanel : tournamentColors.liveWaitingPanel,
       }}
     >
       <Text
@@ -48,7 +50,7 @@ function PlayerSpotlight({
           fontSize: 11,
           fontWeight: '800',
           letterSpacing: 1.1,
-          color: isActive ? '#7dd3fc' : '#94a3b8',
+          color: isActive ? tournamentColors.liveActiveLabel : tournamentColors.liveActiveMuted,
         }}
       >
         {isActive ? 'AT THE TABLE' : 'WAITING'}
@@ -58,22 +60,22 @@ function PlayerSpotlight({
           marginTop: 8,
           fontSize: 17,
           fontWeight: '800',
-          color: isActive ? '#f8fafc' : tournamentColors.text,
+          color: isActive ? tournamentColors.heroText : tournamentColors.text,
         }}
         numberOfLines={2}
       >
         {player?.displayName || 'Player'}
       </Text>
-      <Text style={{ marginTop: 6, fontSize: 22, fontWeight: '800', color: isActive ? '#38bdf8' : tournamentColors.primary }}>
-        {seriesWins}
+      <Text style={{ marginTop: 6, fontSize: 22, fontWeight: '800', color: isActive ? tournamentColors.liveActiveScore : tournamentColors.primary }}>
+        {totalPoints !== undefined && totalPoints !== null ? totalPoints : seriesWins}
       </Text>
-      <Text style={{ fontSize: 11, color: isActive ? '#94a3b8' : tournamentColors.textMuted }}>series wins</Text>
+      <Text style={{ fontSize: 11, color: isActive ? tournamentColors.liveActiveMuted : tournamentColors.textMuted }}>{scoreLabel}</Text>
       <View style={{ marginTop: 10, gap: 4 }}>
-        <Text style={{ fontSize: 12, fontWeight: '700', color: isActive ? '#cbd5e1' : tournamentColors.textMuted }}>
+        <Text style={{ fontSize: 12, fontWeight: '700', color: isActive ? tournamentColors.liveActiveSubtext : tournamentColors.textMuted }}>
           Inning {currentInning} · {visits} {visits === 1 ? 'visit' : 'visits'}
         </Text>
         {showLegWonFooter && (
-          <Text style={{ fontSize: 12, fontWeight: '700', color: '#166534' }}>Won this leg</Text>
+          <Text style={{ fontSize: 12, fontWeight: '700', color: tournamentColors.statusSuccessText }}>Won this lag</Text>
         )}
       </View>
     </View>
@@ -91,6 +93,8 @@ export function LiveMatchSessionScreen({ route, navigation }) {
   const [didAttemptAutoStart, setDidAttemptAutoStart] = useState(false);
   const [selectedEndReason, setSelectedEndReason] = useState(null);
   const [selectedWinnerId, setSelectedWinnerId] = useState(null);
+  const [playerAPointsInput, setPlayerAPointsInput] = useState('');
+  const [playerBPointsInput, setPlayerBPointsInput] = useState('');
   const [legWinnerPlayerId, setLegWinnerPlayerId] = useState(null);
   const [legWonConfirmVisible, setLegWonConfirmVisible] = useState(false);
   const [confirmRequestTakeoverVisible, setConfirmRequestTakeoverVisible] = useState(false);
@@ -215,7 +219,7 @@ export function LiveMatchSessionScreen({ route, navigation }) {
         (!legRequiredNow ||
           Boolean(activeSession?.activeGame?.legWinnerPlayerId || activeSession?.activeLegWinnerPlayerId));
       if (!legSatisfiedNow) {
-        showError('Mark the leg winner before passing the table.');
+        showError('Mark the lag winner before passing the table.');
         return;
       }
       if (!activeSession?.canMarkVisit && !activeSession?.canMarkSession && !activeSession?.isSessionController) {
@@ -244,13 +248,28 @@ export function LiveMatchSessionScreen({ route, navigation }) {
     try {
       setIsBusy(true);
       clearError();
-      const result = await endLiveSeriesGame(tournamentId, gameId, {
+      const payload = {
         winnerPlayerId: selectedWinnerId,
         endReason: selectedEndReason,
-      });
+      };
+
+      if (session?.scoringStyle === 'totalPoints') {
+        const playerAPoints = Number(playerAPointsInput);
+        const playerBPoints = Number(playerBPointsInput);
+        if (!Number.isFinite(playerAPoints) || !Number.isFinite(playerBPoints)) {
+          showError('Enter points for both players before ending the game.');
+          return;
+        }
+        payload.playerAPoints = playerAPoints;
+        payload.playerBPoints = playerBPoints;
+      }
+
+      const result = await endLiveSeriesGame(tournamentId, gameId, payload);
       setSession(normalizeLiveMatchSession(result));
       setSelectedEndReason(null);
       setSelectedWinnerId(null);
+      setPlayerAPointsInput('');
+      setPlayerBPointsInput('');
       if (result?.seriesComplete) {
         navigation.goBack();
       }
@@ -269,6 +288,8 @@ export function LiveMatchSessionScreen({ route, navigation }) {
     session?.status === 'inProgress' ||
     Boolean(session?.canMarkSession || session?.isSessionController || session?.sessionController);
   const canMark = Boolean(session?.canMarkSession || session?.isSessionController);
+  const isTotalPoints = session?.scoringStyle === 'totalPoints';
+  const scoreLabel = isTotalPoints ? 'total points' : 'series wins';
   const currentTurnId = session?.currentTurnPlayerId;
   const playerAId = session?.playerA?.id;
   const playerBId = session?.playerB?.id;
@@ -311,12 +332,12 @@ export function LiveMatchSessionScreen({ route, navigation }) {
 
   return (
     <>
-      <ScreenScrollShell style={{ backgroundColor: '#f1f5f9' }} contentContainerStyle={{ gap: 16 }}>
+      <ScreenScrollShell style={{ backgroundColor: tournamentColors.inputFill }} contentContainerStyle={{ gap: 16 }}>
         <View
           style={{
             padding: 18,
             borderRadius: 18,
-            backgroundColor: '#0f172a',
+            backgroundColor: tournamentColors.heroBg,
             overflow: 'hidden',
           }}
         >
@@ -328,32 +349,32 @@ export function LiveMatchSessionScreen({ route, navigation }) {
               width: 120,
               height: 120,
               borderRadius: 60,
-              backgroundColor: 'rgba(56, 189, 248, 0.25)',
+              backgroundColor: tournamentColors.liveHeroGlow,
             }}
           />
-          <Text style={{ fontSize: 11, fontWeight: '800', letterSpacing: 1.4, color: '#7dd3fc' }}>
+          <Text style={{ fontSize: 11, fontWeight: '800', letterSpacing: 1.4, color: tournamentColors.heroAccent }}>
             LIVE MATCH
           </Text>
-          <Text style={{ marginTop: 6, fontSize: 26, fontWeight: '800', color: '#f8fafc' }}>
+          <Text style={{ marginTop: 6, fontSize: 26, fontWeight: '800', color: tournamentColors.heroText }}>
             Best of {session?.bestOf || 1}
           </Text>
-          <Text style={{ marginTop: 6, fontSize: 15, color: '#94a3b8' }}>
+          <Text style={{ marginTop: 6, fontSize: 15, color: tournamentColors.heroSubtext }}>
             Game {session?.activeGameNumber || 1} of {session?.bestOf || 1} · Series {session?.playerASeriesWins || 0}–
             {session?.playerBSeriesWins || 0}
             {innings ? ` · Inning ${innings.currentInning}` : ''}
           </Text>
           {legRequired && !hasLeg && (
-            <Text style={{ marginTop: 4, fontSize: 14, fontWeight: '700', color: '#fde68a' }}>
-              Mark leg won to decide who breaks game 1
+            <Text style={{ marginTop: 4, fontSize: 14, fontWeight: '700', color: tournamentColors.liveWarningText }}>
+              Mark lag won to decide who breaks game 1
             </Text>
           )}
           {legRequired && hasLeg && legWinnerName && (
-            <Text style={{ marginTop: 4, fontSize: 14, fontWeight: '700', color: '#86efac' }}>
-              Leg: {legWinnerName} — pass the table to track visits
+            <Text style={{ marginTop: 4, fontSize: 14, fontWeight: '700', color: tournamentColors.accentMint }}>
+              Lag: {legWinnerName} — pass the table to track visits
             </Text>
           )}
           {!legRequired && breakerName && (
-            <Text style={{ marginTop: 4, fontSize: 14, fontWeight: '700', color: '#86efac' }}>
+            <Text style={{ marginTop: 4, fontSize: 14, fontWeight: '700', color: tournamentColors.accentMint }}>
               {breakerName} breaks (won previous game)
             </Text>
           )}
@@ -389,6 +410,8 @@ export function LiveMatchSessionScreen({ route, navigation }) {
                 player={session.playerA}
                 isActive={String(currentTurnId) === String(playerAId)}
                 seriesWins={session.playerASeriesWins || 0}
+                totalPoints={isTotalPoints ? session.playerATotalPoints ?? 0 : undefined}
+                scoreLabel={scoreLabel}
                 visits={innings?.visitsA || 0}
                 showLegWonFooter={legRequired && Boolean(legWinnerId && String(legWinnerId) === String(playerAId))}
                 currentInning={innings?.currentInning || 1}
@@ -431,6 +454,8 @@ export function LiveMatchSessionScreen({ route, navigation }) {
                 player={session.playerB}
                 isActive={String(currentTurnId) === String(playerBId)}
                 seriesWins={session.playerBSeriesWins || 0}
+                totalPoints={isTotalPoints ? session.playerBTotalPoints ?? 0 : undefined}
+                scoreLabel={scoreLabel}
                 visits={innings?.visitsB || 0}
                 showLegWonFooter={legRequired && Boolean(legWinnerId && String(legWinnerId) === String(playerBId))}
                 currentInning={innings?.currentInning || 1}
@@ -483,10 +508,10 @@ export function LiveMatchSessionScreen({ route, navigation }) {
                 }}
               >
                 <Text style={{ fontSize: 14, fontWeight: '800', color: tournamentColors.text }}>
-                  Leg won — who won this game?
+                  Lag won — who won this game?
                 </Text>
                 <Text style={{ fontSize: 13, color: tournamentColors.textMuted, lineHeight: 18 }}>
-                  Leg applies once per match (game 1 only) to decide who breaks. Later games: previous game winner
+                  Lag applies once per match (game 1 only) to decide who breaks. Later games: previous game winner
                   breaks.
                 </Text>
                 <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -502,7 +527,7 @@ export function LiveMatchSessionScreen({ route, navigation }) {
                           borderRadius: 12,
                           borderWidth: 2,
                           borderColor: isSelected ? tournamentColors.primary : tournamentColors.borderLight,
-                          backgroundColor: isSelected ? 'rgba(37, 99, 235, 0.08)' : tournamentColors.white,
+                          backgroundColor: isSelected ? tournamentColors.selectedSoftBg : tournamentColors.white,
                         }}
                       >
                         <Text style={{ fontSize: 14, fontWeight: '700', color: tournamentColors.text }}>
@@ -513,10 +538,10 @@ export function LiveMatchSessionScreen({ route, navigation }) {
                   })}
                 </View>
                 <ActionButton
-                  label={isBusy ? 'Working…' : 'Leg won'}
+                  label={isBusy ? 'Working…' : 'Lag won'}
                   onPress={() => {
                     if (!legWinnerPlayerId) {
-                      showError('Select the player who won the leg.');
+                      showError('Select the player who won the lag.');
                       return;
                     }
                     setLegWonConfirmVisible(true);
@@ -537,13 +562,13 @@ export function LiveMatchSessionScreen({ route, navigation }) {
                 style={{
                   padding: 14,
                   borderRadius: 14,
-                  backgroundColor: 'rgba(236, 253, 245, 0.95)',
+                  backgroundColor: tournamentColors.liveLagBannerBg,
                   borderWidth: 1,
-                  borderColor: 'rgba(34, 197, 94, 0.4)',
+                  borderColor: tournamentColors.liveLagBannerBorder,
                 }}
               >
-                <Text style={{ fontSize: 13, fontWeight: '700', color: '#166534' }}>
-                  {legWinnerName} won this leg. Use End game to finish game {session?.activeGameNumber || 1}.
+                <Text style={{ fontSize: 13, fontWeight: '700', color: tournamentColors.statusSuccessText }}>
+                  {legWinnerName} won this lag. Use End game to finish game {session?.activeGameNumber || 1}.
                 </Text>
               </View>
             )}
@@ -555,6 +580,10 @@ export function LiveMatchSessionScreen({ route, navigation }) {
                 onSelectWinner={setSelectedWinnerId}
                 selectedEndReason={selectedEndReason}
                 onSelectEndReason={setSelectedEndReason}
+                playerAPointsInput={playerAPointsInput}
+                playerBPointsInput={playerBPointsInput}
+                onChangePlayerAPoints={setPlayerAPointsInput}
+                onChangePlayerBPoints={setPlayerBPointsInput}
                 onConfirm={onConfirmEndGame}
                 isBusy={isBusy}
                 disabled={!isActiveScorer}
@@ -580,17 +609,17 @@ export function LiveMatchSessionScreen({ route, navigation }) {
 
       <ConfirmModal
         visible={legWonConfirmVisible}
-        title="Confirm leg won"
+        title="Confirm lag won"
         message={
           legWinnerPlayerId
             ? `Mark ${
                 String(legWinnerPlayerId) === String(playerAId)
                   ? session?.playerA?.displayName
                   : session?.playerB?.displayName
-              } as the leg winner for this game? You cannot mark another leg in the same game.`
+              } as the lag winner for this game? You cannot mark another lag in the same game.`
             : 'Select a player first.'
         }
-        confirmLabel="Leg won"
+        confirmLabel="Lag won"
         onConfirm={async () => {
           setLegWonConfirmVisible(false);
           await onAdvanceTurn({ legWinnerPlayerId });

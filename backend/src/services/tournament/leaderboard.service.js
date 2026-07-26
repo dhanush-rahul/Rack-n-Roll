@@ -466,7 +466,11 @@ const loadGroupStandingsList = async (tournamentId, query = {}) => {
   const handicapEnabled = Boolean(tournament?.competitionConfig?.handicapEnabled);
   const format = tournament?.competitionConfig?.format || 'singles';
   const pairFormationMode = tournament?.competitionConfig?.pairFormationMode || 'playerPicksPartner';
-  const divisions = await Division.find({ tournamentId, name: { $ne: 'Final Stage' } })
+  const divisions = await Division.find({
+    tournamentId,
+    name: { $ne: 'Final Stage' },
+    $or: [{ stageId: null }, { stageId: { $exists: false } }],
+  })
     .sort({ name: 1, _id: 1 })
     .lean();
 

@@ -25,26 +25,20 @@ function evaluateUpdateState(requirements, installed) {
   const storeUrl = resolveStoreUrl(requirements, installed.platform);
 
   if (installed.platform === 'web') {
+    // Web has no store install path — "update" is only a page refresh of hosted assets.
+    // Never hard-block the UI (unknown/0.0.0 versions and stale CDN caches made this a trap).
+    if (!installed.isKnownVersion) {
+      return { mandatoryUpdate: null, optionalUpdate: null };
+    }
+
     const belowMinimum = isVersionLessThan(installed.appVersion, requirements.minWebVersion);
     const belowLatest = isVersionGreaterThan(installed.appVersion, requirements.latestVersion);
 
-    if (belowMinimum) {
-      return {
-        mandatoryUpdate: {
-          message: requirements.mandatoryMessage,
-          storeUrl: null,
-          latestVersion: requirements.latestVersion,
-          kind: 'web',
-        },
-        optionalUpdate: null,
-      };
-    }
-
-    if (belowLatest) {
+    if (belowMinimum || belowLatest) {
       return {
         mandatoryUpdate: null,
         optionalUpdate: {
-          message: requirements.updateMessage,
+          message: belowMinimum ? requirements.mandatoryMessage : requirements.updateMessage,
           storeUrl: null,
           latestVersion: requirements.latestVersion,
           kind: 'web',

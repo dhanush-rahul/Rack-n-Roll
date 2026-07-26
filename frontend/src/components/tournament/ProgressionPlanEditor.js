@@ -25,7 +25,7 @@ function ModeOption({ label, description, selected, onPress }) {
         borderColor: selected ? tournamentColors.primary : tournamentColors.border,
         borderRadius: 12,
         padding: 12,
-        backgroundColor: selected ? '#eff6ff' : tournamentColors.white,
+        backgroundColor: selected ? tournamentColors.modeSelectedBg : tournamentColors.surfaceRaised,
         opacity: pressed ? 0.9 : 1,
         gap: 4,
       })}
@@ -55,12 +55,12 @@ function Stepper({ label, value, onChange, min = 1, max = 64 }) {
             borderColor: tournamentColors.border,
             alignItems: 'center',
             justifyContent: 'center',
-            backgroundColor: tournamentColors.white,
+            backgroundColor: tournamentColors.surfaceRaised,
           }}
         >
-          <Text style={{ fontSize: 18, fontWeight: '700' }}>−</Text>
+          <Text style={{ fontSize: 18, fontWeight: '700', color: tournamentColors.text }}>−</Text>
         </Pressable>
-        <Text style={{ minWidth: 28, textAlign: 'center', fontWeight: '700' }}>{value}</Text>
+        <Text style={{ minWidth: 28, textAlign: 'center', fontWeight: '700', color: tournamentColors.text }}>{value}</Text>
         <Pressable
           onPress={() => onChange(Math.min(max, value + 1))}
           style={{
@@ -71,10 +71,10 @@ function Stepper({ label, value, onChange, min = 1, max = 64 }) {
             borderColor: tournamentColors.border,
             alignItems: 'center',
             justifyContent: 'center',
-            backgroundColor: tournamentColors.white,
+            backgroundColor: tournamentColors.surfaceRaised,
           }}
         >
-          <Text style={{ fontSize: 18, fontWeight: '700' }}>+</Text>
+          <Text style={{ fontSize: 18, fontWeight: '700', color: tournamentColors.text }}>+</Text>
         </Pressable>
       </View>
     </View>
@@ -121,7 +121,7 @@ export function ProgressionPlanEditor({
         <ModeOption
           label="Decide after groups"
           description="Configure knockout or round-robin stages once group play is underway."
-          selected={!value.enabled && value.deferAfterGroups}
+          selected={!value.enabled && value.deferAfterGroups === true}
           onPress={() => update({ enabled: false, deferAfterGroups: true, stages: [] })}
         />
         <ModeOption
@@ -133,7 +133,7 @@ export function ProgressionPlanEditor({
         <ModeOption
           label="End after groups"
           description="Medal top players per group when group play finishes."
-          selected={!value.enabled && !value.deferAfterGroups}
+          selected={!value.enabled && value.deferAfterGroups === false}
           onPress={() => update({ enabled: false, deferAfterGroups: false, stages: [] })}
         />
       </View>
@@ -176,7 +176,7 @@ export function ProgressionPlanEditor({
                   borderRadius: 999,
                   borderWidth: 1,
                   borderColor: tournamentColors.border,
-                  backgroundColor: tournamentColors.white,
+                  backgroundColor: tournamentColors.surfaceRaised,
                 }}
               >
                 <Text style={{ fontSize: 12, fontWeight: '700', color: tournamentColors.primary }}>
@@ -199,20 +199,28 @@ export function ProgressionPlanEditor({
                   borderRadius: 12,
                   padding: 12,
                   gap: 12,
-                  backgroundColor: tournamentColors.white,
+                  backgroundColor: tournamentColors.surfaceRaised,
                 }}
               >
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Text style={{ fontWeight: '700', color: tournamentColors.text }}>Stage {index + 1}</Text>
-                  <View style={{ flexDirection: 'row', gap: 6 }}>
-                    <Pressable onPress={() => moveStage(stage.stageId, -1)}>
-                      <Text style={{ color: tournamentColors.primary, fontWeight: '700' }}>↑</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                    <Pressable
+                      onPress={() => moveStage(stage.stageId, -1)}
+                      hitSlop={8}
+                      style={{ paddingHorizontal: 4, paddingVertical: 2 }}
+                    >
+                      <Text style={{ color: tournamentColors.primary, fontWeight: '700', fontSize: 16 }}>↑</Text>
                     </Pressable>
-                    <Pressable onPress={() => moveStage(stage.stageId, 1)}>
-                      <Text style={{ color: tournamentColors.primary, fontWeight: '700' }}>↓</Text>
+                    <Pressable
+                      onPress={() => moveStage(stage.stageId, 1)}
+                      hitSlop={8}
+                      style={{ paddingHorizontal: 4, paddingVertical: 2 }}
+                    >
+                      <Text style={{ color: tournamentColors.primary, fontWeight: '700', fontSize: 16 }}>↓</Text>
                     </Pressable>
-                    <Pressable onPress={() => removeStage(stage.stageId)}>
-                      <Text style={{ color: '#b91c1c', fontWeight: '700' }}>Remove</Text>
+                    <Pressable onPress={() => removeStage(stage.stageId)} style={{ paddingLeft: 4 }}>
+                      <Text style={{ color: tournamentColors.error, fontWeight: '700' }}>Remove</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -220,10 +228,18 @@ export function ProgressionPlanEditor({
                 <View style={{ gap: 6 }}>
                   <Text style={{ fontSize: 13, fontWeight: '600', color: tournamentColors.textMuted }}>Name</Text>
                   <TextInput
-                    style={{ borderWidth: 1, borderColor: tournamentColors.border, borderRadius: 10, padding: 10 }}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: tournamentColors.border,
+                      borderRadius: 10,
+                      padding: 10,
+                      color: tournamentColors.text,
+                      backgroundColor: tournamentColors.inputFill,
+                    }}
                     value={stage.name}
                     onChangeText={(name) => updateStage(stage.stageId, { name })}
                     placeholder="e.g. Quarter Final"
+                    placeholderTextColor={tournamentColors.placeholder}
                   />
                 </View>
 
@@ -310,12 +326,12 @@ export function ProgressionPlanEditor({
               backgroundColor: tournamentColors.primary,
             }}
           >
-            <Text style={{ color: '#fff', fontWeight: '700' }}>Add stage</Text>
+            <Text style={{ color: tournamentColors.white, fontWeight: '700' }}>Add stage</Text>
           </Pressable>
         </>
       )}
 
-      {Boolean(fieldError) && <Text style={{ color: '#b91c1c', fontSize: 13 }}>{fieldError}</Text>}
+      {Boolean(fieldError) && <Text style={{ color: tournamentColors.error, fontSize: 13 }}>{fieldError}</Text>}
     </View>
   );
 }

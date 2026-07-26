@@ -10,18 +10,18 @@ export function ReadOnlyBanner() {
       style={{
         padding: 12,
         borderRadius: 12,
-        backgroundColor: '#eff6ff',
+        backgroundColor: tournamentColors.statusInfoBg,
         borderWidth: 1,
-        borderColor: '#bfdbfe',
+        borderColor: tournamentColors.primaryTint,
         flexDirection: 'row',
         gap: 10,
         alignItems: 'center',
       }}
     >
-      <AppIcon name="view" size={20} color="#1e40af" />
+      <AppIcon name="view" size={20} color={tournamentColors.statusInfoText} />
       <View style={{ flex: 1, gap: 2 }}>
-        <Text style={{ fontWeight: '700', color: '#1e40af', fontSize: 14 }}>View-only scoresheet</Text>
-        <Text style={{ color: '#1d4ed8', fontSize: 13, lineHeight: 18 }}>
+        <Text style={{ fontWeight: '700', color: tournamentColors.statusInfoText, fontSize: 14 }}>View-only scoresheet</Text>
+        <Text style={{ color: tournamentColors.textMuted, fontSize: 13, lineHeight: 18 }}>
           Browse groups, fixtures, and results. Scoring is managed by the host.
         </Text>
       </View>
@@ -39,9 +39,9 @@ export function SuccessBanner({ message }) {
       style={{
         padding: 12,
         borderRadius: 12,
-        backgroundColor: '#ecfdf5',
+        backgroundColor: tournamentColors.successSurface,
         borderWidth: 1,
-        borderColor: '#bbf7d0',
+        borderColor: tournamentColors.successBorder,
       }}
     >
       <Text style={{ color: tournamentColors.success, fontWeight: '600', fontSize: 14 }}>{message}</Text>
@@ -49,15 +49,41 @@ export function SuccessBanner({ message }) {
   );
 }
 
-const infoBannerPalettes = {
-  info: { bg: '#eff6ff', border: '#bfdbfe', title: '#1e40af', body: '#1d4ed8' },
-  success: { bg: '#ecfdf5', border: '#bbf7d0', title: '#166534', body: '#15803d' },
-  warning: { bg: '#fff7ed', border: '#fed7aa', title: '#9a3412', body: '#c2410c' },
-  neutral: { bg: '#f8fafc', border: tournamentColors.borderLight, title: tournamentColors.text, body: tournamentColors.textMuted },
-};
+const infoBannerPalettes = () => ({
+  info: {
+    bg: tournamentColors.statusInfoBg,
+    border: tournamentColors.primaryTint,
+    title: tournamentColors.statusInfoText,
+    body: tournamentColors.textMuted,
+  },
+  primary: {
+    bg: tournamentColors.primarySoft,
+    border: tournamentColors.primaryTint,
+    title: tournamentColors.primary,
+    body: tournamentColors.textMuted,
+  },
+  success: {
+    bg: tournamentColors.successSurface,
+    border: tournamentColors.successBorder,
+    title: tournamentColors.statusSuccessText,
+    body: tournamentColors.textMuted,
+  },
+  warning: {
+    bg: tournamentColors.statusWarningBg,
+    border: tournamentColors.warning,
+    title: tournamentColors.statusWarningText,
+    body: tournamentColors.textMuted,
+  },
+  neutral: {
+    bg: tournamentColors.surfaceRaised,
+    border: tournamentColors.borderLight,
+    title: tournamentColors.text,
+    body: tournamentColors.textMuted,
+  },
+});
 
 export function InfoBanner({ title, message, tone = 'info', icon }) {
-  const palette = infoBannerPalettes[tone] || infoBannerPalettes.info;
+  const palette = infoBannerPalettes()[tone] || infoBannerPalettes().info;
 
   return (
     <View
