@@ -61,6 +61,17 @@ export function AppHeaderShell({ children, style }) {
     );
   }
 
+  const glassStyle =
+    Platform.OS === 'web'
+      ? {
+          backgroundColor: colors.headerBar,
+          backdropFilter: 'blur(16px) saturate(160%)',
+          WebkitBackdropFilter: 'blur(16px) saturate(160%)',
+        }
+      : {
+          backgroundColor: colors.headerBar,
+        };
+
   return (
     <View
       style={[
