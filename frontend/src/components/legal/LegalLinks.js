@@ -6,6 +6,7 @@ import { legalUrls } from '../../config/legalUrls';
 import { authUi } from '../../styles/authUi';
 import { tournamentColors } from '../../styles/tournamentUi';
 import { openLegalUrl } from '../../utils/openLegalUrl';
+import { useTheme } from '../../context/ThemeContext';
 
 function LegalLink({ label, url, textStyle }) {
   return (
@@ -20,22 +21,33 @@ function LegalLink({ label, url, textStyle }) {
 }
 
 export function LegalFooter({ variant = 'auth', style }) {
+  const { colors } = useTheme();
   const isAuth = variant === 'auth';
+  const isWebFooter = variant === 'webFooter';
+
+  const linkTextStyle = isAuth
+    ? authUi.linkText
+    : {
+        color: isWebFooter ? colors.primary : tournamentColors.primary,
+        fontWeight: '700',
+        fontSize: isWebFooter ? 11 : 13,
+      };
+
+  const separatorColor = isAuth ? tournamentColors.textMuted : isWebFooter ? colors.textMuted : '#94a3b8';
 
   return (
-    <View style={[{ alignItems: 'center', gap: 6 }, style]}>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 }}>
-        <LegalLink
-          label="Terms and Conditions"
-          url={legalUrls.termsAndConditions}
-          textStyle={isAuth ? authUi.linkText : { color: tournamentColors.primary, fontWeight: '700', fontSize: 13 }}
-        />
-        <Text style={{ color: isAuth ? tournamentColors.textMuted : '#94a3b8', fontSize: 13 }}>·</Text>
-        <LegalLink
-          label="Privacy Policy"
-          url={legalUrls.privacyPolicy}
-          textStyle={isAuth ? authUi.linkText : { color: tournamentColors.primary, fontWeight: '700', fontSize: 13 }}
-        />
+    <View style={[{ alignItems: 'center', gap: isWebFooter ? 2 : 6 }, style]}>
+      <View
+        style={{
+          flexDirection: 'row',
+          flexWrap: 'wrap',
+          justifyContent: 'center',
+          gap: isWebFooter ? 3 : 8,
+        }}
+      >
+        <LegalLink label="Terms and Conditions" url={legalUrls.termsAndConditions} textStyle={linkTextStyle} />
+        <Text style={{ color: separatorColor, fontSize: isWebFooter ? 11 : 13 }}>·</Text>
+        <LegalLink label="Privacy Policy" url={legalUrls.privacyPolicy} textStyle={linkTextStyle} />
       </View>
     </View>
   );

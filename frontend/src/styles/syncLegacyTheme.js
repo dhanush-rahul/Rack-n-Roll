@@ -76,6 +76,10 @@ const SEMANTIC_KEYS = [
   'heroBodyText',
 ];
 
+function replaceStyle(container, key, patch) {
+  container[key] = { ...container[key], ...patch };
+}
+
 /**
  * Keeps legacy static tournamentUi / tournamentColors / authUi in sync with ThemeContext
  * so existing imports pick up dark mode when ThemeProvider re-renders the tree.
@@ -109,61 +113,82 @@ export function syncLegacyThemePalette(themeColors, mode = 'light') {
     }
   });
 
-  tournamentUi.screen.backgroundColor = themeColors.background;
-  tournamentUi.card.borderColor = themeColors.border;
-  tournamentUi.card.backgroundColor = themeColors.surface;
-  tournamentUi.input.borderColor = themeColors.border;
-  tournamentUi.input.color = themeColors.text;
-  tournamentUi.input.backgroundColor = themeColors.inputFill;
-  tournamentUi.modalCard.backgroundColor = themeColors.surface;
-  tournamentUi.modalCard.borderColor = themeColors.cardBorder;
-  tournamentUi.modalTitle.color = themeColors.text;
-  tournamentUi.modalMessage.color = themeColors.textMuted;
-  tournamentUi.modalOverlay.backgroundColor = themeColors.drawerOverlay;
-  tournamentUi.primaryButton.backgroundColor = themeColors.primary;
-  tournamentUi.primaryButtonText.color = themeColors.onPrimary;
-  tournamentUi.successText.color = themeColors.success;
+  replaceStyle(tournamentUi, 'screen', { backgroundColor: themeColors.background });
+  replaceStyle(tournamentUi, 'card', {
+    borderColor: themeColors.border,
+    backgroundColor: themeColors.surface,
+  });
+  replaceStyle(tournamentUi, 'input', {
+    borderColor: themeColors.border,
+    color: themeColors.text,
+    backgroundColor: themeColors.inputFill,
+  });
+  replaceStyle(tournamentUi, 'modalCard', {
+    backgroundColor: themeColors.surface,
+    borderColor: themeColors.cardBorder,
+  });
+  replaceStyle(tournamentUi, 'modalTitle', { color: themeColors.text });
+  replaceStyle(tournamentUi, 'modalMessage', { color: themeColors.textMuted });
+  replaceStyle(tournamentUi, 'modalOverlay', { backgroundColor: themeColors.drawerOverlay });
+  replaceStyle(tournamentUi, 'primaryButton', { backgroundColor: themeColors.primary });
+  replaceStyle(tournamentUi, 'primaryButtonText', { color: themeColors.onPrimary });
+  replaceStyle(tournamentUi, 'successText', { color: themeColors.success });
 
-  discoverUi.hero.backgroundColor = themeColors.heroBg;
-  discoverUi.heroGlow.backgroundColor = themeColors.heroGlow;
-  discoverUi.surfaceCard.borderColor = themeColors.cardBorder;
-  discoverUi.surfaceCard.backgroundColor = themeColors.surface;
-  discoverUi.listCard.borderColor = themeColors.cardBorder;
-  discoverUi.listCard.backgroundColor = themeColors.surface;
-  discoverUi.metaIcon.backgroundColor = themeColors.inputFill;
+  replaceStyle(discoverUi, 'hero', { backgroundColor: themeColors.heroBg });
+  replaceStyle(discoverUi, 'heroGlow', { backgroundColor: themeColors.heroGlow });
+  replaceStyle(discoverUi, 'surfaceCard', {
+    borderColor: themeColors.cardBorder,
+    backgroundColor: themeColors.surface,
+  });
+  replaceStyle(discoverUi, 'listCard', {
+    borderColor: themeColors.cardBorder,
+    backgroundColor: themeColors.surface,
+  });
+  replaceStyle(discoverUi, 'metaIcon', { backgroundColor: themeColors.inputFill });
 
-  authUi.linkText.color = themeColors.primary;
-  authUi.mutedText.color = themeColors.textMuted;
-  authUi.formTitle.color = themeColors.text;
-  authUi.formSubtitle.color = themeColors.textMuted;
-  authUi.fieldLabel.color = themeColors.text;
-  authUi.mobileIntroEyebrow.color = themeColors.primary;
-  authUi.mobileIntroSubtitle.color = themeColors.textMuted;
-  authUi.hintText.color = themeColors.textMuted;
-  authUi.matchOk.color = themeColors.success;
-  authUi.matchBad.color = themeColors.error;
-  authUi.screen.backgroundColor = themeColors.backgroundAlt;
-  authUi.hero.backgroundColor = themeColors.heroBg;
-  authUi.heroGlow.backgroundColor = themeColors.heroGlow;
-  authUi.heroEyebrow.color = themeColors.heroSubtext;
-  authUi.heroTitle.color = themeColors.heroText;
-  authUi.heroSubtitle.color = themeColors.heroSubtext;
-  authUi.sidePanel.backgroundColor = themeColors.heroBg;
-  authUi.sideFeatureList.borderTopColor = themeColors.heroDivider;
-  authUi.formCard.borderColor = themeColors.borderLight;
-  authUi.formCard.backgroundColor = themeColors.surface;
-  authUi.input.backgroundColor = themeColors.surfaceAlt;
-  authUi.input.borderColor = themeColors.border;
-  authUi.input.color = themeColors.text;
-  authUi.inputError.borderColor = themeColors.errorInputBorder;
-  authUi.inputError.backgroundColor = themeColors.errorSurface;
-  authUi.errorBanner.backgroundColor = themeColors.errorSurface;
-  authUi.errorBanner.borderColor = themeColors.errorBorder;
-  authUi.errorBannerText.color = themeColors.error;
-  authUi.successBanner.backgroundColor = themeColors.successSurface;
-  authUi.successBanner.borderColor = themeColors.successBorder;
-  authUi.landingImageCard.backgroundColor = themeColors.heroBg;
-  authUi.landingImageOverlay.backgroundColor =
-    mode === 'dark' ? 'rgba(15, 20, 28, 0.88)' : 'rgba(15, 23, 42, 0.78)';
-  authUi.featureIcon.backgroundColor = themeColors.heroStatBg;
+  replaceStyle(authUi, 'linkText', { color: themeColors.primary });
+  replaceStyle(authUi, 'mutedText', { color: themeColors.textMuted });
+  replaceStyle(authUi, 'formTitle', { color: themeColors.text });
+  replaceStyle(authUi, 'formSubtitle', { color: themeColors.textMuted });
+  replaceStyle(authUi, 'fieldLabel', { color: themeColors.text });
+  replaceStyle(authUi, 'mobileIntroEyebrow', { color: themeColors.primary });
+  replaceStyle(authUi, 'mobileIntroSubtitle', { color: themeColors.textMuted });
+  replaceStyle(authUi, 'hintText', { color: themeColors.textMuted });
+  replaceStyle(authUi, 'matchOk', { color: themeColors.success });
+  replaceStyle(authUi, 'matchBad', { color: themeColors.error });
+  replaceStyle(authUi, 'screen', { backgroundColor: themeColors.backgroundAlt });
+  replaceStyle(authUi, 'hero', { backgroundColor: themeColors.heroBg });
+  replaceStyle(authUi, 'heroGlow', { backgroundColor: themeColors.heroGlow });
+  replaceStyle(authUi, 'heroEyebrow', { color: themeColors.heroSubtext });
+  replaceStyle(authUi, 'heroTitle', { color: themeColors.heroText });
+  replaceStyle(authUi, 'heroSubtitle', { color: themeColors.heroSubtext });
+  replaceStyle(authUi, 'sidePanel', { backgroundColor: themeColors.heroBg });
+  replaceStyle(authUi, 'sideFeatureList', { borderTopColor: themeColors.heroDivider });
+  replaceStyle(authUi, 'formCard', {
+    borderColor: themeColors.borderLight,
+    backgroundColor: themeColors.surface,
+  });
+  replaceStyle(authUi, 'input', {
+    backgroundColor: themeColors.surfaceAlt,
+    borderColor: themeColors.border,
+    color: themeColors.text,
+  });
+  replaceStyle(authUi, 'inputError', {
+    borderColor: themeColors.errorInputBorder,
+    backgroundColor: themeColors.errorSurface,
+  });
+  replaceStyle(authUi, 'errorBanner', {
+    backgroundColor: themeColors.errorSurface,
+    borderColor: themeColors.errorBorder,
+  });
+  replaceStyle(authUi, 'errorBannerText', { color: themeColors.error });
+  replaceStyle(authUi, 'successBanner', {
+    backgroundColor: themeColors.successSurface,
+    borderColor: themeColors.successBorder,
+  });
+  replaceStyle(authUi, 'landingImageCard', { backgroundColor: themeColors.heroBg });
+  replaceStyle(authUi, 'landingImageOverlay', {
+    backgroundColor: mode === 'dark' ? 'rgba(15, 20, 28, 0.88)' : 'rgba(15, 23, 42, 0.78)',
+  });
+  replaceStyle(authUi, 'featureIcon', { backgroundColor: themeColors.heroStatBg });
 }

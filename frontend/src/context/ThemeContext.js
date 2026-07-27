@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { darkTheme, lightTheme, THEME_STORAGE_KEY } from '../styles/themeColors';
 import { syncLegacyThemePalette } from '../styles/syncLegacyTheme';
 
@@ -48,20 +48,22 @@ export function ThemeProvider({ children }) {
     setMode(mode === 'dark' ? 'light' : 'dark');
   }, [mode, setMode]);
 
+  const palette = mode === 'dark' ? darkTheme : lightTheme;
+
+  useLayoutEffect(() => {
+    syncLegacyThemePalette(palette, mode);
+  }, [mode, palette]);
+
   const value = useMemo(
-    () => {
-      const palette = mode === 'dark' ? darkTheme : lightTheme;
-      syncLegacyThemePalette(palette, mode);
-      return {
-        mode,
-        isDark: mode === 'dark',
-        isReady,
-        colors: palette,
-        setMode,
-        toggleMode,
-      };
-    },
-    [isReady, mode, setMode, toggleMode]
+    () => ({
+      mode,
+      isDark: mode === 'dark',
+      isReady,
+      colors: palette,
+      setMode,
+      toggleMode,
+    }),
+    [isReady, mode, palette, setMode, toggleMode]
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

@@ -12,7 +12,8 @@ import { useMyProfile } from '../hooks/queries/useMyProfile';
 import { queryKeys } from '../hooks/queries/queryKeys';
 import { useTabScreenInsets } from '../hooks/useTabScreenInsets';
 import { discoverUi, tournamentColors, tournamentUi } from '../styles/tournamentUi';
-import { useResponsiveLayout, centeredContentStyle } from '../utils/responsive';
+import { PageColumn } from '../components/layout/PageColumn';
+import { useResponsiveLayout } from '../utils/responsive';
 import { WebTwoColumnLayout } from '../components/layout/WebTwoColumnLayout';
 import { formatApiError } from '../hooks/useScreenFeedback';
 import { getAuthErrorMessage } from '../utils/authErrors';
@@ -70,7 +71,7 @@ export function ProfileScreen({ navigation }) {
   const { currentUser, updateCurrentUser } = useAuth();
   const queryClient = useQueryClient();
   const { scrollPaddingBottom } = useTabScreenInsets();
-  const { contentMaxWidth, horizontalPadding, isDesktopWeb } = useResponsiveLayout();
+  const { isDesktopWeb } = useResponsiveLayout();
   const {
     data: profile,
     isLoading,
@@ -135,15 +136,11 @@ export function ProfileScreen({ navigation }) {
   return (
     <View style={[tournamentUi.screen, isDesktopWeb && { backgroundColor: tournamentColors.backgroundAlt }]}>
       <ScrollView
-        contentContainerStyle={[
-          tournamentUi.content,
-          { paddingHorizontal: horizontalPadding },
-          centeredContentStyle(contentMaxWidth),
-          { paddingBottom: scrollPaddingBottom },
-        ]}
+        contentContainerStyle={{ paddingBottom: scrollPaddingBottom }}
         refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => refetch()} />}
         showsVerticalScrollIndicator={false}
       >
+        <PageColumn insetStyle={tournamentUi.content}>
         <View style={[discoverUi.hero, { marginBottom: 16 }]}>
           <View style={[discoverUi.heroGlow, { top: -40, right: -30 }]} />
           <View style={{ alignItems: 'center', paddingVertical: 8 }}>
@@ -330,6 +327,7 @@ export function ProfileScreen({ navigation }) {
             }
           />
         )}
+        </PageColumn>
       </ScrollView>
     </View>
   );

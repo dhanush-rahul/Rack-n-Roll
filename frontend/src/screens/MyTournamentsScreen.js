@@ -22,7 +22,8 @@ import { useTabScreenInsets } from '../hooks/useTabScreenInsets';
 
 import { AppIcon } from '../components/ui/AppIcon';
 
-import { useResponsiveLayout, centeredContentStyle } from '../utils/responsive';
+import { PageColumn } from '../components/layout/PageColumn';
+import { useResponsiveLayout } from '../utils/responsive';
 
 import { DiscoverFiltersPanel } from '../components/discover/DiscoverFiltersPanel';
 
@@ -206,7 +207,7 @@ export function MyTournamentsScreen({ navigation }) {
 
   const { scrollPaddingBottom } = useTabScreenInsets();
 
-  const { contentMaxWidth, horizontalPadding, isDesktopWeb } = useResponsiveLayout();
+  const { isDesktopWeb } = useResponsiveLayout();
 
 
 
@@ -413,17 +414,13 @@ export function MyTournamentsScreen({ navigation }) {
 
         style={{ flex: 1, backgroundColor: isDesktopWeb ? colors.backgroundAlt : colors.background }}
 
-        contentContainerStyle={[
-
-          { padding: horizontalPadding, paddingBottom: scrollPaddingBottom },
-
-          centeredContentStyle(contentMaxWidth),
-
-        ]}
+        contentContainerStyle={{ paddingBottom: scrollPaddingBottom }}
 
         refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={() => refetch()} tintColor={colors.primary} />}
 
       >
+
+        <PageColumn>
 
         <MyEventsHero
 
@@ -582,6 +579,8 @@ export function MyTournamentsScreen({ navigation }) {
           </View>
 
         ) : null}
+
+        </PageColumn>
 
       </ScrollView>
 

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef } from 'react';
-import { Animated, Dimensions, Modal, Pressable, ScrollView, Switch, View } from 'react-native';
+import { Animated, Modal, Platform, Pressable, ScrollView, Switch, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScaledText as Text } from '../ui/ScaledText';
 import { AppIcon } from '../ui/AppIcon';
@@ -12,6 +12,15 @@ import { useRequireAuth } from '../../hooks/useRequireAuth';
 import { navigateToCreateFlow } from '../../utils/navigateToCreateFlow';
 
 const APP_NAME = 'Rack-N-Roll';
+
+function getDrawerWidth(screenWidth) {
+  if (Platform.OS === 'web') {
+    return Math.min(320, Math.max(280, Math.round(screenWidth * 0.32)));
+  }
+
+  // Native: ~85% width so labels + toggles fit; leave a tap target to dismiss.
+  return Math.round(Math.min(screenWidth * 0.85, screenWidth - 40));
+}
 
 function DrawerDivider({ color }) {
   return <View style={{ height: 1, backgroundColor: color, marginVertical: 12 }} />;
@@ -44,8 +53,8 @@ export function AppMenuDrawer({ navigation }) {
   const { requireAuth, authPromptProps } = useRequireAuth(navigation);
   const insets = useSafeAreaInsets();
   const slideAnim = useRef(new Animated.Value(1)).current;
-  const screenWidth = Dimensions.get('window').width;
-  const drawerWidth = Math.round(screenWidth * 0.35);
+  const { width: screenWidth } = useWindowDimensions();
+  const drawerWidth = getDrawerWidth(screenWidth);
 
   useEffect(() => {
     Animated.timing(slideAnim, {
@@ -203,12 +212,25 @@ export function AppMenuDrawer({ navigation }) {
 
               <DrawerDivider color={colors.borderLight} />
 
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  paddingVertical: 10,
+                  gap: 12,
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
                   <AppIcon name={isDark ? 'moon' : 'sun'} size={20} color={colors.textMuted} />
                   <Text style={{ fontSize: 15, fontWeight: '600', color: colors.text }}>Dark mode</Text>
                 </View>
-                <Switch value={isDark} onValueChange={toggleMode} trackColor={{ false: '#cbd5e1', true: colors.primary }} />
+                <Switch
+                  value={isDark}
+                  onValueChange={toggleMode}
+                  trackColor={{ false: '#cbd5e1', true: colors.primary }}
+                  style={{ flexShrink: 0 }}
+                />
               </View>
 
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 }}>

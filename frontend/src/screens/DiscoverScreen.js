@@ -22,7 +22,8 @@ import {
 } from '../services/tournamentService';
 import { useTabScreenInsets } from '../hooks/useTabScreenInsets';
 import { AppIcon } from '../components/ui/AppIcon';
-import { useResponsiveLayout, centeredContentStyle } from '../utils/responsive';
+import { PageColumn } from '../components/layout/PageColumn';
+import { useResponsiveLayout } from '../utils/responsive';
 import { useDiscoverFilters } from '../hooks/useDiscoverFilters';
 import { DiscoverHero } from '../components/discover/DiscoverHero';
 import { WebInstallPrompt } from '../components/layout/WebInstallPrompt';
@@ -91,7 +92,7 @@ export function DiscoverScreen({ navigation, route }) {
   const { requireAuth, authPromptProps } = useRequireAuth(parentNavigation || navigation);
   const queryClient = useQueryClient();
   const { scrollPaddingBottom } = useTabScreenInsets();
-  const { contentMaxWidth, horizontalPadding, isDesktopWeb } = useResponsiveLayout();
+  const { isDesktopWeb } = useResponsiveLayout();
 
   const {
     filterId,
@@ -513,15 +514,13 @@ export function DiscoverScreen({ navigation, route }) {
       <ScrollView
         ref={scrollViewRef}
         style={{ flex: 1, backgroundColor: isDesktopWeb ? colors.backgroundAlt : colors.background }}
-        contentContainerStyle={[
-          { padding: horizontalPadding, paddingBottom: scrollPaddingBottom },
-          centeredContentStyle(contentMaxWidth),
-        ]}
+        contentContainerStyle={{ paddingBottom: scrollPaddingBottom }}
         keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl refreshing={isRefreshing} onRefresh={onRefreshDiscover} tintColor={colors.primary} />
         }
       >
+        <PageColumn>
         <View style={{ marginBottom: 16 }}>
           <DiscoverHero total={totalCount} openCount={stats.openCount} myCount={0} onCreate={onCreateTournament} />
         </View>
@@ -618,6 +617,7 @@ export function DiscoverScreen({ navigation, route }) {
             <Text style={{ color: colors.textMuted, fontSize: 13, fontWeight: '600' }}>Updating…</Text>
           </View>
         )}
+        </PageColumn>
       </ScrollView>
       <AuthPromptModal {...authPromptProps} />
     </>
