@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Platform } from 'react-native';
-import * as Updates from 'expo-updates';
+import { getExpoUpdatesModule, isExpoUpdatesAvailable } from '../utils/expoUpdatesSafe';
 
 export function useOtaUpdate({ enabled = true } = {}) {
   const [isChecking, setIsChecking] = useState(false);
@@ -9,7 +8,9 @@ export function useOtaUpdate({ enabled = true } = {}) {
   const [checkError, setCheckError] = useState(null);
 
   const checkForOtaUpdate = useCallback(async () => {
-    if (!enabled || Platform.OS === 'web' || !Updates.isEnabled) {
+    const Updates = getExpoUpdatesModule();
+
+    if (!enabled || !Updates?.isEnabled) {
       return false;
     }
 
@@ -39,7 +40,9 @@ export function useOtaUpdate({ enabled = true } = {}) {
   }, [enabled]);
 
   const applyOtaUpdate = useCallback(async () => {
-    if (!Updates.isEnabled) {
+    const Updates = getExpoUpdatesModule();
+
+    if (!Updates?.isEnabled) {
       return false;
     }
 
@@ -58,6 +61,6 @@ export function useOtaUpdate({ enabled = true } = {}) {
     checkError,
     checkForOtaUpdate,
     applyOtaUpdate,
-    isEnabled: enabled && Platform.OS !== 'web' && Updates.isEnabled,
+    isEnabled: enabled && isExpoUpdatesAvailable(),
   };
 }

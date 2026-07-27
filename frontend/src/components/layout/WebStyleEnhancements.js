@@ -68,6 +68,31 @@ function buildWebStyles(colors) {
   ::-webkit-scrollbar-track {
     background: transparent;
   }
+
+  /* Keep bottom tab bar clipped to the page column (not full viewport). */
+  #racknroll-tab-bar-shell,
+  #racknroll-tab-bar-shell > div,
+  #racknroll-tab-bar-panel {
+    overflow: visible !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  #racknroll-tab-bar-panel > div > div {
+    position: relative !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  #racknroll-tab-bar-panel [role="tablist"] {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
 `;
 }
 

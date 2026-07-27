@@ -17,7 +17,8 @@ import { DiscoverScreen } from '../screens/DiscoverScreen';
 import { MyTournamentsScreen } from '../screens/MyTournamentsScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { CreateTournamentScreen } from '../screens/CreateTournamentScreen';
-import { TAB_BAR_BASE_HEIGHT } from '../hooks/useTabScreenInsets';
+import { CenteredWebTabBar } from '../components/navigation/CenteredWebTabBar';
+import { TAB_BAR_BASE_HEIGHT, WEB_TAB_BAR_FAB_CLEARANCE } from '../hooks/useTabScreenInsets';
 
 const Tab = createBottomTabNavigator();
 
@@ -119,19 +120,39 @@ export function MainTabNavigator() {
     <>
       <Tab.Navigator
         key={`tabs-${colors.mode}`}
+        tabBar={(props) => <CenteredWebTabBar {...props} />}
+        sceneContainerStyle={Platform.OS === 'web' ? { overflow: 'visible' } : undefined}
         screenOptions={{
           headerShown: false,
           tabBarShowLabel: false,
           tabBarStyle: {
-            height: TAB_BAR_BASE_HEIGHT + insets.bottom,
+            height:
+              TAB_BAR_BASE_HEIGHT +
+              insets.bottom +
+              (Platform.OS === 'web' ? WEB_TAB_BAR_FAB_CLEARANCE : 0),
             paddingTop: 8,
             paddingBottom: Math.max(insets.bottom, 8),
-            backgroundColor: colors.tabBar,
-            borderTopColor: colors.tabBarBorder,
-            borderTopWidth: 1,
+            paddingHorizontal: 0,
+            borderTopWidth: 0,
+            overflow: 'visible',
             ...(Platform.OS === 'web'
-              ? { boxShadow: colors.mode === 'dark' ? '0 -4px 24px rgba(0,0,0,0.45)' : '0 -2px 12px rgba(15,23,42,0.08)' }
+              ? {
+                  backgroundColor: 'transparent',
+                  position: 'relative',
+                  left: 'auto',
+                  right: 'auto',
+                  bottom: 'auto',
+                  width: '100%',
+                  maxWidth: '100%',
+                }
               : {
+                  backgroundColor: colors.tabBar,
+                  borderTopWidth: 1,
+                  borderTopColor: colors.tabBarBorder,
+                  position: 'relative',
+                  left: undefined,
+                  right: undefined,
+                  bottom: undefined,
                   elevation: 12,
                   shadowColor: '#000',
                   shadowOpacity: colors.mode === 'dark' ? 0.4 : 0.12,
@@ -188,7 +209,7 @@ export function MainTabNavigator() {
           options={{
             tabBarIcon: () => null,
             tabBarButton: (props) => (
-              <View style={{ flex: 1, alignItems: 'center' }}>
+              <View style={{ flex: 1, alignItems: 'center', overflow: 'visible' }}>
                 <ElevatedCreateButton
                   onPress={() => {
                     if (!isAuthenticated) {

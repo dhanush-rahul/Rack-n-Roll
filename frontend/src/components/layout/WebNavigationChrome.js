@@ -1,32 +1,37 @@
 import React from 'react';
-import { Platform, View } from 'react-native';
+import { View } from 'react-native';
 import { ScaledText as Text } from '../ui/ScaledText';
 import { LegalFooter } from '../legal/LegalLinks';
-import { tournamentColors } from '../../styles/tournamentUi';
-import { centeredContentStyle, useResponsiveLayout } from '../../utils/responsive';
+import { PageColumn } from './PageColumn';
+import { useTheme } from '../../context/ThemeContext';
+import { useResponsiveLayout } from '../../utils/responsive';
 
 export function WebDesktopFooter() {
-  const { isDesktopWeb, contentMaxWidth, horizontalPadding } = useResponsiveLayout();
+  const { colors } = useTheme();
+  const { isWeb, contentMaxWidth } = useResponsiveLayout();
 
-  if (Platform.OS !== 'web' || !isDesktopWeb) {
+  if (!isWeb || !contentMaxWidth) {
     return null;
   }
 
   return (
-    <View
-      style={{
-        borderTopWidth: 1,
-        borderTopColor: '#e2e8f0',
-        backgroundColor: '#ffffff',
-        paddingVertical: 16,
-      }}
-    >
-      <View style={[{ width: '100%', paddingHorizontal: horizontalPadding }, centeredContentStyle(contentMaxWidth)]}>
-        <LegalFooter style={{ marginTop: 0 }} />
-        <Text style={{ marginTop: 8, textAlign: 'center', color: tournamentColors.textMuted, fontSize: 11 }}>
-          Rack-N-Roll · Pool tournament management
-        </Text>
-      </View>
+    <View style={{ width: '100%', paddingBottom: 3 }}>
+      <PageColumn shellNativeID="racknroll-footer-shell" style={{ transform: [{ translateX: -4 }] }}>
+        <View
+          style={{
+            borderTopWidth: 1,
+            borderTopColor: colors.tabBarBorder,
+            backgroundColor: colors.tabBar,
+            paddingVertical: 6,
+            paddingHorizontal: 10,
+          }}
+        >
+          <LegalFooter variant="webFooter" style={{ marginTop: 0 }} />
+          <Text style={{ marginTop: 3, textAlign: 'center', color: colors.textMuted, fontSize: 10, lineHeight: 13 }}>
+            Rack-N-Roll · Pool tournament management
+          </Text>
+        </View>
+      </PageColumn>
     </View>
   );
 }

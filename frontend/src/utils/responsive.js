@@ -128,6 +128,28 @@ export function centeredContentStyle(maxWidth) {
   };
 }
 
+/** Shared centered column for web page content + chrome (header, tab bar, footer). */
+export function webCenteredColumnStyle(contentMaxWidth, horizontalPadding, screenWidth = null) {
+  if (!contentMaxWidth) {
+    return {
+      width: '100%',
+      paddingHorizontal: horizontalPadding,
+    };
+  }
+
+  const resolvedWidth = screenWidth ? Math.min(contentMaxWidth, screenWidth) : contentMaxWidth;
+
+  return {
+    width: Platform.OS === 'web' && screenWidth ? resolvedWidth : '100%',
+    maxWidth: Platform.OS === 'web' && screenWidth ? '100%' : contentMaxWidth,
+    alignSelf: 'center',
+    paddingHorizontal: horizontalPadding,
+    ...(Platform.OS === 'web' && screenWidth ? { marginLeft: 'auto', marginRight: 'auto' } : null),
+  };
+}
+
+export { getPageColumnLayout } from './pageColumnLayout';
+
 export function webCardGridItemStyle(isDesktopWeb, columns = 2) {
   if (!isDesktopWeb) {
     return { width: '100%' };

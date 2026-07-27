@@ -1,4 +1,4 @@
-import { CommonActions, createNavigationContainerRef, NavigationContainer } from '@react-navigation/native';
+import { CommonActions, createNavigationContainerRef, DarkTheme, DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -387,12 +387,30 @@ export function AppNavigator() {
     onInfoPress = () => headerNavigation.navigate('CreateTournamentWalkthrough');
   }
 
+  const navigationTheme = useMemo(() => {
+    const base = colors.mode === 'dark' ? DarkTheme : DefaultTheme;
+
+    return {
+      ...base,
+      colors: {
+        ...base.colors,
+        primary: colors.primary,
+        background: colors.background,
+        card: colors.tabBar,
+        text: colors.text,
+        border: colors.tabBarBorder,
+        notification: colors.primary,
+      },
+    };
+  }, [colors]);
+
   return (
     <SignOutProvider requestSignOut={requestSignOut}>
       <View style={{ flex: 1, backgroundColor: colors.background }}>
         {!isLoading && (
           <NavigationContainer
             ref={navigationRef}
+            theme={navigationTheme}
             linking={publicProfileLinking}
             onReady={handleNavigationStateChange}
             onStateChange={handleNavigationStateChange}

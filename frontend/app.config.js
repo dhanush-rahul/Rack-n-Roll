@@ -39,7 +39,15 @@ if (iosUrlScheme) {
   ]);
 }
 
-plugins.push('expo-updates');
+// OTA updates require a native rebuild with expo-updates linked (EAS production).
+// Keep disabled for local dev / Expo Go / old store binaries to avoid startup crashes.
+const enableOta =
+  Boolean(easProjectId) &&
+  (process.env.EAS_BUILD === 'true' || process.env.EXPO_PUBLIC_ENABLE_OTA === '1');
+
+if (enableOta) {
+  plugins.push('expo-updates');
+}
 
 module.exports = {
   expo: {
@@ -48,9 +56,9 @@ module.exports = {
     runtimeVersion: packageJson.version,
     updates: easProjectId
       ? {
-          enabled: true,
+          enabled: enableOta,
           url: `https://u.expo.dev/${easProjectId}`,
-          checkAutomatically: 'ON_LOAD',
+          checkAutomatically: enableOta ? 'ON_LOAD' : 'NEVER',
           fallbackToCacheTimeout: 0,
         }
       : undefined,

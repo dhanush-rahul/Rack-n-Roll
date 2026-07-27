@@ -33,27 +33,47 @@ const createIncrementalGroupStageGamesForTeam = async ({
   tournamentId, divisionId, newTeamId, opponentTeamIds, bestOf, existingGames,
 }) => {
   const groupStageLegs = GROUP_STAGE_ROUND_ROBIN_LEGS;
-  let maxRoundNumber = existingGames.reduce(
-    (max, game) => Math.max(max, Number(game.roundNumber || 0)),
-    0
+  const normalizedNewTeamId = String(newTeamId);
+  const allTeamIds = [...new Set([
+    ...opponentTeamIds.map((teamId) => String(teamId)),
+    normalizedNewTeamId,
+  ])].filter(Boolean);
+
+  if (allTeamIds.length < 2) {
+    return [];
+  }
+
+  const rounds = buildRoundRobinRounds(
+    allTeamIds.map((id) => ({ id })),
+    groupStageLegs
   );
+
   const gameDocuments = [];
+  const pendingExistingGames = [...(existingGames || [])];
 
-  opponentTeamIds.forEach((opponentTeamId) => {
-    let playedLegs = countPairTeamGames(existingGames, newTeamId, opponentTeamId);
+  rounds.forEach((round) => {
+    round.matches.forEach((match) => {
+      const teamAId = String(match.playerA.id);
+      const teamBId = String(match.playerB.id);
 
-    while (playedLegs < groupStageLegs) {
-      maxRoundNumber += 1;
-      const swapSides = playedLegs === 1;
+      if (teamAId !== normalizedNewTeamId && teamBId !== normalizedNewTeamId) {
+        return;
+      }
+
+      const playedLegs = countPairTeamGames(pendingExistingGames, teamAId, teamBId);
+
+      if (playedLegs >= groupStageLegs) {
+        return;
+      }
 
       gameDocuments.push({
         tournamentId,
         divisionId: normalizeDivisionScopeValue(divisionId),
         stageId: GROUP_STAGE_ID,
-        roundNumber: maxRoundNumber,
+        roundNumber: round.roundNumber,
         bestOf: parseBestOf(bestOf, 1),
-        teamAId: swapSides ? opponentTeamId : newTeamId,
-        teamBId: swapSides ? newTeamId : opponentTeamId,
+        teamAId,
+        teamBId,
         scoreEntries: [],
         playerASeriesWins: 0,
         playerBSeriesWins: 0,
@@ -61,8 +81,8 @@ const createIncrementalGroupStageGamesForTeam = async ({
         status: 'scheduled',
       });
 
-      playedLegs += 1;
-    }
+      pendingExistingGames.push({ teamAId, teamBId, roundNumber: round.roundNumber });
+    });
   });
 
   if (gameDocuments.length === 0) {
@@ -76,27 +96,47 @@ const createIncrementalGroupStageGamesForPlayer = async ({
   tournamentId, divisionId, newPlayerId, opponentIds, bestOf, existingGames,
 }) => {
   const groupStageLegs = GROUP_STAGE_ROUND_ROBIN_LEGS;
-  let maxRoundNumber = existingGames.reduce(
-    (max, game) => Math.max(max, Number(game.roundNumber || 0)),
-    0
+  const normalizedNewPlayerId = String(newPlayerId);
+  const allPlayerIds = [...new Set([
+    ...opponentIds.map((playerId) => String(playerId)),
+    normalizedNewPlayerId,
+  ])].filter(Boolean);
+
+  if (allPlayerIds.length < 2) {
+    return [];
+  }
+
+  const rounds = buildRoundRobinRounds(
+    allPlayerIds.map((id) => ({ id })),
+    groupStageLegs
   );
+
   const gameDocuments = [];
+  const pendingExistingGames = [...(existingGames || [])];
 
-  opponentIds.forEach((opponentId) => {
-    let playedLegs = countPairGames(existingGames, newPlayerId, opponentId);
+  rounds.forEach((round) => {
+    round.matches.forEach((match) => {
+      const playerAId = String(match.playerA.id);
+      const playerBId = String(match.playerB.id);
 
-    while (playedLegs < groupStageLegs) {
-      maxRoundNumber += 1;
-      const swapSides = playedLegs === 1;
+      if (playerAId !== normalizedNewPlayerId && playerBId !== normalizedNewPlayerId) {
+        return;
+      }
+
+      const playedLegs = countPairGames(pendingExistingGames, playerAId, playerBId);
+
+      if (playedLegs >= groupStageLegs) {
+        return;
+      }
 
       gameDocuments.push({
         tournamentId,
         divisionId: normalizeDivisionScopeValue(divisionId),
         stageId: GROUP_STAGE_ID,
-        roundNumber: maxRoundNumber,
+        roundNumber: round.roundNumber,
         bestOf: parseBestOf(bestOf, 1),
-        playerAId: swapSides ? opponentId : newPlayerId,
-        playerBId: swapSides ? newPlayerId : opponentId,
+        playerAId,
+        playerBId,
         scoreEntries: [],
         playerASeriesWins: 0,
         playerBSeriesWins: 0,
@@ -104,8 +144,8 @@ const createIncrementalGroupStageGamesForPlayer = async ({
         status: 'scheduled',
       });
 
-      playedLegs += 1;
-    }
+      pendingExistingGames.push({ playerAId, playerBId, roundNumber: round.roundNumber });
+    });
   });
 
   if (gameDocuments.length === 0) {

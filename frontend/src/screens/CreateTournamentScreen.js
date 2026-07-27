@@ -12,7 +12,8 @@ import { invalidateTournamentCache } from '../hooks/queries/invalidateTournament
 import { createTournament } from '../services/tournamentService';
 import { tournamentColors, tournamentUi } from '../styles/tournamentUi';
 import { useTheme } from '../context/ThemeContext';
-import { useResponsiveLayout, centeredContentStyle } from '../utils/responsive';
+import { PageColumn } from '../components/layout/PageColumn';
+import { useResponsiveLayout } from '../utils/responsive';
 import { WebScheduleInputs } from '../components/scheduling/WebScheduleInputs';
 import { ProgressionPlanEditor, validateProgressionPlan } from '../components/tournament/ProgressionPlanEditor';
 import { WizardTimeline } from '../components/createTournament/WizardTimeline';
@@ -180,7 +181,7 @@ function WizardNavFooter({ activeTab, onBack, onContinue, isLastTab }) {
 
 export function CreateTournamentScreen({ navigation, route }) {
   const queryClient = useQueryClient();
-  const { contentMaxWidth, horizontalPadding, isDesktopWeb } = useResponsiveLayout();
+  const { isDesktopWeb } = useResponsiveLayout();
   const { scrollPaddingBottom } = useScreenInsets();
   const { colors } = useTheme();
   const defaultStartsAt = useMemo(() => buildDefaultStartsAt(), []);
@@ -622,13 +623,11 @@ export function CreateTournamentScreen({ navigation, route }) {
       <ScrollView
         ref={scrollRef}
         style={[tournamentUi.screen, isDesktopWeb && { backgroundColor: colors.backgroundAlt }]}
-        contentContainerStyle={[
-          centeredContentStyle(contentMaxWidth),
-          { paddingHorizontal: horizontalPadding, paddingTop: 16, paddingBottom: scrollPaddingBottom, gap: 14 },
-        ]}
+        contentContainerStyle={{ paddingBottom: scrollPaddingBottom }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+      <PageColumn insetStyle={{ paddingTop: 16, gap: 14 }}>
       <View
         style={{
           borderRadius: 16,
@@ -1094,6 +1093,7 @@ export function CreateTournamentScreen({ navigation, route }) {
         onContinue={onContinue}
         isLastTab={activeWizardTab === 'launch'}
       />
+      </PageColumn>
       </ScrollView>
     </KeyboardAvoidingView>
   </>
