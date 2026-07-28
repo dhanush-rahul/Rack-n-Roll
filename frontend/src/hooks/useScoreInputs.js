@@ -1,9 +1,9 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   updateTournamentGameScores,
   upsertAndScoreTournamentGroupGame,
 } from '../services/tournamentService';
-import { MAX_SERIES_SCORE_ROWS } from '../utils/seriesScoring';
+import { resolveMatchStatusFromScoreEntries } from '../utils/seriesScoring';
 
 const isPlayedScoreEntry = (entry) => {
   const playerAScore = Number(entry?.playerAScore);
@@ -23,6 +23,8 @@ export function useScoreInputs({
 } = {}) {
   const [scoreInputsByGameId, setScoreInputsByGameId] = useState({});
   const [savingGameId, setSavingGameId] = useState(null);
+  const [hydrateEpoch, setHydrateEpoch] = useState(0);
+  const scoreInputsRef = useRef({});
 
   const configuredGroupStageBestOf = Math.max(Number(groupStageBestOf || 1), 1);
   const configuredFinalStageBestOf = Math.max(Number(finalStageBestOf || 3), 1);
@@ -93,92 +95,97 @@ export function useScoreInputs({
             });
           }
 
-          nextState[game.id] = {
+          nextState[String(game.id)] = {
             status: game.status || 'scheduled',
             entries,
             seriesMaxGames,
           };
         });
 
+        scoreInputsRef.current = nextState;
         return nextState;
       });
+      setHydrateEpoch((epoch) => epoch + 1);
     },
     [configuredFinalStageBestOf, configuredGroupStageBestOf, isTotalPoints]
   );
 
   const onChangeScoreInput = useCallback((gameId, entryIndex, field, value) => {
-    setScoreInputsByGameId((previousState) => {
-      const existing = previousState[gameId] || {
-        status: 'scheduled',
-        entries: [{ gameNumber: 1, playerAScore: '', playerBScore: '' }],
-        seriesMaxGames: 1,
-      };
-      const nextEntries = [...(existing.entries || [])];
+    const stateKey = String(gameId || '');
+    const previousState = scoreInputsRef.current;
+    const existing = previousState[stateKey] || {
+      status: 'scheduled',
+      entries: [{ gameNumber: 1, playerAScore: '', playerBScore: '' }],
+      seriesMaxGames: 1,
+    };
+    const nextEntries = [...(existing.entries || [])];
 
-      while (nextEntries.length <= entryIndex) {
-        nextEntries.push({
-          gameNumber: nextEntries.length + 1,
-          playerAScore: '',
-          playerBScore: '',
-        });
-      }
-
-      nextEntries[entryIndex] = {
-        ...(nextEntries[entryIndex] || {
-          gameNumber: entryIndex + 1,
-          playerAScore: '',
-          playerBScore: '',
-        }),
-        [field]: value,
-      };
-
-      return {
-        ...previousState,
-        [gameId]: {
-          ...existing,
-          entries: nextEntries,
-        },
-      };
-    });
-  }, []);
-
-  const onAddSeriesGame = useCallback(({ scoreStateKey, scoreInput, seriesMaxGames }) => {
-    setScoreInputsByGameId((previousState) => {
-      const existingState = previousState[scoreStateKey] || scoreInput || {
-        status: 'scheduled',
-        entries: [{ gameNumber: 1, playerAScore: '', playerBScore: '' }],
-        seriesMaxGames: Math.max(Number(seriesMaxGames || 1), 1),
-      };
-      const nextEntries = (existingState.entries || []).map((entry) => ({
-        gameNumber: Number(entry.gameNumber),
-        playerAScore: String(entry.playerAScore ?? ''),
-        playerBScore: String(entry.playerBScore ?? ''),
-      }));
-
-      if (nextEntries.length >= MAX_SERIES_SCORE_ROWS) {
-        return previousState;
-      }
-
+    while (nextEntries.length <= entryIndex) {
       nextEntries.push({
         gameNumber: nextEntries.length + 1,
         playerAScore: '',
         playerBScore: '',
       });
+    }
 
-      const nextSeriesMaxGames = Math.max(
-        Number(existingState.seriesMaxGames || seriesMaxGames || 1),
-        nextEntries.length
-      );
+    nextEntries[entryIndex] = {
+      ...(nextEntries[entryIndex] || {
+        gameNumber: entryIndex + 1,
+        playerAScore: '',
+        playerBScore: '',
+      }),
+      [field]: value,
+    };
 
-      return {
-        ...previousState,
-        [scoreStateKey]: {
-          ...existingState,
-          seriesMaxGames: nextSeriesMaxGames,
-          entries: nextEntries,
-        },
-      };
+    scoreInputsRef.current = {
+      ...previousState,
+      [stateKey]: {
+        ...existing,
+        entries: nextEntries,
+      },
+    };
+  }, []);
+
+  const onAddSeriesGame = useCallback(({ scoreStateKey, scoreInput, seriesMaxGames }) => {
+    const previousState = scoreInputsRef.current;
+    const existingState = previousState[scoreStateKey] || scoreInput || {
+      status: 'scheduled',
+      entries: [{ gameNumber: 1, playerAScore: '', playerBScore: '' }],
+      seriesMaxGames: Math.max(Number(seriesMaxGames || 1), 1),
+    };
+    const nextEntries = (existingState.entries || []).map((entry) => ({
+      gameNumber: Number(entry.gameNumber),
+      playerAScore: String(entry.playerAScore ?? ''),
+      playerBScore: String(entry.playerBScore ?? ''),
+    }));
+
+    if (nextEntries.length >= MAX_SERIES_SCORE_ROWS) {
+      return;
+    }
+
+    nextEntries.push({
+      gameNumber: nextEntries.length + 1,
+      playerAScore: '',
+      playerBScore: '',
     });
+
+    const nextSeriesMaxGames = Math.max(
+      Number(existingState.seriesMaxGames || seriesMaxGames || 1),
+      nextEntries.length
+    );
+
+    const nextState = {
+      ...previousState,
+      [scoreStateKey]: {
+        ...existingState,
+        seriesMaxGames: nextSeriesMaxGames,
+        entries: nextEntries,
+      },
+    };
+
+    scoreInputsRef.current = nextState;
+    setScoreInputsByGameId(nextState);
+    setHydrateEpoch((epoch) => epoch + 1);
   }, []);
 
   const saveMatchScores = useCallback(
@@ -190,16 +197,43 @@ export function useScoreInputs({
       playerBId,
       scoreStateKey,
       bestOf,
+      scoreInput,
       groupStageGames = [],
       finalStageGames = [],
       stageGames = [],
       onSuccess,
     }) => {
+      const inputStateKey = String(gameId || scoreStateKey || '');
+      const scoreInputs =
+        scoreInput ||
+        scoreInputsRef.current[inputStateKey] ||
+        { entries: [], seriesMaxGames: 1 };
+
+      const normalizedEntries = (scoreInputs.entries || [])
+        .filter((entry) => {
+          if (!entry) {
+            return false;
+          }
+
+          const rawPlayerAScore = String(entry.playerAScore ?? '').trim();
+          const rawPlayerBScore = String(entry.playerBScore ?? '').trim();
+
+          return rawPlayerAScore !== '' && rawPlayerBScore !== '';
+        })
+        .map((entry, index) => ({
+          gameNumber: Number(entry.gameNumber || index + 1),
+          playerAScore: Number(entry.playerAScore),
+          playerBScore: Number(entry.playerBScore),
+        }))
+        .filter((entry) => isPlayedScoreEntry(entry));
+
+      if (normalizedEntries.length === 0) {
+        return null;
+      }
+
       try {
         setSavingGameId(gameId || scoreStateKey);
 
-        const inputStateKey = gameId || scoreStateKey;
-        const scoreInputs = scoreInputsByGameId[inputStateKey] || { entries: [], seriesMaxGames: 1 };
         const savedGame =
           groupStageGames.find((game) => String(game.id) === String(gameId)) ||
           finalStageGames.find((game) => String(game.id) === String(gameId)) ||
@@ -221,79 +255,26 @@ export function useScoreInputs({
         const seriesMaxGames = isTotalPoints
           ? 1
           : Math.max(Number(scoreInputs.seriesMaxGames || 0), Number(bestOf || 1), configuredSeriesBestOf, 1);
-        let playerASeriesWins = 0;
-        let playerBSeriesWins = 0;
-        const normalizedEntries = (scoreInputs.entries || [])
-          .filter((entry) => {
-            if (!entry) {
-              return false;
-            }
-
-            const rawPlayerAScore = String(entry.playerAScore ?? '').trim();
-            const rawPlayerBScore = String(entry.playerBScore ?? '').trim();
-
-            return rawPlayerAScore !== '' && rawPlayerBScore !== '';
-          })
-          .map((entry, index) => ({
-            gameNumber: Number(entry.gameNumber || index + 1),
-            playerAScore: Number(entry.playerAScore),
-            playerBScore: Number(entry.playerBScore),
-          }))
-          .filter((entry) => isPlayedScoreEntry(entry));
-
         const effectiveBestOf = isTotalPoints
           ? 1
           : Math.max(seriesMaxGames, normalizedEntries.length);
-        const winsRequired = isTotalPoints ? 1 : Math.floor(effectiveBestOf / 2) + 1;
 
-        if (isTotalPoints) {
-          const totals = normalizedEntries.reduce(
-            (accumulator, entry) => {
-              accumulator.playerAScore += entry.playerAScore;
-              accumulator.playerBScore += entry.playerBScore;
-              return accumulator;
-            },
-            { playerAScore: 0, playerBScore: 0 }
-          );
-          if (totals.playerAScore > totals.playerBScore) {
-            playerASeriesWins = 1;
-          } else if (totals.playerBScore > totals.playerAScore) {
-            playerBSeriesWins = 1;
-          }
-        } else {
-          normalizedEntries.forEach((entry) => {
-            if (entry.playerAScore > entry.playerBScore) {
-              playerASeriesWins += 1;
-              return;
-            }
+        const normalizedStatus = resolveMatchStatusFromScoreEntries({
+          entries: normalizedEntries,
+          bestOf: effectiveBestOf,
+          scoringStyle: isTotalPoints ? 'totalPoints' : 'individualGames',
+        });
 
-            if (entry.playerBScore > entry.playerAScore) {
-              playerBSeriesWins += 1;
-            }
-          });
-        }
-
-        const normalizedStatus =
-          playerASeriesWins >= winsRequired || playerBSeriesWins >= winsRequired
-            ? 'completed'
-            : normalizedEntries.length > 0
-              ? 'inProgress'
-              : 'scheduled';
-
-        if (normalizedEntries.length === 0) {
-          const validationError = new Error('Enter at least one game score before saving.');
-          validationError.code = 'VALIDATION';
-          throw validationError;
-        }
+        let updatedGame = null;
 
         if (gameId) {
-          await updateTournamentGameScores(tournamentId, gameId, {
+          updatedGame = await updateTournamentGameScores(tournamentId, gameId, {
             status: normalizedStatus,
             scoreEntries: normalizedEntries,
             bestOf: effectiveBestOf,
           });
         } else {
-          await upsertAndScoreTournamentGroupGame(tournamentId, {
+          updatedGame = await upsertAndScoreTournamentGroupGame(tournamentId, {
             roundNumber,
             playerAUserId: playerAId,
             playerBUserId: playerBId,
@@ -305,21 +286,29 @@ export function useScoreInputs({
           });
         }
 
+        const result = {
+          updatedGame,
+          isFinalStageGame,
+          stageId: progressionStageId,
+          normalizedStatus,
+        };
+
         if (onSuccess) {
-          await onSuccess({ isFinalStageGame, stageId: progressionStageId });
+          await onSuccess(result);
         }
 
-        return { isFinalStageGame, stageId: progressionStageId };
+        return result;
       } finally {
         setSavingGameId(null);
       }
     },
-    [configuredFinalStageBestOf, configuredGroupStageBestOf, isTotalPoints, scoreInputsByGameId]
+    [configuredFinalStageBestOf, configuredGroupStageBestOf, isTotalPoints]
   );
 
   return {
     scoreInputsByGameId,
     savingGameId,
+    hydrateEpoch,
     hydrateScoreInputState,
     onChangeScoreInput,
     onAddSeriesGame,

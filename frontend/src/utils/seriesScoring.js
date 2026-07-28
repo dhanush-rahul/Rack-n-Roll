@@ -55,6 +55,38 @@ export function isPlayedScoreEntry(entry) {
   return !(playerAScore === 0 && playerBScore === 0);
 }
 
+export function resolveMatchStatusFromScoreEntries({
+  entries = [],
+  bestOf = 1,
+  scoringStyle = 'individualGames',
+} = {}) {
+  const playedEntries = (entries || []).filter((entry) => isPlayedScoreEntry(entry));
+
+  if (playedEntries.length === 0) {
+    return 'scheduled';
+  }
+
+  const normalizedBestOf = Math.max(Number(bestOf) || 1, 1);
+
+  let scoreForA = 0;
+  let scoreForB = 0;
+
+  playedEntries.forEach((entry) => {
+    scoreForA += Number(entry.playerAScore);
+    scoreForB += Number(entry.playerBScore);
+  });
+
+  if (scoringStyle === 'totalPoints') {
+    return 'completed';
+  }
+
+  if (playedEntries.length >= normalizedBestOf) {
+    return 'completed';
+  }
+
+  return 'inProgress';
+}
+
 export function getSeriesWinnerSide({
   entries = [],
   bestOf = 1,
@@ -62,7 +94,6 @@ export function getSeriesWinnerSide({
   match,
 } = {}) {
   const normalizedBestOf = Math.max(Number(bestOf) || 1, 1);
-  const winsRequired = Math.floor(normalizedBestOf / 2) + 1;
 
   const winnerId = String(match?.winnerPlayerId || match?.winnerTeamId || '').trim();
   if (winnerId) {
@@ -80,13 +111,19 @@ export function getSeriesWinnerSide({
 
   const persistedWinsA = Number(match?.playerASeriesWins);
   const persistedWinsB = Number(match?.playerBSeriesWins);
+  const matchComplete =
+    match?.status === 'completed' || Boolean(match?.winnerPlayerId || match?.winnerTeamId);
 
-  if (Number.isFinite(persistedWinsA) && persistedWinsA >= winsRequired) {
-    return 'a';
-  }
+  if (matchComplete && Number.isFinite(persistedWinsA) && Number.isFinite(persistedWinsB)) {
+    if (persistedWinsA > persistedWinsB) {
+      return 'a';
+    }
 
-  if (Number.isFinite(persistedWinsB) && persistedWinsB >= winsRequired) {
-    return 'b';
+    if (persistedWinsB > persistedWinsA) {
+      return 'b';
+    }
+
+    return null;
   }
 
   if (scoringStyle === 'totalPoints') {
@@ -113,23 +150,25 @@ export function getSeriesWinnerSide({
     return null;
   }
 
-  let winsA = 0;
-  let winsB = 0;
+  const playedEntries = (entries || []).filter((entry) => isPlayedScoreEntry(entry));
 
-  for (const entry of entries) {
-    const gameWinner = getScoreEntryWinner(entry);
-    if (gameWinner === 'a') {
-      winsA += 1;
-    } else if (gameWinner === 'b') {
-      winsB += 1;
-    }
+  if (playedEntries.length < normalizedBestOf) {
+    return null;
   }
 
-  if (winsA >= winsRequired) {
+  let scoreForA = 0;
+  let scoreForB = 0;
+
+  playedEntries.forEach((entry) => {
+    scoreForA += Number(entry.playerAScore);
+    scoreForB += Number(entry.playerBScore);
+  });
+
+  if (scoreForA > scoreForB) {
     return 'a';
   }
 
-  if (winsB >= winsRequired) {
+  if (scoreForB > scoreForA) {
     return 'b';
   }
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Pressable, View } from 'react-native';
 import { useTypography } from '../context/TypographyContext';
 import { ScaledText as Text } from './ui/ScaledText';
@@ -42,19 +42,17 @@ function MatchActionButton({ label, onPress, disabled, variant = 'primary' }) {
   );
 }
 
-const renderRound = ({
+const FixtureRoundPanel = memo(function FixtureRoundPanel({
   round,
   expandedRoundKey,
   onToggleRound,
   scoreInputsByGameId,
+  hydrateEpoch = 0,
   onChangeScoreInput,
   savingGameId,
   onSaveMatchScores,
   canEditPatternScores,
   filteredActiveRoundNumber,
-  onAddSeriesGame,
-  showSaveButton,
-  showAddSeriesButton,
   defaultSeriesMaxGames = 1,
   useLiveSessionScoring = false,
   onStartGame,
@@ -62,11 +60,9 @@ const renderRound = ({
   viewOnly = false,
   sp = (n) => n,
   isWide = false,
-  isDesktopWeb = false,
   scoringStyle = 'individualGames',
-}) => {
+}) {
   const roundKey = round.roundKey || `round-${round.roundNumber}`;
-  const matchPad = isWide ? sp(14) : 12;
   const isRoundOpen = expandedRoundKey === roundKey;
   const isRoundCompleted =
     (round.matches || []).length > 0 &&
@@ -124,12 +120,10 @@ const renderRound = ({
 
       {isRoundOpen ? (
         <RoundMatchesTable
-          matches={(round.matches || []).map((match) => ({
-            ...match,
-            roundNumber: round.roundNumber,
-          }))}
+          matches={round.matches || []}
           scoringStyle={scoringStyle}
           scoreInputsByGameId={scoreInputsByGameId}
+          hydrateEpoch={hydrateEpoch}
           onChangeScoreInput={onChangeScoreInput}
           savingGameId={savingGameId}
           onSaveMatchScores={onSaveMatchScores}
@@ -143,9 +137,20 @@ const renderRound = ({
       ) : null}
     </View>
   );
-};
+}, (previousProps, nextProps) =>
+  previousProps.round === nextProps.round &&
+  previousProps.expandedRoundKey === nextProps.expandedRoundKey &&
+  previousProps.hydrateEpoch === nextProps.hydrateEpoch &&
+  previousProps.savingGameId === nextProps.savingGameId &&
+  previousProps.filteredActiveRoundNumber === nextProps.filteredActiveRoundNumber &&
+  previousProps.defaultSeriesMaxGames === nextProps.defaultSeriesMaxGames &&
+  previousProps.canEditPatternScores === nextProps.canEditPatternScores &&
+  previousProps.viewOnly === nextProps.viewOnly &&
+  previousProps.useLiveSessionScoring === nextProps.useLiveSessionScoring &&
+  previousProps.scoringStyle === nextProps.scoringStyle
+);
 
-export function RoundMatchesDisplay({
+export const RoundMatchesDisplay = memo(function RoundMatchesDisplay({
   filteredDisplayRounds = [],
   displaySections = null,
   fixtureSummaryText = '',
@@ -155,6 +160,7 @@ export function RoundMatchesDisplay({
   onToggleSection = () => {},
   onToggleRound,
   scoreInputsByGameId,
+  hydrateEpoch = 0,
   onChangeScoreInput = () => {},
   defaultSeriesMaxGames = 1,
   savingGameId,
@@ -199,6 +205,7 @@ export function RoundMatchesDisplay({
     expandedRoundKey: resolvedExpandedRoundKey,
     onToggleRound: handleToggleRound,
     scoreInputsByGameId,
+    hydrateEpoch,
     onChangeScoreInput,
     savingGameId,
     onSaveMatchScores,
@@ -302,7 +309,9 @@ export function RoundMatchesDisplay({
             ) : null}
 
             {isSectionOpen &&
-              (section.rounds || []).map((round) => renderRound({ round, ...roundRendererProps }))}
+              (section.rounds || []).map((round) => (
+                <FixtureRoundPanel key={round.roundKey || `round-${round.roundNumber}`} round={round} {...roundRendererProps} />
+              ))}
           </View>
         );
       })}
@@ -333,4 +342,4 @@ export function RoundMatchesDisplay({
       )}
     </View>
   );
-}
+});

@@ -6,7 +6,7 @@ const parsePositiveInteger = (value, fallback = 0) => {
 const trimString = (value, fallback = '') => String(value || fallback).trim();
 
 const appVersionConfig = {
-  latestVersion: trimString(process.env.APP_LATEST_VERSION, '1.3.4'),
+  latestVersion: trimString(process.env.APP_LATEST_VERSION, '1.3.5'),
   minAndroidVersionCode: parsePositiveInteger(process.env.APP_MIN_ANDROID_VERSION_CODE, 18),
   minIosBuildNumber: parsePositiveInteger(process.env.APP_MIN_IOS_BUILD_NUMBER, 18),
   // Default 0.0.0 = do not hard-block web clients. Set explicitly when you need a web floor.

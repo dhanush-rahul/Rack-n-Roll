@@ -25,6 +25,7 @@ const {
   normalizeDivisionScopeValue,
   normalizeScoreEntries,
   computeSeriesOutcome,
+  isSeriesDecided,
   buildPlayerSummaryById,
   buildUserSummaryById,
   isStageProctored,
@@ -260,7 +261,7 @@ const updateGameScores = async (tournamentId, gameId, userId, payload = {}) => {
     normalizedScoreEntries,
     scoringStyle
   );
-  const isSeriesComplete = Boolean(seriesOutcome.winnerPlayerId || seriesOutcome.winnerTeamId);
+  const isSeriesComplete = isSeriesDecided(seriesOutcome);
   const nextStatus =
     payload.status === 'scheduled'
       ? 'scheduled'
@@ -481,7 +482,7 @@ const upsertAndScoreGroupStageGame = async (tournamentId, userId, payload = {}) 
       normalizedScoreEntries,
       scoringStyle
     );
-    const isSeriesComplete = Boolean(seriesOutcome.winnerPlayerId);
+    const isSeriesComplete = isSeriesDecided(seriesOutcome);
     const nextStatus =
       payload.status === 'scheduled'
         ? 'scheduled'
@@ -507,7 +508,7 @@ const upsertAndScoreGroupStageGame = async (tournamentId, userId, payload = {}) 
     game = createdGame.toObject();
   } else {
     const seriesOutcome = computeSeriesOutcome(game, normalizedScoreEntries, scoringStyle);
-    const isSeriesComplete = Boolean(seriesOutcome.winnerPlayerId);
+    const isSeriesComplete = isSeriesDecided(seriesOutcome);
     const nextStatus =
       payload.status === 'scheduled'
         ? 'scheduled'

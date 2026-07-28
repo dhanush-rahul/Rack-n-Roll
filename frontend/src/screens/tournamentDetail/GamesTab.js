@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { View } from 'react-native';
 import { EmptyStateCard } from '../../components/tournament/TournamentChrome';
 import { GroupStageProgressionPanel } from '../../components/tournament/GroupStageProgressionPanel';
 import { FixturesTabPanel } from '../../components/tournament/FixturesTabPanel';
 
-export function GamesTab({
+export const GamesTab = memo(function GamesTab({
   isRegistrationClosed,
   hasGroupFixtures,
   isLoadingGames,
@@ -25,6 +25,7 @@ export function GamesTab({
   expandedRoundKey,
   onToggleRound,
   scoreInputsByGameId,
+  hydrateEpoch = 0,
   onChangeScoreInput,
   defaultSeriesMaxGames,
   savingGameId,
@@ -96,6 +97,7 @@ export function GamesTab({
       expandedRoundKey={expandedRoundKey}
       onToggleRound={onToggleRound}
       scoreInputsByGameId={scoreInputsByGameId}
+      hydrateEpoch={hydrateEpoch}
       onChangeScoreInput={onChangeScoreInput}
       savingGameId={savingGameId}
       onSaveMatchScores={onSaveMatchScores}
@@ -129,4 +131,4 @@ export function GamesTab({
       }
     />
   );
-}
+});

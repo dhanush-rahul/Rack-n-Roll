@@ -18,3 +18,15 @@ export function invalidateTournamentCache(queryClient, tournamentId) {
 
   return Promise.all(tasks);
 }
+
+/** After a score save, patch fixtures locally — only refresh derived views (standings/tracker). */
+export function invalidateTournamentCacheAfterScoreSave(queryClient, tournamentId) {
+  if (!tournamentId) {
+    return Promise.resolve();
+  }
+
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.standings(tournamentId) }),
+    queryClient.invalidateQueries({ queryKey: ['tournament', tournamentId, 'tracker'] }),
+  ]);
+}

@@ -702,61 +702,57 @@ const computeSeriesOutcome = (game, scoreEntries = [], scoringStyle = 'individua
       playerBSeriesWins: playerBWins ? 1 : 0,
       winnerPlayerId,
       winnerTeamId,
+      isDraw: !winnerPlayerId && !winnerTeamId && scoreEntries.length > 0 && scoreForA === scoreForB,
       scoreForA,
       scoreForB,
     };
   }
 
   const bestOf = parseBestOf(game?.bestOf, 1);
-  const winsRequired = Math.floor(bestOf / 2) + 1;
-
-  let playerASeriesWins = 0;
-  let playerBSeriesWins = 0;
   let scoreForA = 0;
   let scoreForB = 0;
 
   scoreEntries.forEach((entry) => {
-    const playerAScore = Number(entry?.playerAScore || 0);
-    const playerBScore = Number(entry?.playerBScore || 0);
-
-    scoreForA += playerAScore;
-    scoreForB += playerBScore;
-
-    if (playerAScore > playerBScore) {
-      playerASeriesWins += 1;
-      return;
-    }
-
-    if (playerBScore > playerAScore) {
-      playerBSeriesWins += 1;
-    }
+    scoreForA += Number(entry?.playerAScore || 0);
+    scoreForB += Number(entry?.playerBScore || 0);
   });
 
-  const winnerPlayerId =
-    !game?.teamAId && playerASeriesWins >= winsRequired
-      ? game.playerAId
-      : !game?.teamAId && playerBSeriesWins >= winsRequired
-        ? game.playerBId
-        : null;
+  // BoN = play up to N games; series totals are aggregate points across all games.
+  const playerASeriesWins = scoreForA;
+  const playerBSeriesWins = scoreForB;
+  const allGamesPlayed = scoreEntries.length >= bestOf;
 
-  const winnerTeamId =
-    game?.teamAId && playerASeriesWins >= winsRequired
-      ? game.teamAId
-      : game?.teamAId && playerBSeriesWins >= winsRequired
-        ? game.teamBId
-        : null;
+  let winnerPlayerId = null;
+  let winnerTeamId = null;
+  let isDraw = false;
+
+  if (allGamesPlayed) {
+    if (scoreForA > scoreForB) {
+      winnerPlayerId = !game?.teamAId ? game.playerAId : null;
+      winnerTeamId = game?.teamAId ? game.teamAId : null;
+    } else if (scoreForB > scoreForA) {
+      winnerPlayerId = !game?.teamAId ? game.playerBId : null;
+      winnerTeamId = game?.teamAId ? game.teamBId : null;
+    } else {
+      isDraw = true;
+    }
+  }
 
   return {
     bestOf,
-    winsRequired,
+    winsRequired: bestOf,
     playerASeriesWins,
     playerBSeriesWins,
     winnerPlayerId,
     winnerTeamId,
+    isDraw,
     scoreForA,
     scoreForB,
   };
 };
+
+const isSeriesDecided = (seriesOutcome = {}) =>
+  Boolean(seriesOutcome.winnerPlayerId || seriesOutcome.winnerTeamId || seriesOutcome.isDraw);
 
 // ── Fixture division helpers ───────────────────────────────────────────────
 
@@ -844,6 +840,7 @@ module.exports = {
   buildScopeFilter,
   normalizeScoreEntries,
   computeSeriesOutcome,
+  isSeriesDecided,
   pickDivisionForNewPlayer,
   countPairGames,
   countPairTeamGames,

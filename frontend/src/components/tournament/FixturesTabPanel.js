@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { View } from 'react-native';
 import { LoadingPlaceholder } from '../ui/LoadingPlaceholder';
 import { TournamentMatchScoringPanel } from '../TournamentMatchScoringPanel';
@@ -13,7 +13,7 @@ import {
 } from './TournamentChrome';
 import { tournamentColors } from '../../styles/tournamentUi';
 
-export function FixturesTabPanel({
+export const FixturesTabPanel = memo(function FixturesTabPanel({
   title,
   subtitle,
   isLoading = false,
@@ -39,6 +39,7 @@ export function FixturesTabPanel({
   expandedRoundKey = null,
   onToggleRound,
   scoreInputsByGameId = {},
+  hydrateEpoch = 0,
   onChangeScoreInput,
   savingGameId = null,
   onSaveMatchScores,
@@ -186,6 +187,7 @@ export function FixturesTabPanel({
           expandedRoundKey={expandedRoundKey}
           onToggleRound={onToggleRound}
           scoreInputsByGameId={scoreInputsByGameId}
+          hydrateEpoch={hydrateEpoch}
           onChangeScoreInput={onChangeScoreInput}
           defaultSeriesMaxGames={defaultSeriesMaxGames}
           savingGameId={savingGameId}
@@ -212,4 +214,4 @@ export function FixturesTabPanel({
       {footer}
     </View>
   );
-}
+});

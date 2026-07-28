@@ -1,10 +1,30 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Linking, Platform } from 'react-native';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { fetchAppVersionRequirements } from '../services/appVersionService';
 import { getInstalledAppVersionInfo } from '../utils/getInstalledAppVersion';
 import { dismissOptionalUpdate, isOptionalUpdateDismissed } from '../utils/appUpdateStore';
 import { isVersionGreaterThan, isVersionLessThan } from '../utils/semver';
 import { logApiError } from '../utils/errorLogger';
+
+function isExpoGo() {
+  return (
+    Constants.appOwnership === 'expo' ||
+    Constants.executionEnvironment === ExecutionEnvironment.StoreClient
+  );
+}
+
+function shouldSkipStoreVersionEnforcement() {
+  if (process.env.EXPO_PUBLIC_SKIP_VERSION_CHECK === '1') {
+    return true;
+  }
+
+  if (typeof __DEV__ !== 'undefined' && __DEV__) {
+    return true;
+  }
+
+  return isExpoGo();
+}
 
 function resolveStoreUrl(requirements, platform) {
   if (platform === 'ios' && requirements?.iosStoreUrl) {
@@ -46,6 +66,11 @@ function evaluateUpdateState(requirements, installed) {
       };
     }
 
+    return { mandatoryUpdate: null, optionalUpdate: null };
+  }
+
+  // Local dev and Expo Go do not carry the store build number this gate expects.
+  if (shouldSkipStoreVersionEnforcement()) {
     return { mandatoryUpdate: null, optionalUpdate: null };
   }
 

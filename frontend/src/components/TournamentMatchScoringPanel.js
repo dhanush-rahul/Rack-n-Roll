@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { LoadingPlaceholder } from './ui/LoadingPlaceholder';
 import { RoundMatchesDisplay } from './RoundMatchesDisplay';
 
-export function TournamentMatchScoringPanel({
+export const TournamentMatchScoringPanel = memo(function TournamentMatchScoringPanel({
   displaySections,
   fixtureSummaryText,
   expandedSectionId,
@@ -10,6 +10,7 @@ export function TournamentMatchScoringPanel({
   expandedRoundKey,
   onToggleRound,
   scoreInputsByGameId,
+  hydrateEpoch = 0,
   onChangeScoreInput,
   defaultSeriesMaxGames,
   savingGameId,
@@ -39,8 +40,10 @@ export function TournamentMatchScoringPanel({
     <>
       {filterToolbar}
       {emptyFilterMessage}
-      {isLoading && <LoadingPlaceholder message="Loading matches…" />}
-      {!isLoading && (
+      {isLoading && displaySections.length === 0 ? (
+        <LoadingPlaceholder message="Loading matches…" />
+      ) : null}
+      {displaySections.length > 0 || !isLoading ? (
         <RoundMatchesDisplay
           displaySections={displaySections}
           fixtureSummaryText={fixtureSummaryText}
@@ -50,6 +53,7 @@ export function TournamentMatchScoringPanel({
           expandedRoundKey={expandedRoundKey}
           onToggleRound={onToggleRound}
           scoreInputsByGameId={scoreInputsByGameId}
+          hydrateEpoch={hydrateEpoch}
           onChangeScoreInput={onChangeScoreInput}
           defaultSeriesMaxGames={defaultSeriesMaxGames}
           savingGameId={savingGameId}
@@ -71,7 +75,7 @@ export function TournamentMatchScoringPanel({
           viewOnly={viewOnly}
           scoringStyle={scoringStyle}
         />
-      )}
+      ) : null}
     </>
   );
-}
+});

@@ -1,16 +1,20 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   buildFixtureSectionsFromGames,
   countFixtureMatches,
   findActiveFixtureRoundKey,
 } from '../utils/fixtureDisplay';
 import { buildGroupDisplayName, buildDivisionOrderIndex } from '../utils/groupNaming';
-import { mergeFilteredGamesAfterSave } from '../utils/fixtureFilterMerge';
-import { buildPlayerSearchIndex, filterGamesByPlayerQueries, filterGamesByUserId } from '../utils/playerSearch';
+import { buildPlayerSearchIndex, filterGamesByPlayerQueries, filterGamesByUserId, scopeGamesToMatchedPlayerDivisions } from '../utils/playerSearch';
 import { SCORESHEET_STALE_TIME_MS } from '../config/queryClient';
 import { queryKeys } from './queries/queryKeys';
 import { fetchAllScoresheetPages } from './queries/tournamentQueryUtils';
+import { updateGameList } from '../utils/updateGameList';
+import {
+  buildFixtureGameIdsKey,
+  patchDisplaySectionsFromGames,
+} from '../utils/fixtureDisplayPatch';
 
 const isPlayedScoreEntry = (entry) => {
   const playerAScore = Number(entry?.playerAScore);
@@ -42,6 +46,8 @@ export function useStageFixtures(
   const isActive = Boolean(tournamentId && normalizedStageId && enabled);
 
   const [games, setGames] = useState([]);
+  const gamesRef = useRef([]);
+  gamesRef.current = games;
   const [fixtureTotal, setFixtureTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
@@ -53,6 +59,48 @@ export function useStageFixtures(
   const [appliedOpponentFilter, setAppliedOpponentFilter] = useState('');
   const [filterMatchedGames, setFilterMatchedGames] = useState(null);
   const [gamesView, setGamesView] = useState(defaultGamesView);
+  const playerSearchIndexRef = useRef(new Map());
+  const displaySectionsCacheRef = useRef([]);
+  const displaySectionsGameIdsRef = useRef('');
+  const hasLockedFilterResults = Array.isArray(filterMatchedGames);
+
+  useEffect(() => {
+    displaySectionsCacheRef.current = [];
+    displaySectionsGameIdsRef.current = '';
+  }, [appliedOpponentFilter, appliedPlayerFilter, normalizedStageId, tournamentId]);
+
+  const rebuildPlayerSearchIndex = useCallback(
+    (sourceGames) => {
+      const nextIndex = buildPlayerSearchIndex(groupsTabItems, sourceGames);
+      playerSearchIndexRef.current = nextIndex;
+      return nextIndex;
+    },
+    [groupsTabItems]
+  );
+
+  const resolveFilteredMatches = useCallback(
+    (sourceGames, playerQuery, player2Query) => {
+      const normalizedPlayerFilter = String(playerQuery || '').trim();
+      const normalizedOpponentFilter = String(player2Query || '').trim();
+
+      if (!normalizedPlayerFilter && !normalizedOpponentFilter) {
+        return [];
+      }
+
+      const searchIndex =
+        playerSearchIndexRef.current.size > 0
+          ? playerSearchIndexRef.current
+          : rebuildPlayerSearchIndex(sourceGames);
+
+      return filterGamesByPlayerQueries(
+        sourceGames,
+        normalizedPlayerFilter,
+        normalizedOpponentFilter,
+        { playerSearchIndex: searchIndex }
+      );
+    },
+    [rebuildPlayerSearchIndex]
+  );
 
   useEffect(() => {
     setGames([]);
@@ -65,6 +113,20 @@ export function useStageFixtures(
     setIsFilterExpanded(false);
     setGamesView(defaultGamesView);
   }, [defaultGamesView, normalizedStageId, tournamentId]);
+
+  const resolveFilteredGamesForDisplay = useCallback(
+    (sourceGames, playerQuery, player2Query) => {
+      const searchIndex =
+        playerSearchIndexRef.current.size > 0
+          ? playerSearchIndexRef.current
+          : rebuildPlayerSearchIndex(games.length > 0 ? games : sourceGames);
+
+      return scopeGamesToMatchedPlayerDivisions(sourceGames, playerQuery, player2Query, {
+        playerSearchIndex: searchIndex,
+      });
+    },
+    [games, rebuildPlayerSearchIndex]
+  );
 
   const loadStageScores = useCallback(
     async ({ playerQuery, player2Query, updateMainList = true } = {}) => {
@@ -99,11 +161,27 @@ export function useStageFixtures(
         );
         setFixtureTotal(Number(response.pagination?.total || items.length || 0));
         setGames(items);
+
+        if (!normalizedPlayerQuery && !normalizedPlayerTwoQuery) {
+          rebuildPlayerSearchIndex(items);
+        }
       }
 
       return items;
     },
-    [isActive, isGroupStage, normalizedStageId, queryClient, tournamentId]
+    [isActive, isGroupStage, normalizedStageId, queryClient, rebuildPlayerSearchIndex, tournamentId]
+  );
+
+  const gamesForMetadata = useMemo(() => {
+    if (hasLockedFilterResults && filterMatchedGames.length > 0) {
+      return filterMatchedGames;
+    }
+
+    return games;
+  }, [filterMatchedGames, games, hasLockedFilterResults]);
+
+  const hasActiveGamesFilter = Boolean(
+    String(appliedPlayerFilter || '').trim() || String(appliedOpponentFilter || '').trim()
   );
 
   const divisionNameById = useMemo(() => {
@@ -114,7 +192,7 @@ export function useStageFixtures(
       names.set('__ungrouped', stageName);
     }
 
-    (games || []).forEach((game) => {
+    (gamesForMetadata || []).forEach((game) => {
       const divisionId = String(game.divisionId || normalizedStageId || '').trim();
       const divisionName = String(game.divisionName || stageName || '').trim();
 
@@ -123,7 +201,7 @@ export function useStageFixtures(
       }
     });
 
-    if (isGroupStage) {
+    if (isGroupStage && !hasActiveGamesFilter) {
       (groupsTabItems || []).forEach((group, index) => {
         const divisionId = String(group?.divisionId || '').trim();
 
@@ -136,18 +214,17 @@ export function useStageFixtures(
     }
 
     return names;
-  }, [games, groupsTabItems, isGroupStage, normalizedStageId, stageName]);
+  }, [gamesForMetadata, groupsTabItems, hasActiveGamesFilter, isGroupStage, normalizedStageId, stageName]);
 
-  const divisionOrderIndex = useMemo(() => buildDivisionOrderIndex(games), [games]);
+  const divisionOrderIndex = useMemo(() => buildDivisionOrderIndex(gamesForMetadata), [gamesForMetadata]);
 
-  const playerSearchIndex = useMemo(
-    () => buildPlayerSearchIndex(groupsTabItems, games),
-    [games, groupsTabItems]
-  );
+  const playerSearchIndex = useMemo(() => {
+    if (hasLockedFilterResults) {
+      return playerSearchIndexRef.current;
+    }
 
-  const hasActiveGamesFilter = Boolean(
-    String(appliedPlayerFilter || '').trim() || String(appliedOpponentFilter || '').trim()
-  );
+    return rebuildPlayerSearchIndex(games);
+  }, [games, hasLockedFilterResults, rebuildPlayerSearchIndex]);
 
   const isMyGamesView = gamesView === 'mine';
 
@@ -166,9 +243,14 @@ export function useStageFixtures(
       return nextGames;
     }
 
-    return filterGamesByPlayerQueries(nextGames, appliedPlayerFilter, appliedOpponentFilter, {
-      playerSearchIndex,
-    });
+    return scopeGamesToMatchedPlayerDivisions(
+      filterGamesByPlayerQueries(nextGames, appliedPlayerFilter, appliedOpponentFilter, {
+        playerSearchIndex,
+      }),
+      appliedPlayerFilter,
+      appliedOpponentFilter,
+      { playerSearchIndex }
+    );
   }, [
     appliedOpponentFilter,
     appliedPlayerFilter,
@@ -179,16 +261,37 @@ export function useStageFixtures(
     playerSearchIndex,
   ]);
 
-  const displaySections = useMemo(
-    () =>
-      buildFixtureSectionsFromGames(filteredGames, {
-        divisionNameById,
-        divisionOrderIndex,
-        groupStageBestOf: resolvedBestOf,
-        isPlayedScoreEntry,
-      }),
-    [divisionNameById, divisionOrderIndex, filteredGames, resolvedBestOf]
-  );
+  const displaySections = useMemo(() => {
+    const gameIdsKey = buildFixtureGameIdsKey(filteredGames);
+    const buildOptions = {
+      divisionNameById,
+      divisionOrderIndex,
+      groupStageBestOf: resolvedBestOf,
+      isPlayedScoreEntry,
+    };
+
+    if (
+      !hasActiveGamesFilter &&
+      gameIdsKey &&
+      gameIdsKey === displaySectionsGameIdsRef.current &&
+      displaySectionsCacheRef.current.length > 0
+    ) {
+      const patched = patchDisplaySectionsFromGames(
+        displaySectionsCacheRef.current,
+        filteredGames,
+        buildOptions
+      );
+      displaySectionsCacheRef.current = patched;
+      return patched;
+    }
+
+    const built = buildFixtureSectionsFromGames(filteredGames, buildOptions).filter(
+      (section) => Number(section.matchCount || 0) > 0
+    );
+    displaySectionsGameIdsRef.current = gameIdsKey;
+    displaySectionsCacheRef.current = built;
+    return built;
+  }, [divisionNameById, divisionOrderIndex, filteredGames, hasActiveGamesFilter, resolvedBestOf]);
 
   const fixtureLabel = isGroupStage ? 'group-stage' : String(stageName || 'stage').trim();
 
@@ -268,10 +371,8 @@ export function useStageFixtures(
     setFilterMatchedGames([]);
 
     try {
-      let allStageGames = games;
-
-      if (allStageGames.length === 0) {
-        allStageGames = await loadStageScores({ updateMainList: true });
+      if (games.length > 0) {
+        rebuildPlayerSearchIndex(games);
       }
 
       const serverMatches = await loadStageScores({
@@ -280,95 +381,94 @@ export function useStageFixtures(
         updateMainList: false,
       });
 
-      const searchIndex = buildPlayerSearchIndex(groupsTabItems, allStageGames);
-      const clientMatches = filterGamesByPlayerQueries(
-        allStageGames,
+      const scopedMatches = resolveFilteredGamesForDisplay(
+        serverMatches,
         normalizedPlayerFilter,
-        normalizedOpponentFilter,
-        { playerSearchIndex: searchIndex }
+        normalizedOpponentFilter
       );
 
-      const mergedMatches = serverMatches.length > 0 ? serverMatches : clientMatches;
-      setFilterMatchedGames(mergedMatches);
-      return mergedMatches;
+      setFilterMatchedGames(scopedMatches);
+      return scopedMatches;
     } finally {
       setIsLoading(false);
     }
-  }, [games, groupsTabItems, isActive, loadStageScores, opponentFilterInput, playerFilterInput]);
+  }, [
+    games,
+    isActive,
+    loadStageScores,
+    opponentFilterInput,
+    playerFilterInput,
+    rebuildPlayerSearchIndex,
+    resolveFilteredGamesForDisplay,
+  ]);
 
-  const clearFilter = useCallback(() => {
+  const clearFilter = useCallback(async () => {
     setPlayerFilterInput('');
     setOpponentFilterInput('');
     setAppliedPlayerFilter('');
     setAppliedOpponentFilter('');
-    setFilterMatchedGames(null);
     setIsFilterExpanded(false);
-  }, []);
+    startTransition(() => {
+      setFilterMatchedGames(null);
+    });
+
+    if (games.length === 0) {
+      setIsLoading(true);
+      try {
+        await loadStageScores({ updateMainList: true });
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  }, [games.length, loadStageScores]);
 
   const refresh = useCallback(
-    async ({ preserveFilter = false } = {}) => {
+    async ({ preserveFilter = false, silent = false } = {}) => {
       if (!isActive) {
         return [];
       }
 
       const shouldPreserveFilter = preserveFilter && hasActiveGamesFilter;
-      const previousFiltered = shouldPreserveFilter ? filterMatchedGames : null;
 
       if (!shouldPreserveFilter) {
         setFilterMatchedGames(null);
       }
 
-      setIsLoading(true);
+      if (!silent) {
+        setIsLoading(true);
+      }
 
       try {
+        if (shouldPreserveFilter) {
+          const filtered = await loadStageScores({
+            playerQuery: appliedPlayerFilter,
+            player2Query: appliedOpponentFilter,
+            updateMainList: false,
+          });
+          const scopedMatches = resolveFilteredGamesForDisplay(
+            filtered,
+            appliedPlayerFilter,
+            appliedOpponentFilter
+          );
+          setFilterMatchedGames(scopedMatches);
+          return scopedMatches;
+        }
+
         const refreshedGames = await loadStageScores({ updateMainList: true });
-
-        if (!shouldPreserveFilter) {
-          return refreshedGames;
-        }
-
-        if (Array.isArray(previousFiltered) && previousFiltered.length > 0) {
-          const merged = mergeFilteredGamesAfterSave(previousFiltered, refreshedGames);
-          setFilterMatchedGames(merged);
-          return merged;
-        }
-
-        const normalizedPlayerFilter = String(appliedPlayerFilter || '').trim();
-        const normalizedOpponentFilter = String(appliedOpponentFilter || '').trim();
-
-        if (!normalizedPlayerFilter && !normalizedOpponentFilter) {
-          return refreshedGames;
-        }
-
-        const serverMatches = await loadStageScores({
-          playerQuery: normalizedPlayerFilter,
-          player2Query: normalizedOpponentFilter,
-          updateMainList: false,
-        });
-
-        const searchIndex = buildPlayerSearchIndex(groupsTabItems, refreshedGames);
-        const clientMatches = filterGamesByPlayerQueries(
-          refreshedGames,
-          normalizedPlayerFilter,
-          normalizedOpponentFilter,
-          { playerSearchIndex: searchIndex }
-        );
-
-        const mergedMatches = serverMatches.length > 0 ? serverMatches : clientMatches;
-        setFilterMatchedGames(mergedMatches);
-        return mergedMatches;
+        return refreshedGames;
       } finally {
-        setIsLoading(false);
+        if (!silent) {
+          setIsLoading(false);
+        }
       }
     },
     [
       appliedOpponentFilter,
       appliedPlayerFilter,
-      filterMatchedGames,
-      groupsTabItems,
       hasActiveGamesFilter,
       isActive,
       loadStageScores,
+      resolveFilteredGamesForDisplay,
     ]
   );
 
@@ -393,16 +493,73 @@ export function useStageFixtures(
     }
 
     const applyPatch = (game) =>
-      String(game.id || '') === normalizedGameId ? { ...game, ...patch } : game;
+      String(game.id || game.gameId || '') === normalizedGameId ? { ...game, ...patch } : game;
 
-    setGames((previousGames) => previousGames.map(applyPatch));
-    setFilterMatchedGames((previousGames) =>
-      Array.isArray(previousGames) ? previousGames.map(applyPatch) : previousGames
-    );
-  }, []);
+    const patchList = (previousGames) =>
+      Array.isArray(previousGames) ? updateGameList(previousGames, applyPatch) : previousGames;
+
+    if (hasLockedFilterResults) {
+      setFilterMatchedGames(patchList);
+      return;
+    }
+
+    setGames(patchList);
+  }, [hasLockedFilterResults]);
+
+  const applySavedGame = useCallback(
+    (savedGame) => {
+      if (!savedGame?.id) {
+        return;
+      }
+
+      const normalizedId = String(savedGame.id);
+      const savedPlayerAId = String(savedGame.playerAId || savedGame.playerA?.id || '').trim();
+      const savedPlayerBId = String(savedGame.playerBId || savedGame.playerB?.id || '').trim();
+      const savedRoundNumber = Number(savedGame.roundNumber || 0);
+
+      const mergeSavedGame = (game) => {
+        const existingId = String(game.id || game.gameId || '').trim();
+
+        if (existingId === normalizedId) {
+          return { ...game, ...savedGame, id: normalizedId };
+        }
+
+        if (existingId) {
+          return game;
+        }
+
+        const gamePlayerAId = String(game.playerAId || game.playerA?.id || '').trim();
+        const gamePlayerBId = String(game.playerBId || game.playerB?.id || '').trim();
+        const sameRound = Number(game.roundNumber || 0) === savedRoundNumber;
+        const samePlayers =
+          (gamePlayerAId === savedPlayerAId && gamePlayerBId === savedPlayerBId) ||
+          (gamePlayerAId === savedPlayerBId && gamePlayerBId === savedPlayerAId);
+
+        if (sameRound && samePlayers) {
+          return { ...game, ...savedGame, id: normalizedId };
+        }
+
+        return game;
+      };
+
+      const mergeList = (previousGames) =>
+        Array.isArray(previousGames) ? updateGameList(previousGames, mergeSavedGame) : previousGames;
+
+      if (hasLockedFilterResults) {
+        setFilterMatchedGames(mergeList);
+        return;
+      }
+
+      startTransition(() => {
+        setGames(mergeList);
+      });
+    },
+    [hasLockedFilterResults]
+  );
 
   return {
     games,
+    gamesRef,
     fixtureTotal,
     isLoading,
     canEdit,
@@ -430,6 +587,7 @@ export function useStageFixtures(
     toggleFilterExpanded,
     setGamesView,
     patchGame,
+    applySavedGame,
     setPlayerFilterInput,
     setOpponentFilterInput,
     setIsFilterExpanded,

@@ -189,17 +189,13 @@ export const isKnockoutByeGame = (game = {}) => {
 };
 
 const resolveMatchDisplayStatus = (game) => {
-  const bestOf = Math.max(Number(game.bestOf || 1), 1);
-  const winsRequired = Math.floor(bestOf / 2) + 1;
-  const winsA = Number(game.playerASeriesWins || 0);
-  const winsB = Number(game.playerBSeriesWins || 0);
   const storedStatus = game.status || 'scheduled';
 
   if (isKnockoutByeGame(game)) {
     return 'bye';
   }
 
-  if (game.winnerPlayerId || game.winnerTeamId || winsA >= winsRequired || winsB >= winsRequired) {
+  if (game.winnerPlayerId || game.winnerTeamId || storedStatus === 'completed') {
     return 'completed';
   }
 

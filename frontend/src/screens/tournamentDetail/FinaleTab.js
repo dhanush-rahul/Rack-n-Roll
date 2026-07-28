@@ -25,6 +25,7 @@ export function FinaleTab({
   expandedRoundKey,
   onToggleRound,
   scoreInputsByGameId,
+  hydrateEpoch = 0,
   onChangeScoreInput,
   configuredFinalStageBestOf,
   savingGameId,
@@ -126,6 +127,7 @@ export function FinaleTab({
           expandedRoundKey={expandedRoundKey}
           onToggleRound={onToggleRound}
           scoreInputsByGameId={scoreInputsByGameId}
+          hydrateEpoch={hydrateEpoch}
           onChangeScoreInput={onChangeScoreInput}
           defaultSeriesMaxGames={configuredFinalStageBestOf}
           savingGameId={savingGameId}

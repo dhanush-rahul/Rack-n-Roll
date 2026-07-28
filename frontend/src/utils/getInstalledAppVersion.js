@@ -38,6 +38,17 @@ export function getInstalledAppVersionInfo() {
     buildNumber = Number(Constants.expoConfig?.ios?.buildNumber || 0);
   }
 
+  if (typeof __DEV__ !== 'undefined' && __DEV__) {
+    const configBuild =
+      Platform.OS === 'android'
+        ? Number(Constants.expoConfig?.android?.versionCode || 0)
+        : Number(Constants.expoConfig?.ios?.buildNumber || 0);
+
+    if (configBuild > buildNumber) {
+      buildNumber = configBuild;
+    }
+  }
+
   return {
     appVersion: appVersion || '0.0.0',
     buildNumber: Number.isFinite(buildNumber) ? buildNumber : 0,

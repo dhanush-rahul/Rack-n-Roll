@@ -274,6 +274,65 @@ export const filterGamesByPlayerQueries = (
     doesGameMatchPlayerFilters(game, playerQuery, player2Query, playerSearchIndex)
   );
 
+const resolveDivisionIdsForPlayerQuery = (query, playerSearchIndex = new Map()) => {
+  const playerIds = resolvePlayerIdsForQuery(query, playerSearchIndex);
+
+  return [
+    ...new Set(
+      playerIds
+        .map((playerId) => String(playerSearchIndex.get(playerId)?.divisionId || '').trim())
+        .filter(Boolean)
+    ),
+  ];
+};
+
+/** When a name search resolves to one group, drop games from other divisions. */
+export const scopeGamesToMatchedPlayerDivisions = (
+  games = [],
+  playerQuery,
+  player2Query,
+  { playerSearchIndex = new Map() } = {}
+) => {
+  const normalizedPlayerFilter = String(playerQuery || '').trim();
+  const normalizedOpponentFilter = String(player2Query || '').trim();
+
+  if (!normalizedPlayerFilter && !normalizedOpponentFilter) {
+    return games;
+  }
+
+  const restrictToDivision = (divisionId) =>
+    games.filter((game) => String(game.divisionId || '').trim() === divisionId);
+
+  if (normalizedPlayerFilter && normalizedOpponentFilter) {
+    const playerDivisions = resolveDivisionIdsForPlayerQuery(
+      normalizedPlayerFilter,
+      playerSearchIndex
+    );
+    const opponentDivisions = resolveDivisionIdsForPlayerQuery(
+      normalizedOpponentFilter,
+      playerSearchIndex
+    );
+    const sharedDivisions = playerDivisions.filter((divisionId) =>
+      opponentDivisions.includes(divisionId)
+    );
+
+    if (sharedDivisions.length === 1) {
+      return restrictToDivision(sharedDivisions[0]);
+    }
+
+    return games;
+  }
+
+  const activeQuery = normalizedPlayerFilter || normalizedOpponentFilter;
+  const divisionIds = resolveDivisionIdsForPlayerQuery(activeQuery, playerSearchIndex);
+
+  if (divisionIds.length === 1) {
+    return restrictToDivision(divisionIds[0]);
+  }
+
+  return games;
+};
+
 export const doesGameIncludeUserId = (game, userId, { playerSearchIndex = new Map() } = {}) => {
   const normalizedUserId = String(userId || '').trim();
 

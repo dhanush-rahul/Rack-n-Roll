@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { ScaledText as Text } from '../ui/ScaledText';
 import { ScoreBoxInput } from './ScoreBoxInput';
@@ -317,10 +317,256 @@ function MatchActionButton({ label, onPress, disabled, variant = 'primary' }) {
   );
 }
 
-export function RoundMatchesTable({
+function cloneScoreInput(scoreInput) {
+  if (!scoreInput) {
+    return null;
+  }
+
+  return {
+    ...scoreInput,
+    entries: (scoreInput.entries || []).map((entry) => ({ ...entry })),
+  };
+}
+
+function buildDefaultScoreInput(match, defaultSeriesMaxGames) {
+  const defaultSeriesMax = Math.max(Number(match.bestOf || 1), Number(defaultSeriesMaxGames || 1), 1);
+
+  return {
+    status: match.status || 'scheduled',
+    seriesMaxGames: defaultSeriesMax,
+    entries: [{ gameNumber: 1, playerAScore: '', playerBScore: '' }],
+  };
+}
+
+function buildDisplayEntries(scoreInput, match, defaultSeriesMaxGames, isTotalPoints) {
+  const scoreInputEntries = (scoreInput.entries || []).map((entry, entryIndex) => ({
+    gameNumber: Number(entry?.gameNumber || entryIndex + 1),
+    playerAScore: String(entry?.playerAScore ?? ''),
+    playerBScore: String(entry?.playerBScore ?? ''),
+  }));
+  const { seriesTargetBestOf } = getSeriesScoringMeta({
+    scoreInput,
+    matchBestOf: match.bestOf,
+    configuredBestOf: defaultSeriesMaxGames,
+    entryCount: scoreInputEntries.length,
+  });
+
+  while (!isTotalPoints && scoreInputEntries.length < seriesTargetBestOf) {
+    scoreInputEntries.push({
+      gameNumber: scoreInputEntries.length + 1,
+      playerAScore: '',
+      playerBScore: '',
+    });
+  }
+
+  return {
+    displayEntries: isTotalPoints ? scoreInputEntries.slice(0, 1) : scoreInputEntries,
+    seriesTargetBestOf,
+    boxCount: isTotalPoints ? 1 : seriesTargetBestOf,
+  };
+}
+
+const MatchTableRow = memo(
+  function MatchTableRow({
+    match,
+    matchIndex,
+    scoreStateKey,
+    initialScoreInput,
+    hydrateEpoch,
+    isSaving,
+    columnWidths,
+    defaultSeriesMaxGames,
+    isTotalPoints,
+    canEditPatternScores,
+    viewOnly,
+    useLiveSessionScoring,
+    showActions,
+    handleScoreChange,
+    onStartGame,
+    onScheduleMatch,
+    scoringStyle,
+  }) {
+    const [scoreInput, setScoreInput] = useState(
+      () => cloneScoreInput(initialScoreInput) || buildDefaultScoreInput(match, defaultSeriesMaxGames)
+    );
+
+    useEffect(() => {
+      setScoreInput(
+        cloneScoreInput(initialScoreInput) || buildDefaultScoreInput(match, defaultSeriesMaxGames)
+      );
+    }, [defaultSeriesMaxGames, hydrateEpoch, scoreStateKey]);
+
+    const { displayEntries, seriesTargetBestOf, boxCount } = buildDisplayEntries(
+      scoreInput,
+      match,
+      defaultSeriesMaxGames,
+      isTotalPoints
+    );
+    const playerAName = getMatchPlayerName(match, 'a');
+    const playerBName = getMatchPlayerName(match, 'b');
+    const tone = statusTone(match.status);
+    const canEditThisMatch = viewOnly ? false : (match.canEditMatch ?? canEditPatternScores);
+    const appointmentLabel = match.scheduledStartAt
+      ? formatMatchScheduledAt(match.scheduledStartAt)
+      : 'Not scheduled';
+    const matchId = match.gameId || match.id;
+
+    const onEntryChange = useCallback(
+      ({ entryIndex, field, value }) => {
+        let nextScoreInput = null;
+
+        setScoreInput((previousInput) => {
+          const nextEntries = [...(previousInput.entries || [])];
+
+          while (nextEntries.length <= entryIndex) {
+            nextEntries.push({
+              gameNumber: nextEntries.length + 1,
+              playerAScore: '',
+              playerBScore: '',
+            });
+          }
+
+          nextEntries[entryIndex] = {
+            ...(nextEntries[entryIndex] || {
+              gameNumber: entryIndex + 1,
+              playerAScore: '',
+              playerBScore: '',
+            }),
+            [field]: value,
+          };
+
+          nextScoreInput = {
+            ...previousInput,
+            entries: nextEntries,
+          };
+
+          return nextScoreInput;
+        });
+
+        handleScoreChange({
+          match,
+          scoreStateKey,
+          entryIndex,
+          field,
+          value,
+          seriesTargetBestOf,
+          scoreInput: nextScoreInput,
+        });
+      },
+      [handleScoreChange, match, scoreStateKey, seriesTargetBestOf]
+    );
+
+    return (
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingVertical: 12,
+          paddingHorizontal: 8,
+          borderBottomWidth: 1,
+          borderBottomColor: tournamentColors.borderLight,
+          backgroundColor: matchIndex % 2 === 0 ? tournamentColors.white : tournamentColors.rowStripe,
+        }}
+      >
+        <TableCell width={columnWidths.matchNumber} align="center">
+          <Text style={{ fontWeight: '800', color: tournamentColors.text }}>{match.matchNumber}</Text>
+        </TableCell>
+        <TableCell width={columnWidths.player1}>
+          <Text numberOfLines={2} style={{ fontSize: 13, fontWeight: '600', color: tournamentColors.text }}>
+            {playerAName}
+          </Text>
+        </TableCell>
+        <MatchScoresCell
+          match={match}
+          scoreStateKey={scoreStateKey}
+          displayEntries={displayEntries}
+          boxCount={boxCount}
+          columnWidth={columnWidths.scores}
+          canEditThisMatch={canEditThisMatch}
+          isSaving={isSaving}
+          useLiveSessionScoring={useLiveSessionScoring}
+          handleScoreChange={onEntryChange}
+          seriesTargetBestOf={seriesTargetBestOf}
+          scoringStyle={scoringStyle}
+        />
+        <TableCell width={columnWidths.player2}>
+          <Text numberOfLines={2} style={{ fontSize: 13, fontWeight: '600', color: tournamentColors.text }}>
+            {playerBName}
+          </Text>
+        </TableCell>
+        <TableCell width={columnWidths.duration} align="center">
+          <MatchDurationDisplay
+            durationMs={match.matchDurationMs}
+            startedAt={match.matchStartedAt}
+            status={match.status}
+          />
+        </TableCell>
+        <TableCell width={columnWidths.scheduled}>
+          <Text
+            numberOfLines={2}
+            style={{ fontSize: 11, color: match.scheduledStartAt ? tournamentColors.scheduleAccent : tournamentColors.textMuted }}
+          >
+            {appointmentLabel}
+          </Text>
+        </TableCell>
+        <TableCell width={columnWidths.status} align="center">
+          <View
+            style={{
+              paddingHorizontal: 8,
+              paddingVertical: 4,
+              borderRadius: 999,
+              backgroundColor: tone.bg,
+            }}
+          >
+            <Text style={{ fontSize: 10, fontWeight: '700', color: tone.text }}>
+              {isSaving ? 'Saving…' : tone.label}
+            </Text>
+          </View>
+        </TableCell>
+        {showActions ? (
+          <TableCell width={columnWidths.actions}>
+            {useLiveSessionScoring && matchId && match.status !== 'completed' ? (
+              <MatchActionButton
+                label={match.status === 'inProgress' ? 'Resume' : 'Start'}
+                onPress={() => onStartGame?.({ gameId: matchId, match })}
+              />
+            ) : null}
+            {match.canScheduleMatch !== false && matchId ? (
+              <MatchActionButton
+                label={match.scheduledStartAt ? 'Reschedule' : 'Schedule'}
+                onPress={() =>
+                  onScheduleMatch?.({
+                    gameId: matchId,
+                    tournamentId: match.tournamentId,
+                    playerAName,
+                    playerBName,
+                    scheduledStartAt: match.scheduledStartAt || null,
+                  })
+                }
+                variant="secondary"
+              />
+            ) : null}
+          </TableCell>
+        ) : null}
+      </View>
+    );
+  },
+  (previousProps, nextProps) =>
+    previousProps.hydrateEpoch === nextProps.hydrateEpoch &&
+    previousProps.isSaving === nextProps.isSaving &&
+    previousProps.match === nextProps.match &&
+    previousProps.scoreStateKey === nextProps.scoreStateKey &&
+    previousProps.columnWidths === nextProps.columnWidths &&
+    previousProps.defaultSeriesMaxGames === nextProps.defaultSeriesMaxGames &&
+    previousProps.viewOnly === nextProps.viewOnly &&
+    previousProps.canEditPatternScores === nextProps.canEditPatternScores
+);
+
+export const RoundMatchesTable = memo(function RoundMatchesTable({
   matches = [],
   scoringStyle = 'individualGames',
   scoreInputsByGameId = {},
+  hydrateEpoch = 0,
   onChangeScoreInput,
   savingGameId = null,
   onSaveMatchScores,
@@ -361,7 +607,7 @@ export function RoundMatchesTable({
     16;
 
   const handleScoreChange = useCallback(
-    ({ match, scoreStateKey, entryIndex, field, value, seriesTargetBestOf }) => {
+    ({ match, scoreStateKey, entryIndex, field, value, seriesTargetBestOf, scoreInput }) => {
       onChangeScoreInput?.(scoreStateKey, entryIndex, field, value);
 
       if (viewOnly || !onSaveMatchScores) {
@@ -375,6 +621,7 @@ export function RoundMatchesTable({
         playerBId: match.playerBId,
         scoreStateKey,
         bestOf: isTotalPoints ? 1 : seriesTargetBestOf,
+        scoreInput,
       });
     },
     [isTotalPoints, onChangeScoreInput, onSaveMatchScores, scheduleAutoSave, viewOnly]
@@ -410,141 +657,36 @@ export function RoundMatchesTable({
           const playerBKey = String(match.playerB?.id || match.playerBId || 'b');
           const scoreStateKey =
             matchId || `pending-${match.roundNumber}-${match.matchNumber}-${playerAKey}-${playerBKey}`;
-          const playerAName = getMatchPlayerName(match, 'a');
-          const playerBName = getMatchPlayerName(match, 'b');
+          const defaultSeriesMax = Math.max(Number(match.bestOf || 1), Number(defaultSeriesMaxGames || 1), 1);
+          const initialScoreInput =
+            scoreInputsByGameId[scoreStateKey] || buildDefaultScoreInput(match, defaultSeriesMaxGames);
           const isSaving =
             savingGameId === scoreStateKey || (Boolean(matchId) && savingGameId === matchId);
-          const defaultSeriesMax = Math.max(Number(match.bestOf || 1), Number(defaultSeriesMaxGames || 1), 1);
-          const scoreInput = scoreInputsByGameId[scoreStateKey] || {
-            status: match.status || 'scheduled',
-            seriesMaxGames: defaultSeriesMax,
-            entries: [{ gameNumber: 1, playerAScore: '', playerBScore: '' }],
-          };
-          const scoreInputEntries = (scoreInput.entries || []).map((entry, entryIndex) => ({
-            gameNumber: Number(entry?.gameNumber || entryIndex + 1),
-            playerAScore: String(entry?.playerAScore ?? ''),
-            playerBScore: String(entry?.playerBScore ?? ''),
-          }));
-          const { seriesTargetBestOf } = getSeriesScoringMeta({
-            scoreInput,
-            matchBestOf: match.bestOf,
-            configuredBestOf: defaultSeriesMaxGames,
-            entryCount: scoreInputEntries.length,
-          });
-          while (!isTotalPoints && scoreInputEntries.length < seriesTargetBestOf) {
-            scoreInputEntries.push({
-              gameNumber: scoreInputEntries.length + 1,
-              playerAScore: '',
-              playerBScore: '',
-            });
-          }
-          const displayEntries = isTotalPoints ? scoreInputEntries.slice(0, 1) : scoreInputEntries;
-          const boxCount = isTotalPoints ? 1 : seriesTargetBestOf;
-          const tone = statusTone(match.status);
-          const canEditThisMatch = viewOnly ? false : (match.canEditMatch ?? canEditPatternScores);
-          const appointmentLabel = match.scheduledStartAt
-            ? formatMatchScheduledAt(match.scheduledStartAt)
-            : 'Not scheduled';
 
           return (
-            <View
+            <MatchTableRow
               key={`table-match-${scoreStateKey}-${matchIndex}`}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                paddingVertical: 12,
-                paddingHorizontal: 8,
-                borderBottomWidth: 1,
-                borderBottomColor: tournamentColors.borderLight,
-                backgroundColor: matchIndex % 2 === 0 ? tournamentColors.white : tournamentColors.rowStripe,
-              }}
-            >
-              <TableCell width={columnWidths.matchNumber} align="center">
-                <Text style={{ fontWeight: '800', color: tournamentColors.text }}>{match.matchNumber}</Text>
-              </TableCell>
-              <TableCell width={columnWidths.player1}>
-                <Text numberOfLines={2} style={{ fontSize: 13, fontWeight: '600', color: tournamentColors.text }}>
-                  {playerAName}
-                </Text>
-              </TableCell>
-              <MatchScoresCell
-                match={match}
-                scoreStateKey={scoreStateKey}
-                displayEntries={displayEntries}
-                boxCount={boxCount}
-                columnWidth={columnWidths.scores}
-                canEditThisMatch={canEditThisMatch}
-                isSaving={isSaving}
-                useLiveSessionScoring={useLiveSessionScoring}
-                handleScoreChange={handleScoreChange}
-                seriesTargetBestOf={seriesTargetBestOf}
-                scoringStyle={scoringStyle}
-              />
-              <TableCell width={columnWidths.player2}>
-                <Text numberOfLines={2} style={{ fontSize: 13, fontWeight: '600', color: tournamentColors.text }}>
-                  {playerBName}
-                </Text>
-              </TableCell>
-              <TableCell width={columnWidths.duration} align="center">
-                <MatchDurationDisplay
-                  durationMs={match.matchDurationMs}
-                  startedAt={match.matchStartedAt}
-                  status={match.status}
-                />
-              </TableCell>
-              <TableCell width={columnWidths.scheduled}>
-                <Text
-                  numberOfLines={2}
-                  style={{ fontSize: 11, color: match.scheduledStartAt ? tournamentColors.scheduleAccent : tournamentColors.textMuted }}
-                >
-                  {appointmentLabel}
-                </Text>
-              </TableCell>
-              <TableCell width={columnWidths.status} align="center">
-                <View style={{ backgroundColor: tone.bg, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 }}>
-                  <Text style={{ fontSize: 10, fontWeight: '700', color: tone.text }}>{tone.label}</Text>
-                </View>
-                {isSaving ? (
-                  <Text style={{ fontSize: 10, color: tournamentColors.primary, marginTop: 4 }}>Saving…</Text>
-                ) : null}
-              </TableCell>
-              {showActions ? (
-                <TableCell width={columnWidths.actions} style={{ gap: 6, paddingHorizontal: 4 }}>
-                  {useLiveSessionScoring && onStartGame && matchId && match.status !== 'completed' ? (
-                    <MatchActionButton
-                      label={match.status === 'inProgress' ? 'Resume' : 'Start'}
-                      onPress={() =>
-                        onStartGame({
-                          gameId: matchId,
-                          tournamentId: match.tournamentId,
-                          playerAName,
-                          playerBName,
-                        })
-                      }
-                      disabled={!canEditThisMatch}
-                    />
-                  ) : null}
-                  {onScheduleMatch && match.canScheduleMatch !== false && matchId ? (
-                    <MatchActionButton
-                      label={match.scheduledStartAt ? 'Reschedule' : 'Schedule'}
-                      onPress={() =>
-                        onScheduleMatch({
-                          gameId: matchId,
-                          tournamentId: match.tournamentId,
-                          playerAName,
-                          playerBName,
-                          scheduledStartAt: match.scheduledStartAt || null,
-                        })
-                      }
-                      variant="secondary"
-                    />
-                  ) : null}
-                </TableCell>
-              ) : null}
-            </View>
+              match={match}
+              matchIndex={matchIndex}
+              scoreStateKey={scoreStateKey}
+              initialScoreInput={initialScoreInput}
+              hydrateEpoch={hydrateEpoch}
+              isSaving={isSaving}
+              columnWidths={columnWidths}
+              defaultSeriesMaxGames={defaultSeriesMaxGames}
+              isTotalPoints={isTotalPoints}
+              canEditPatternScores={canEditPatternScores}
+              viewOnly={viewOnly}
+              useLiveSessionScoring={useLiveSessionScoring}
+              showActions={showActions}
+              handleScoreChange={handleScoreChange}
+              onStartGame={onStartGame}
+              onScheduleMatch={onScheduleMatch}
+              scoringStyle={scoringStyle}
+            />
           );
         })}
       </View>
     </ScrollView>
   );
-}
+});

@@ -11,6 +11,7 @@ export function StageTabView({
   games = [],
   displaySections = [],
   scoreInputsByGameId,
+  hydrateEpoch = 0,
   onChangeScoreInput,
   savingGameId,
   onSaveMatchScores,
@@ -104,6 +105,7 @@ export function StageTabView({
       expandedRoundKey={expandedRoundKey}
       onToggleRound={onToggleRound}
       scoreInputsByGameId={scoreInputsByGameId}
+      hydrateEpoch={hydrateEpoch}
       onChangeScoreInput={onChangeScoreInput}
       savingGameId={savingGameId}
       onSaveMatchScores={onSaveMatchScores}
