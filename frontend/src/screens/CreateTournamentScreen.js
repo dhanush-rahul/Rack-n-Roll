@@ -10,7 +10,7 @@ import { ChipSelector } from '../components/tournament/TournamentChrome';
 import { useScreenInsets } from '../hooks/useScreenInsets';
 import { invalidateTournamentCache } from '../hooks/queries/invalidateTournamentCache';
 import { createTournament } from '../services/tournamentService';
-import { tournamentColors, tournamentUi } from '../styles/tournamentUi';
+import { HERO_TOP_MARGIN, tournamentColors, tournamentUi } from '../styles/tournamentUi';
 import { useTheme } from '../context/ThemeContext';
 import { PageColumn } from '../components/layout/PageColumn';
 import { useResponsiveLayout } from '../utils/responsive';
@@ -630,6 +630,7 @@ export function CreateTournamentScreen({ navigation, route }) {
       <PageColumn insetStyle={{ paddingTop: 16, gap: 14 }}>
       <View
         style={{
+          marginTop: HERO_TOP_MARGIN,
           borderRadius: 16,
           padding: 16,
           backgroundColor: tournamentColors.heroBg,

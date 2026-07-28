@@ -3,10 +3,9 @@ const Division = require('../../models/division.model');
 const Game = require('../../models/game.model');
 const Leaderboard = require('../../models/leaderboard.model');
 const Team = require('../../models/team.model');
-const Player = require('../../models/player.model');
 const ApiError = require('../../utils/ApiError');
 const cache = require('../../utils/cache');
-const { computePoolStats, getHandicapBonusPoints } = require('../../utils/handicapScoring');
+const { computePoolStats } = require('../../utils/handicapScoring');
 
 const tournamentCachePrefix = (tournamentId) => `tournament:${String(tournamentId)}:`;
 
@@ -79,14 +78,13 @@ const recomputeDoublesLeaderboardForScope = async (tournamentId, divisionId, sco
       playerStats.scoreFor += scoreFor;
       playerStats.scoreAgainst += scoreAgainst;
       playerStats.scoreDifferential = playerStats.scoreFor - playerStats.scoreAgainst;
+      playerStats.points += scoreFor;
       if (outcome === 'win') {
         playerStats.wins += 1;
-        playerStats.points += 2;
       } else if (outcome === 'loss') {
         playerStats.losses += 1;
       } else {
         playerStats.draws += 1;
-        playerStats.points += 1;
       }
     });
   };
@@ -105,10 +103,11 @@ const recomputeDoublesLeaderboardForScope = async (tournamentId, divisionId, sco
     teamBStats.scoreFor += seriesOutcome.scoreForB;
     teamBStats.scoreAgainst += seriesOutcome.scoreForA;
     teamBStats.scoreDifferential = teamBStats.scoreFor - teamBStats.scoreAgainst;
+    teamAStats.points += seriesOutcome.scoreForA;
+    teamBStats.points += seriesOutcome.scoreForB;
 
     if (seriesOutcome.playerASeriesWins > seriesOutcome.playerBSeriesWins) {
       teamAStats.wins += 1;
-      teamAStats.points += 2;
       teamBStats.losses += 1;
       applyOutcomeToMembers(game.teamAId, seriesOutcome.scoreForA, seriesOutcome.scoreForB, 'win');
       applyOutcomeToMembers(game.teamBId, seriesOutcome.scoreForB, seriesOutcome.scoreForA, 'loss');
@@ -117,7 +116,6 @@ const recomputeDoublesLeaderboardForScope = async (tournamentId, divisionId, sco
 
     if (seriesOutcome.playerBSeriesWins > seriesOutcome.playerASeriesWins) {
       teamBStats.wins += 1;
-      teamBStats.points += 2;
       teamAStats.losses += 1;
       applyOutcomeToMembers(game.teamBId, seriesOutcome.scoreForB, seriesOutcome.scoreForA, 'win');
       applyOutcomeToMembers(game.teamAId, seriesOutcome.scoreForA, seriesOutcome.scoreForB, 'loss');
@@ -126,8 +124,6 @@ const recomputeDoublesLeaderboardForScope = async (tournamentId, divisionId, sco
 
     teamAStats.draws += 1;
     teamBStats.draws += 1;
-    teamAStats.points += 1;
-    teamBStats.points += 1;
     applyOutcomeToMembers(game.teamAId, seriesOutcome.scoreForA, seriesOutcome.scoreForB, 'draw');
     applyOutcomeToMembers(game.teamBId, seriesOutcome.scoreForB, seriesOutcome.scoreForA, 'draw');
   });
@@ -227,22 +223,6 @@ const recomputeLeaderboardForScope = async (tournamentId, divisionId) => {
     return recomputeDoublesLeaderboardForScope(tournamentId, divisionId, scopeFilter);
   }
 
-  const handicapEnabled = Boolean(tournament?.competitionConfig?.handicapEnabled);
-  const playerHandicapById = new Map();
-
-  if (handicapEnabled) {
-    const tournamentPlayers = await Player.find({ tournamentId })
-      .select({ _id: 1, handicapEnabled: 1, handicapValue: 1 })
-      .lean();
-
-    tournamentPlayers.forEach((player) => {
-      playerHandicapById.set(
-        String(player._id),
-        player.handicapEnabled ? Number(player.handicapValue || 0) : 0
-      );
-    });
-  }
-
   const completedGames = await Game.find({ ...scopeFilter, status: 'completed' })
     .sort({ createdAt: 1, _id: 1 })
     .lean();
@@ -294,40 +274,24 @@ const recomputeLeaderboardForScope = async (tournamentId, divisionId) => {
     playerBStats.scoreFor += seriesOutcome.scoreForB;
     playerBStats.scoreAgainst += seriesOutcome.scoreForA;
     playerBStats.scoreDifferential = playerBStats.scoreFor - playerBStats.scoreAgainst;
+    playerAStats.points += seriesOutcome.scoreForA;
+    playerBStats.points += seriesOutcome.scoreForB;
+    recordHeadToHeadPoints(game.playerAId, game.playerBId, seriesOutcome.scoreForA, seriesOutcome.scoreForB);
 
     if (seriesOutcome.playerASeriesWins > seriesOutcome.playerBSeriesWins) {
-      const handicapBonus = handicapEnabled
-        ? getHandicapBonusPoints(
-            playerHandicapById.get(String(game.playerAId)) || 0,
-            playerHandicapById.get(String(game.playerBId)) || 0
-          )
-        : 0;
       playerAStats.wins += 1;
-      playerAStats.points += 2 + handicapBonus;
       playerBStats.losses += 1;
-      recordHeadToHeadPoints(game.playerAId, game.playerBId, 2 + handicapBonus, 0);
       return;
     }
 
     if (seriesOutcome.playerBSeriesWins > seriesOutcome.playerASeriesWins) {
-      const handicapBonus = handicapEnabled
-        ? getHandicapBonusPoints(
-            playerHandicapById.get(String(game.playerBId)) || 0,
-            playerHandicapById.get(String(game.playerAId)) || 0
-          )
-        : 0;
       playerBStats.wins += 1;
-      playerBStats.points += 2 + handicapBonus;
       playerAStats.losses += 1;
-      recordHeadToHeadPoints(game.playerAId, game.playerBId, 0, 2 + handicapBonus);
       return;
     }
 
     playerAStats.draws += 1;
     playerBStats.draws += 1;
-    playerAStats.points += 1;
-    playerBStats.points += 1;
-    recordHeadToHeadPoints(game.playerAId, game.playerBId, 1, 1);
   });
 
   const compareHeadToHead = (left, right) => {

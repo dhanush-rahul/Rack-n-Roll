@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { cardShadow, tournamentColors } from './tournamentUi';
+import { cardShadow, HERO_TOP_MARGIN, tournamentColors } from './tournamentUi';
 
 export const authUi = {
   screen: {
@@ -12,6 +12,7 @@ export const authUi = {
     paddingBottom: 32,
   },
   hero: {
+    marginTop: HERO_TOP_MARGIN,
     borderRadius: 18,
     padding: 24,
     backgroundColor: '#0f172a',

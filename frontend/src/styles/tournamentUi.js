@@ -134,8 +134,11 @@ export const tournamentUi = {
   },
 };
 
+export const HERO_TOP_MARGIN = 12;
+
 export const discoverUi = {
   hero: {
+    marginTop: HERO_TOP_MARGIN,
     borderRadius: 18,
     padding: 18,
     backgroundColor: '#0f172a',

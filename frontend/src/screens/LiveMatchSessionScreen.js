@@ -22,7 +22,7 @@ import {
   requestLiveMatchTakeover,
   startLiveMatchSession,
 } from '../services/tournamentService';
-import { tournamentColors, tournamentUi } from '../styles/tournamentUi';
+import { HERO_TOP_MARGIN, tournamentColors, tournamentUi } from '../styles/tournamentUi';
 
 function PlayerSpotlight({
   player,
@@ -335,6 +335,7 @@ export function LiveMatchSessionScreen({ route, navigation }) {
       <ScreenScrollShell style={{ backgroundColor: tournamentColors.inputFill }} contentContainerStyle={{ gap: 16 }}>
         <View
           style={{
+            marginTop: HERO_TOP_MARGIN,
             padding: 18,
             borderRadius: 18,
             backgroundColor: tournamentColors.heroBg,
