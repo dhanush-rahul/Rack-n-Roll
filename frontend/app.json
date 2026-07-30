@@ -2,7 +2,7 @@
   "expo": {
     "name": "Rack-n-Roll",
     "slug": "rack-n-roll",
-    "version": "1.3.5",
+    "version": "1.3.6",
     "orientation": "default",
     "userInterfaceStyle": "dark",
     "icon": "./assets/icon.png",
@@ -36,7 +36,7 @@
       }
     },
     "android": {
-      "versionCode": 21,
+      "versionCode": 22,
       "package": "com.dhanushcharipally.racknroll",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
@@ -44,7 +44,7 @@
       }
     },
     "ios": {
-      "buildNumber": "21",
+      "buildNumber": "22",
       "bundleIdentifier": "com.dhanushcharipally.racknroll"
     },
     "web": {

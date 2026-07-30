@@ -1,8 +1,13 @@
 {
   "name": "rack-n-roll-frontend",
-  "version": "1.3.5",
+  "version": "1.3.6",
   "private": true,
   "main": "node_modules/expo/AppEntry.js",
+  "expo": {
+    "autolinking": {
+      "exclude": ["@expo/dom-webview"]
+    }
+  },
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
@@ -23,7 +28,6 @@
     "lint": "eslint src"
   },
   "dependencies": {
-    "@expo/dom-webview": "^57.0.1",
     "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "8.4.4",
