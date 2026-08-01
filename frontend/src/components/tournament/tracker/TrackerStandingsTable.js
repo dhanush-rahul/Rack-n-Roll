@@ -1,28 +1,69 @@
 import React, { useState } from 'react';
-import { View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { ScaledText as Text } from '../../ui/ScaledText';
 import { FeedbackModal } from '../../FeedbackModal';
 import { useTheme } from '../../../context/ThemeContext';
+import { useTypography } from '../../../context/TypographyContext';
 import { STANDINGS_STAT_HELP, StandingsStatHeaderCell } from '../chrome/standingsStatHelp';
 
-const RANK_WIDTH = 36;
+const BASE_RANK_WIDTH = 36;
+const BASE_PTS_WIDTH = 44;
+const BASE_WIN_LOSS_WIDTH = 32;
+const BASE_DRAW_WIDTH = 36;
+const BASE_STAT_WIDTH = 44;
+const BASE_WIN_PCT_WIDTH = 52;
+const BASE_PLAYER_MIN = 120;
+
+function resolveExtendedStats(entry) {
+  if (entry.stats) {
+    return {
+      winPct: entry.stats.winPct ?? 0,
+      ppm: entry.stats.ppm ?? 0,
+      paa: entry.stats.paa ?? 0,
+    };
+  }
+
+  const wins = Number(entry.wins || 0);
+  const losses = Number(entry.losses || 0);
+  const draws = Number(entry.draws || 0);
+  const matchesPlayed = wins + losses + draws;
+  const scoreFor = Number(entry.scoreFor || 0);
+  const scoreAgainst = Number(entry.scoreAgainst || 0);
+
+  return {
+    winPct: matchesPlayed > 0 ? Math.round((wins / matchesPlayed) * 100) : 0,
+    ppm: matchesPlayed > 0 ? Number((scoreFor / matchesPlayed).toFixed(2)) : 0,
+    paa: matchesPlayed > 0 ? Number((scoreAgainst / matchesPlayed).toFixed(2)) : 0,
+  };
+}
 
 export function TrackerStandingsTable({ standings = [], resolveParticipantStats, entityLabel = 'Player' }) {
   const { colors } = useTheme();
+  const { sp, fs } = useTypography();
   const [activeStatHelp, setActiveStatHelp] = useState(null);
 
+  const rankWidth = sp(BASE_RANK_WIDTH);
+  const ptsWidth = sp(BASE_PTS_WIDTH);
+  const winLossWidth = sp(BASE_WIN_LOSS_WIDTH);
+  const drawWidth = sp(BASE_DRAW_WIDTH);
+  const statWidth = sp(BASE_STAT_WIDTH);
+  const winPctWidth = sp(BASE_WIN_PCT_WIDTH);
+  const playerMinWidth = sp(BASE_PLAYER_MIN);
+  const tableMinWidth =
+    rankWidth + playerMinWidth + ptsWidth + winLossWidth * 2 + drawWidth + statWidth * 2 + winPctWidth + statWidth * 2;
+
   if (standings.length === 0) {
-    return <Text style={{ fontSize: 13, color: colors.textMuted }}>No standings yet.</Text>;
+    return <Text style={{ fontSize: fs(13), color: colors.textMuted }}>No standings yet.</Text>;
   }
 
   const headerStyle = {
     fontWeight: '700',
-    fontSize: 11,
+    fontSize: fs(11),
     color: colors.textMuted,
   };
 
   const cellStyle = {
-    fontSize: 13,
+    fontSize: fs(13),
     color: colors.text,
   };
 
@@ -32,15 +73,21 @@ export function TrackerStandingsTable({ standings = [], resolveParticipantStats,
     flexDirection: 'row',
     alignItems: 'center',
     width: '100%',
-    paddingHorizontal: 10,
-    paddingVertical: 10,
+    minWidth: tableMinWidth,
+    paddingHorizontal: sp(10),
+    paddingVertical: sp(9),
   };
 
-  const statCellStyle = {
-    flex: 1,
-    minWidth: 0,
-    textAlign: 'right',
-  };
+  const statHeader = (label, key, width) => (
+    <StandingsStatHeaderCell
+      label={label}
+      width={width}
+      textAlign="right"
+      headerCell={headerStyle}
+      accentColor={colors.primary}
+      onPress={openHelp(key)}
+    />
+  );
 
   return (
     <>
@@ -54,102 +101,80 @@ export function TrackerStandingsTable({ standings = [], resolveParticipantStats,
           overflow: 'hidden',
         }}
       >
-        <View
-          style={{
-            ...rowStyle,
-            backgroundColor: colors.borderLight,
-            borderBottomWidth: 1,
-            borderBottomColor: colors.border,
-          }}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator
+          nestedScrollEnabled
+          bounces={false}
+          style={{ width: '100%' }}
+          contentContainerStyle={{ flexGrow: 1 }}
         >
-          <Text style={{ ...headerStyle, width: RANK_WIDTH, flexShrink: 0 }}>#</Text>
-          <Text style={{ ...headerStyle, flex: 2, minWidth: 0 }}>{entityLabel}</Text>
-          <StandingsStatHeaderCell
-            label="GP"
-            flex={1}
-            textAlign="right"
-            headerCell={headerStyle}
-            accentColor={colors.primary}
-            onPress={openHelp('GP')}
-          />
-          <StandingsStatHeaderCell
-            label="GR"
-            flex={1}
-            textAlign="right"
-            headerCell={headerStyle}
-            accentColor={colors.primary}
-            onPress={openHelp('GR')}
-          />
-          <StandingsStatHeaderCell
-            label="W"
-            flex={1}
-            textAlign="right"
-            headerCell={headerStyle}
-            accentColor={colors.primary}
-            onPress={openHelp('W')}
-          />
-          <StandingsStatHeaderCell
-            label="D"
-            flex={1}
-            textAlign="right"
-            headerCell={headerStyle}
-            accentColor={colors.primary}
-            onPress={openHelp('Draw')}
-          />
-          <StandingsStatHeaderCell
-            label="L"
-            flex={1}
-            textAlign="right"
-            headerCell={headerStyle}
-            accentColor={colors.primary}
-            onPress={openHelp('L')}
-          />
-          <StandingsStatHeaderCell
-            label="Pts"
-            flex={1}
-            textAlign="right"
-            headerCell={headerStyle}
-            accentColor={colors.primary}
-            onPress={openHelp('Pts')}
-          />
-        </View>
-
-        {standings.map((entry, index) => {
-          const participantId = String(entry.playerId || entry.teamId || '');
-          const stats = resolveParticipantStats
-            ? resolveParticipantStats(participantId)
-            : { gamesPlayed: 0, gamesRemaining: 0 };
-          const label =
-            entry.displayName ||
-            entry.player?.displayName ||
-            entry.team?.displayName ||
-            entry.player?.username ||
-            participantId;
-
-          return (
+          <View style={{ minWidth: tableMinWidth, width: '100%' }}>
             <View
-              key={`${participantId}-${index}`}
               style={{
                 ...rowStyle,
-                borderBottomWidth: index === standings.length - 1 ? 0 : 1,
+                backgroundColor: colors.borderLight,
+                borderBottomWidth: 1,
                 borderBottomColor: colors.border,
               }}
             >
-              <Text style={{ ...cellStyle, width: RANK_WIDTH, flexShrink: 0, fontWeight: '700' }}>
-                {entry.rank || index + 1}
-              </Text>
-              <Text style={{ ...cellStyle, flex: 2, minWidth: 0, fontWeight: '600' }} numberOfLines={2}>
-                {label}
-              </Text>
-              <Text style={{ ...cellStyle, ...statCellStyle }}>{stats.gamesPlayed || 0}</Text>
-              <Text style={{ ...cellStyle, ...statCellStyle }}>{stats.gamesRemaining || 0}</Text>
-              <Text style={{ ...cellStyle, ...statCellStyle }}>{entry.wins || 0}</Text>
-              <Text style={{ ...cellStyle, ...statCellStyle }}>{entry.draws || 0}</Text>
-              <Text style={{ ...cellStyle, ...statCellStyle }}>{entry.losses || 0}</Text>
-              <Text style={{ ...cellStyle, ...statCellStyle, fontWeight: '800' }}>{entry.points || 0}</Text>
+              <Text style={{ ...headerStyle, width: rankWidth, flexShrink: 0 }}>#</Text>
+              <Text style={{ ...headerStyle, flex: 1, minWidth: playerMinWidth }}>{entityLabel}</Text>
+              {statHeader('Pts', 'Pts', ptsWidth)}
+              {statHeader('W', 'W', winLossWidth)}
+              {statHeader('L', 'L', winLossWidth)}
+              {statHeader('D', 'Draw', drawWidth)}
+              {statHeader('GP', 'GP', statWidth)}
+              {statHeader('GR', 'GR', statWidth)}
+              {statHeader('Win%', 'Win%', winPctWidth)}
+              {statHeader('PPM', 'PPM', statWidth)}
+              {statHeader('PAA', 'PAA', statWidth)}
             </View>
-          );
-        })}
+
+            {standings.map((entry, index) => {
+              const participantId = String(entry.playerId || entry.teamId || '');
+              const gameStats = resolveParticipantStats
+                ? resolveParticipantStats(participantId)
+                : { gamesPlayed: 0, gamesRemaining: 0 };
+              const extendedStats = resolveExtendedStats(entry);
+              const label =
+                entry.displayName ||
+                entry.player?.displayName ||
+                entry.team?.displayName ||
+                entry.player?.username ||
+                participantId;
+
+              return (
+                <View
+                  key={`${participantId}-${index}`}
+                  style={{
+                    ...rowStyle,
+                    borderBottomWidth: index === standings.length - 1 ? 0 : 1,
+                    borderBottomColor: colors.border,
+                  }}
+                >
+                  <Text style={{ ...cellStyle, width: rankWidth, flexShrink: 0, fontWeight: '700' }}>
+                    {entry.rank || index + 1}
+                  </Text>
+                  <Text style={{ ...cellStyle, flex: 1, minWidth: playerMinWidth, fontWeight: '600' }} numberOfLines={2}>
+                    {label}
+                  </Text>
+                  <Text style={{ ...cellStyle, width: ptsWidth, textAlign: 'right', fontWeight: '800' }}>
+                    {entry.points || 0}
+                  </Text>
+                  <Text style={{ ...cellStyle, width: winLossWidth, textAlign: 'right' }}>{entry.wins || 0}</Text>
+                  <Text style={{ ...cellStyle, width: winLossWidth, textAlign: 'right' }}>{entry.losses || 0}</Text>
+                  <Text style={{ ...cellStyle, width: drawWidth, textAlign: 'right' }}>{entry.draws || 0}</Text>
+                  <Text style={{ ...cellStyle, width: statWidth, textAlign: 'right' }}>{gameStats.gamesPlayed || 0}</Text>
+                  <Text style={{ ...cellStyle, width: statWidth, textAlign: 'right' }}>{gameStats.gamesRemaining || 0}</Text>
+                  <Text style={{ ...cellStyle, width: winPctWidth, textAlign: 'right' }}>{extendedStats.winPct}%</Text>
+                  <Text style={{ ...cellStyle, width: statWidth, textAlign: 'right' }}>{extendedStats.ppm}</Text>
+                  <Text style={{ ...cellStyle, width: statWidth, textAlign: 'right' }}>{extendedStats.paa}</Text>
+                </View>
+              );
+            })}
+          </View>
+        </ScrollView>
       </View>
 
       <FeedbackModal

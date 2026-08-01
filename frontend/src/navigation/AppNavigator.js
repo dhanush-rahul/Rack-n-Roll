@@ -9,9 +9,9 @@ import { SignOutProvider } from '../context/SignOutContext';
 import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 import { ScaledText as Text } from '../components/ui/ScaledText';
 import { AppIcon } from '../components/ui/AppIcon';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useTypography } from '../context/TypographyContext';
 import { MainTabNavigator } from './MainTabNavigator';
 import { AppMenuDrawer } from '../components/navigation/AppMenuDrawer';
 import { SignInScreen } from '../screens/SignInScreen';
@@ -50,13 +50,12 @@ import {
   resolveActiveTabName,
 } from './navigationRouteUtils';
 import { useWebBrowserBackGuard } from '../hooks/useWebBrowserBackGuard';
-import { useAppHeaderInsets } from '../hooks/useAppHeaderInsets';
+import { useAppHeaderMetrics } from '../hooks/useAppHeaderInsets';
 import { markIgnoreNextPopState } from '../utils/navigationGuard';
 import { publicProfileLinking } from './publicProfileLinking';
 
 const Stack = createNativeStackNavigator();
 const navigationRef = createNavigationContainerRef();
-const HEADER_CONTROL_SIZE = 34;
 
 const AppHeader = memo(function AppHeader({
   navigation,
@@ -67,22 +66,25 @@ const AppHeader = memo(function AppHeader({
   onSignUp,
   onInfoPress,
 }) {
-  const insets = useSafeAreaInsets();
   const { colors } = useTheme();
-  const topInset = insets.top;
+  const { fs, sp, isDesktopWeb, isWeb } = useTypography();
+  const { topInset, headerPaddingV, controlSize } = useAppHeaderMetrics();
   const titleText = String(title || '');
   const displayTitle = titleText.length > 20 ? `${titleText.slice(0, 20)}...` : titleText;
+  const titleFontSize = isWeb && isDesktopWeb ? fs(17) : fs(18);
+  const titleLineHeight = isWeb && isDesktopWeb ? fs(21) : fs(22);
 
   return (
     <AppHeaderShell>
       <View
         style={{
-          paddingTop: topInset + 12,
-          paddingBottom: 12,
+          paddingTop: topInset + headerPaddingV,
+          paddingBottom: headerPaddingV,
+          paddingLeft: sp(12),
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
-          minHeight: HEADER_CONTROL_SIZE + 24,
+          minHeight: controlSize + headerPaddingV * 2,
         }}
       >
       <View
@@ -92,7 +94,7 @@ const AppHeader = memo(function AppHeader({
           flex: 1,
           minWidth: 0,
           marginRight: 10,
-          minHeight: HEADER_CONTROL_SIZE,
+          minHeight: controlSize,
         }}
       >
         {showBack ? (
@@ -104,9 +106,9 @@ const AppHeader = memo(function AppHeader({
             android_ripple={{ color: '#ccc', borderless: true }}
             style={({ pressed }) => ({
               marginRight: 10,
-              width: HEADER_CONTROL_SIZE,
-              height: HEADER_CONTROL_SIZE,
-              borderRadius: HEADER_CONTROL_SIZE / 2,
+              width: controlSize,
+              height: controlSize,
+              borderRadius: controlSize / 2,
               borderWidth: 1,
               borderColor: colors.border,
               backgroundColor: pressed ? colors.borderLight : colors.surface,
@@ -115,19 +117,36 @@ const AppHeader = memo(function AppHeader({
               opacity: pressed ? 0.85 : 1,
             })}
           >
-            <AppIcon name="chevronLeft" size={22} color={colors.text} />
+            <AppIcon name="chevronLeft" size={sp(20)} color={colors.text} />
           </Pressable>
         ) : null}
         <Text
           numberOfLines={1}
           ellipsizeMode="tail"
-          style={{ fontSize: 20, fontWeight: '600', lineHeight: 24, flexShrink: 1, color: colors.text }}
+          style={{
+            fontSize: titleFontSize,
+            fontWeight: '600',
+            lineHeight: titleLineHeight,
+            flexShrink: 1,
+            color: colors.text,
+            paddingRight: sp(12),
+            paddingTop: sp(6),
+            paddingBottom: sp(6),
+          }}
         >
           {displayTitle}
         </Text>
       </View>
 
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: HEADER_CONTROL_SIZE }}>
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: sp(12),
+          minHeight: controlSize,
+          paddingRight: showGuestActions ? sp(12) : 0,
+        }}
+      >
         {onInfoPress ? (
           <Pressable
             onPress={onInfoPress}
@@ -135,33 +154,33 @@ const AppHeader = memo(function AppHeader({
             accessibilityRole="button"
             accessibilityLabel="Show tour"
             style={({ pressed }) => ({
-              width: HEADER_CONTROL_SIZE,
-              height: HEADER_CONTROL_SIZE,
-              borderRadius: HEADER_CONTROL_SIZE / 2,
+              width: controlSize,
+              height: controlSize,
+              borderRadius: controlSize / 2,
               alignItems: 'center',
               justifyContent: 'center',
               opacity: pressed ? 0.6 : 1,
             })}
           >
-            <AppIcon name="info" size={22} color={colors.text} />
+            <AppIcon name="info" size={sp(20)} color={colors.text} />
           </Pressable>
         ) : null}
         {showGuestActions && (
           <>
             <Pressable onPress={onSignIn} hitSlop={8}>
-              <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }}>Sign in</Text>
+              <Text style={{ fontSize: fs(13), fontWeight: '700', color: colors.text }}>Sign in</Text>
             </Pressable>
             <Pressable
               onPress={onSignUp}
               hitSlop={8}
               style={({ pressed }) => ({
-                paddingHorizontal: 12,
-                paddingVertical: 6,
+                paddingHorizontal: sp(11),
+                paddingVertical: sp(5),
                 borderRadius: 999,
                 backgroundColor: pressed ? colors.primaryMuted : colors.primary,
               })}
             >
-              <Text style={{ fontSize: 13, fontWeight: '700', color: colors.onPrimary }}>Sign up</Text>
+              <Text style={{ fontSize: fs(12), fontWeight: '700', color: colors.onPrimary }}>Sign up</Text>
             </Pressable>
           </>
         )}
@@ -251,7 +270,7 @@ function RootStack() {
 export function AppNavigator() {
   const { isAuthenticated, isLoading, bootstrapMessage, signOut } = useAuth();
   const { colors } = useTheme();
-  const { contentPaddingTop } = useAppHeaderInsets();
+  const { contentPaddingTop } = useAppHeaderMetrics();
   const nativeSplashHiddenRef = useRef(false);
   const [signOutConfirmVisible, setSignOutConfirmVisible] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);

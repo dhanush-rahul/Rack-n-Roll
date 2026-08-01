@@ -14,7 +14,7 @@ export const ScreenScrollShell = forwardRef(function ScreenScrollShell(
   },
   ref
 ) {
-  const { contentMaxWidth, horizontalPadding, isDesktopWeb } = useResponsiveLayout();
+  const { contentMaxWidth, horizontalPadding, isDesktopWeb, sp } = useResponsiveLayout();
   const { scrollPaddingBottom } = useScreenInsets();
   const { colors } = useTheme();
 
@@ -30,7 +30,7 @@ export const ScreenScrollShell = forwardRef(function ScreenScrollShell(
       contentContainerStyle={[
         {
           paddingHorizontal: horizontalPadding,
-          paddingTop: isDesktopWeb ? 20 : 16,
+          paddingTop: isDesktopWeb ? sp(12) : sp(14),
           paddingBottom: scrollPaddingBottom,
         },
         centeredContentStyle(contentMaxWidth),

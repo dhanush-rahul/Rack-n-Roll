@@ -20,6 +20,12 @@ function buildWebStyles(colors) {
     font-size: 16px;
   }
 
+  @media (min-width: 768px) {
+    input, textarea, select {
+      font-size: 14px;
+    }
+  }
+
   input:-webkit-autofill,
   input:-webkit-autofill:hover,
   input:-webkit-autofill:focus,
@@ -67,6 +73,10 @@ function buildWebStyles(colors) {
 
   ::-webkit-scrollbar-track {
     background: transparent;
+  }
+
+  #racknroll-tab-screen-scroll {
+    scrollbar-gutter: stable;
   }
 
   /* Keep bottom tab bar clipped to the page column (not full viewport). */

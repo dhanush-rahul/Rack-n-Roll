@@ -92,8 +92,8 @@ export function useMyEventsFilters() {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [sortId, setSortId] = useState('activity');
-  const [filtersExpanded, setFiltersExpanded] = useState(true);
-  const filtersPanelAnimation = useRef(new Animated.Value(1)).current;
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const filtersPanelAnimation = useRef(new Animated.Value(0)).current;
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 

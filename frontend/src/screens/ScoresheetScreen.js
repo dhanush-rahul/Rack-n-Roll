@@ -21,6 +21,8 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { TeamsSection } from './tournamentDetail/TeamsSection';
 import { findActiveFixtureRoundKeyForSection, buildProgressionStandingsSections } from '../utils/fixtureDisplay';
+import { resolveCurrentProgressionFocus } from '../utils/progressionPlanUtils';
+import { buildStageMatchProgress } from '../utils/trackerStats';
 import { useProgressionPlan } from '../hooks/tournamentDetail';
 import { buildGroupDisplayName } from '../utils/groupNaming';
 import { ScoresheetGroupsTab } from '../components/scoresheet/ScoresheetGroupsTab';
@@ -165,6 +167,24 @@ export function ScoresheetScreen({ route, navigation }) {
         isDoubles,
       }),
     [isDoubles, scoresheetMeta?.progressionPlan?.stages, stageGamesById]
+  );
+
+  const currentProgressionFocus = useMemo(
+    () =>
+      resolveCurrentProgressionFocus({
+        progressionState,
+        progressionPlan: scoresheetMeta?.progressionPlan,
+        activeStageId: scoresheetMeta?.activeStageId,
+        groupProgress: trackerData?.progress,
+        stageGamesById,
+      }),
+    [
+      progressionState,
+      scoresheetMeta?.activeStageId,
+      scoresheetMeta?.progressionPlan,
+      stageGamesById,
+      trackerData?.progress,
+    ]
   );
 
   useLayoutEffect(() => {
@@ -482,7 +502,7 @@ export function ScoresheetScreen({ route, navigation }) {
   }, [activeTab, isAuthenticated]);
 
   useEffect(() => {
-    if (activeTab === 'groups' && !hasLoadedGroupsTab) {
+    if ((activeTab === 'groups' || activeTab === 'tracker') && !hasLoadedGroupsTab) {
       onLoadGroupsTab();
     }
     if (activeTab === 'games' && !hasLoadedGamesTab) {
@@ -573,21 +593,41 @@ export function ScoresheetScreen({ route, navigation }) {
     [groupPlayerGameStatsById]
   );
 
-  const trackerProgress = trackerData?.progress;
-  const heroStats = [
-    {
-      label: 'PROGRESS',
-      value: trackerProgress ? `${trackerProgress.percentComplete || 0}%` : '…',
-    },
-    {
-      label: 'COMPLETED',
-      value: trackerProgress ? String(trackerProgress.completedGames || 0) : '…',
-    },
-    {
-      label: 'PENDING',
-      value: trackerProgress ? String(trackerProgress.pendingGames || 0) : '…',
-    },
-  ];
+  const heroStats = useMemo(() => {
+    if (currentProgressionFocus.kind === 'stage' && currentProgressionFocus.stageId) {
+      const stageProgress = buildStageMatchProgress(stageGamesById[currentProgressionFocus.stageId] || []);
+      return [
+        {
+          label: 'PROGRESS',
+          value: `${stageProgress.percentComplete || 0}%`,
+        },
+        {
+          label: 'COMPLETED',
+          value: String(stageProgress.completedGames || 0),
+        },
+        {
+          label: 'PENDING',
+          value: String(stageProgress.pendingGames || 0),
+        },
+      ];
+    }
+
+    const trackerProgress = trackerData?.progress;
+    return [
+      {
+        label: 'PROGRESS',
+        value: trackerProgress ? `${trackerProgress.percentComplete || 0}%` : '…',
+      },
+      {
+        label: 'COMPLETED',
+        value: trackerProgress ? String(trackerProgress.completedGames || 0) : '…',
+      },
+      {
+        label: 'PENDING',
+        value: trackerProgress ? String(trackerProgress.pendingGames || 0) : '…',
+      },
+    ];
+  }, [currentProgressionFocus, stageGamesById, trackerData?.progress]);
 
   if (!tournamentMetaReady) {
     return (
@@ -630,7 +670,10 @@ export function ScoresheetScreen({ route, navigation }) {
           eyebrow="SCORESHEET"
           title={tournamentTitle}
           subtitle="Follow standings, fixtures, and results as the tournament progresses."
-          badges={[{ label: 'View only', tone: 'primary' }]}
+          badges={[
+            { label: 'View only', tone: 'neutral' },
+            { label: currentProgressionFocus.heroLabel, tone: 'primary' },
+          ]}
           stats={heroStats}
         />
       </View>
@@ -643,6 +686,9 @@ export function ScoresheetScreen({ route, navigation }) {
       {activeTab === 'tracker' ? (
         <TrackerTab
           trackerData={trackerData}
+          progressionStandingsSections={progressionStandingsSections}
+          stageGamesById={stageGamesById}
+          currentProgressionFocus={currentProgressionFocus}
           isLoading={isTrackerLoading}
           isError={isTrackerError}
           errorMessage={trackerError ? formatApiError(trackerError, 'Unable to load tracker') : ''}

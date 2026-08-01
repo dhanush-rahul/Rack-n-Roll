@@ -61,8 +61,13 @@ export const STANDINGS_STAT_HELP = {
 
 export function StandingsStatHeaderCell({ label, width, flex, textAlign = 'left', headerCell, onPress, accentColor }) {
   const layoutStyle = flex
-    ? { flex, minWidth: 0 }
-    : { width };
+    ? { flex, minWidth: 0, flexShrink: 0 }
+    : { width, flexShrink: 0, flexGrow: 0 };
+
+  const pressableStyle = {
+    ...layoutStyle,
+    ...(textAlign === 'right' ? { alignItems: 'flex-end' } : null),
+  };
 
   if (!onPress) {
     return <Text style={{ ...headerCell, ...layoutStyle, textAlign }}>{label}</Text>;
@@ -74,7 +79,7 @@ export function StandingsStatHeaderCell({ label, width, flex, textAlign = 'left'
       accessibilityRole="button"
       accessibilityLabel={`${label}. Tap for explanation.`}
       style={({ pressed }) => ({
-        ...layoutStyle,
+        ...pressableStyle,
         opacity: pressed ? 0.75 : 1,
       })}
     >

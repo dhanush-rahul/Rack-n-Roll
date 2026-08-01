@@ -8,10 +8,24 @@ export const BREAKPOINTS = {
   xlarge: 1280,
 };
 
-/** Scale body text on tablets and large native screens (e.g. iPad). Web uses no scaling. */
+/** Slightly compact UI on web so mobile-first sizes do not feel oversized on desktop. */
+export function getWebUiScale(width) {
+  if (width >= BREAKPOINTS.xlarge) {
+    return 0.875;
+  }
+  if (width >= BREAKPOINTS.large) {
+    return 0.875;
+  }
+  if (width >= BREAKPOINTS.tablet) {
+    return 0.925;
+  }
+  return 1;
+}
+
+/** Scale body text on tablets and large native screens (e.g. iPad). Web uses compact desktop scaling. */
 export function getFontScale(width, platform = Platform.OS) {
   if (platform === 'web') {
-    return 1;
+    return getWebUiScale(width);
   }
 
   if (width >= BREAKPOINTS.xlarge) {
@@ -31,7 +45,7 @@ export function getFontScale(width, platform = Platform.OS) {
 
 export function getSpacingScale(width, platform = Platform.OS) {
   if (platform === 'web') {
-    return 1;
+    return getWebUiScale(width);
   }
 
   if (width >= BREAKPOINTS.xlarge) {
@@ -70,10 +84,10 @@ export function getContentMaxWidth(width, platform = Platform.OS) {
 
 export function getHorizontalPadding(width, platform = Platform.OS) {
   if (width >= BREAKPOINTS.xlarge) {
-    return platform === 'web' ? 20 : 40;
+    return platform === 'web' ? 16 : 40;
   }
   if (width >= BREAKPOINTS.large) {
-    return platform === 'web' ? 20 : 36;
+    return platform === 'web' ? 16 : 36;
   }
   if (width >= BREAKPOINTS.tablet) {
     return platform === 'web' ? 16 : 28;

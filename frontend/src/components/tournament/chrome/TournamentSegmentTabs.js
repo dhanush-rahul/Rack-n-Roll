@@ -1,15 +1,16 @@
 import React, { useEffect, useRef } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { ScaledText as Text } from '../../ui/ScaledText';
+import { useDiscoverSurfaceCard } from '../../../hooks/useDiscoverSurfaceCard';
 import { useTypography } from '../../../context/TypographyContext';
-import { discoverUi, tournamentColors } from '../../../styles/tournamentUi';
+import { tournamentColors } from '../../../styles/tournamentUi';
 
 /** When tab count exceeds this, horizontal tabs scroll instead of shrinking. */
 export const SCROLLABLE_TAB_THRESHOLD = 3;
 
 const SCROLL_END_PADDING = 12;
 
-function TabButton({ tab, selected, isVertical, isScrollable, isWide, sp, onSelectTab, onLayout }) {
+function TabButton({ tab, selected, isVertical, isScrollable, sp, fs, onSelectTab, onLayout }) {
   const isMuted = Boolean(tab.muted) && !selected;
 
   return (
@@ -21,9 +22,9 @@ function TabButton({ tab, selected, isVertical, isScrollable, isWide, sp, onSele
         width: isVertical ? '100%' : undefined,
         minWidth: isScrollable ? 96 : undefined,
         maxWidth: isScrollable ? 168 : undefined,
-        paddingVertical: isVertical ? 12 : isWide ? sp(13) : 11,
-        paddingHorizontal: isVertical ? 14 : isWide ? sp(12) : isScrollable ? 14 : 6,
-        borderRadius: 10,
+        paddingVertical: isVertical ? sp(10) : sp(10),
+        paddingHorizontal: isVertical ? sp(12) : isScrollable ? sp(12) : sp(6),
+        borderRadius: sp(9),
         alignItems: isVertical ? 'flex-start' : 'center',
         justifyContent: 'center',
         backgroundColor: selected ? tournamentColors.primary : tournamentColors.surfaceRaised,
@@ -38,7 +39,7 @@ function TabButton({ tab, selected, isVertical, isScrollable, isWide, sp, onSele
         style={{
           color: selected ? tournamentColors.onPrimary || '#ffffff' : isMuted ? tournamentColors.placeholder : tournamentColors.textMuted,
           fontWeight: '700',
-          fontSize: 13,
+          fontSize: fs(13),
           textAlign: isVertical ? 'left' : 'center',
         }}
       >
@@ -49,7 +50,8 @@ function TabButton({ tab, selected, isVertical, isScrollable, isWide, sp, onSele
 }
 
 export function TournamentSegmentTabs({ tabs, activeTab, onSelectTab, layout = 'horizontal' }) {
-  const { sp, isWide, isDesktopWeb } = useTypography();
+  const { sp, fs, isDesktopWeb } = useTypography();
+  const surfaceCardStyle = useDiscoverSurfaceCard({ padding: sp(6), gap: sp(6) });
   const isVertical = layout === 'vertical' && isDesktopWeb;
   const isScrollable = !isVertical && tabs.length > SCROLLABLE_TAB_THRESHOLD;
   const scrollRef = useRef(null);
@@ -85,8 +87,8 @@ export function TournamentSegmentTabs({ tabs, activeTab, onSelectTab, layout = '
     });
   };
 
-  const containerPadding = isVertical ? 8 : isWide ? sp(8) : 6;
-  const tabGap = isVertical ? 6 : isWide ? sp(8) : 6;
+  const containerPadding = sp(6);
+  const tabGap = sp(6);
 
   const tabNodes = tabs.map((tab) => (
     <TabButton
@@ -95,8 +97,8 @@ export function TournamentSegmentTabs({ tabs, activeTab, onSelectTab, layout = '
       selected={activeTab === tab.id}
       isVertical={isVertical}
       isScrollable={isScrollable}
-      isWide={isWide}
       sp={sp}
+      fs={fs}
       onSelectTab={onSelectTab}
       onLayout={isScrollable ? recordTabOffset(tab.id) : undefined}
     />
@@ -106,7 +108,7 @@ export function TournamentSegmentTabs({ tabs, activeTab, onSelectTab, layout = '
     return (
       <View
         style={[
-          discoverUi.surfaceCard,
+          ...surfaceCardStyle,
           {
             paddingVertical: containerPadding,
             paddingHorizontal: 0,
@@ -136,7 +138,7 @@ export function TournamentSegmentTabs({ tabs, activeTab, onSelectTab, layout = '
   return (
     <View
       style={[
-        discoverUi.surfaceCard,
+        ...surfaceCardStyle,
         isVertical
           ? { padding: containerPadding, gap: tabGap }
           : { padding: containerPadding, flexDirection: 'row', gap: tabGap },

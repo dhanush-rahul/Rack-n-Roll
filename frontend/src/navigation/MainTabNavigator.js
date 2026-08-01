@@ -18,7 +18,10 @@ import { MyTournamentsScreen } from '../screens/MyTournamentsScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { CreateTournamentScreen } from '../screens/CreateTournamentScreen';
 import { CenteredWebTabBar } from '../components/navigation/CenteredWebTabBar';
-import { TAB_BAR_BASE_HEIGHT, WEB_TAB_BAR_FAB_CLEARANCE } from '../hooks/useTabScreenInsets';
+import {
+  getTabBarBaseHeight,
+  WEB_TAB_BAR_FAB_CLEARANCE,
+} from '../hooks/useTabScreenInsets';
 
 const Tab = createBottomTabNavigator();
 
@@ -26,15 +29,23 @@ function EmptyTabScreen() {
   return <View style={{ flex: 1 }} />;
 }
 
-function TabBarIcon({ name, label, focused, colors }) {
+function TabBarIcon({ name, label, focused, colors, compact = false }) {
+  const iconSize = compact ? 18 : 22;
+  const fontSize = compact ? 11 : 10;
+  const minWidth = compact ? 76 : 56;
+
   return (
-    <View style={{ alignItems: 'center', justifyContent: 'center', gap: 2, minWidth: 56 }}>
-      <AppIcon name={name} size={22} color={focused ? colors.tabActive : colors.tabInactive} />
+    <View style={{ alignItems: 'center', justifyContent: 'center', gap: compact ? 1 : 2, minWidth }}>
+      <AppIcon name={name} size={iconSize} color={focused ? colors.tabActive : colors.tabInactive} />
       <Text
+        numberOfLines={1}
         style={{
-          fontSize: 10,
+          fontSize,
           fontWeight: focused ? '700' : '600',
           color: focused ? colors.tabActive : colors.tabInactive,
+          textAlign: 'center',
+          flexShrink: 0,
+          ...(Platform.OS === 'web' ? { whiteSpace: 'nowrap' } : null),
         }}
       >
         {label}
@@ -43,31 +54,35 @@ function TabBarIcon({ name, label, focused, colors }) {
   );
 }
 
-function ElevatedCreateButton({ onPress, colors }) {
+function ElevatedCreateButton({ onPress, colors, compact = false }) {
+  const size = compact ? 40 : 58;
+  const lift = compact ? 10 : 18;
+  const iconSize = compact ? 20 : 28;
+
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => ({
-        top: -18,
-        width: 58,
-        height: 58,
-        borderRadius: 29,
+        top: -lift,
+        width: size,
+        height: size,
+        borderRadius: size / 2,
         backgroundColor: colors.primary,
         alignItems: 'center',
         justifyContent: 'center',
-        borderWidth: 4,
+        borderWidth: compact ? 2 : 4,
         borderColor: colors.tabBar,
         shadowColor: '#000',
         shadowOpacity: colors.mode === 'dark' ? 0.35 : 0.2,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: 4 },
+        shadowRadius: compact ? 4 : 8,
+        shadowOffset: { width: 0, height: compact ? 2 : 4 },
         elevation: 6,
         opacity: pressed ? 0.88 : 1,
       })}
       accessibilityRole="button"
       accessibilityLabel="Create tournament"
     >
-      <AppIcon name="plus" size={28} color={colors.white} />
+      <AppIcon name="plus" size={iconSize} color={colors.white} />
     </Pressable>
   );
 }
@@ -116,6 +131,9 @@ export function MainTabNavigator() {
     [isAuthenticated, showAuthPrompt]
   );
 
+  const isWeb = Platform.OS === 'web';
+  const tabBarBaseHeight = getTabBarBaseHeight(isWeb);
+
   return (
     <>
       <Tab.Navigator
@@ -127,15 +145,15 @@ export function MainTabNavigator() {
           tabBarShowLabel: false,
           tabBarStyle: {
             height:
-              TAB_BAR_BASE_HEIGHT +
+              tabBarBaseHeight +
               insets.bottom +
-              (Platform.OS === 'web' ? WEB_TAB_BAR_FAB_CLEARANCE : 0),
-            paddingTop: 8,
-            paddingBottom: Math.max(insets.bottom, 8),
+              (isWeb ? WEB_TAB_BAR_FAB_CLEARANCE : 0),
+            paddingTop: isWeb ? 2 : 8,
+            paddingBottom: isWeb ? Math.max(insets.bottom, 4) : Math.max(insets.bottom, 8),
             paddingHorizontal: 0,
             borderTopWidth: 0,
             overflow: 'visible',
-            ...(Platform.OS === 'web'
+            ...(isWeb
               ? {
                   backgroundColor: 'transparent',
                   position: 'relative',
@@ -169,7 +187,9 @@ export function MainTabNavigator() {
             tabPress: markTabNavigation,
           }}
           options={{
-            tabBarIcon: ({ focused }) => <TabBarIcon name="discover" label="Discover" focused={focused} colors={colors} />,
+            tabBarIcon: ({ focused }) => (
+              <TabBarIcon name="discover" label="Discover" focused={focused} colors={colors} compact={isWeb} />
+            ),
           }}
         />
         <Tab.Screen
@@ -188,7 +208,9 @@ export function MainTabNavigator() {
             },
           })}
           options={{
-            tabBarIcon: ({ focused }) => <TabBarIcon name="trophy" label="My Events" focused={focused} colors={colors} />,
+            tabBarIcon: ({ focused }) => (
+              <TabBarIcon name="trophy" label="My Events" focused={focused} colors={colors} compact={isWeb} />
+            ),
           }}
         />
         <Tab.Screen
@@ -222,6 +244,7 @@ export function MainTabNavigator() {
                     props.onPress?.();
                   }}
                   colors={colors}
+                  compact={isWeb}
                 />
               </View>
             ),
@@ -243,7 +266,9 @@ export function MainTabNavigator() {
             },
           })}
           options={{
-            tabBarIcon: ({ focused }) => <TabBarIcon name="person" label="Profile" focused={focused} colors={colors} />,
+            tabBarIcon: ({ focused }) => (
+              <TabBarIcon name="person" label="Profile" focused={focused} colors={colors} compact={isWeb} />
+            ),
           }}
         />
         <Tab.Screen
@@ -258,7 +283,13 @@ export function MainTabNavigator() {
           })}
           options={{
             tabBarIcon: ({ focused }) => (
-              <TabBarIcon name="menu" label="Menu" focused={focused || isOpen} colors={colors} />
+              <TabBarIcon
+                name="menu"
+                label="Menu"
+                focused={focused || isOpen}
+                colors={colors}
+                compact={isWeb}
+              />
             ),
           }}
         />

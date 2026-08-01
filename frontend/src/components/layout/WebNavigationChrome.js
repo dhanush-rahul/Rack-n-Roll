@@ -16,7 +16,7 @@ export function WebDesktopFooter() {
 
   return (
     <View style={{ width: '100%', paddingBottom: 3 }}>
-      <PageColumn shellNativeID="racknroll-footer-shell" style={{ transform: [{ translateX: -4 }] }}>
+      <PageColumn shellNativeID="racknroll-footer-shell">
         <View
           style={{
             borderTopWidth: 1,

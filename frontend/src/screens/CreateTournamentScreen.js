@@ -7,13 +7,14 @@ import { useQueryClient } from '@tanstack/react-query';
 import { FeedbackModal } from '../components/FeedbackModal';
 import { AppIcon } from '../components/ui/AppIcon';
 import { ChipSelector } from '../components/tournament/TournamentChrome';
-import { useScreenInsets } from '../hooks/useScreenInsets';
+import { useTabScreenInsets } from '../hooks/useTabScreenInsets';
 import { invalidateTournamentCache } from '../hooks/queries/invalidateTournamentCache';
 import { createTournament } from '../services/tournamentService';
 import { HERO_TOP_MARGIN, tournamentColors, tournamentUi } from '../styles/tournamentUi';
 import { useTheme } from '../context/ThemeContext';
 import { PageColumn } from '../components/layout/PageColumn';
 import { useResponsiveLayout } from '../utils/responsive';
+import { useTypography } from '../context/TypographyContext';
 import { WebScheduleInputs } from '../components/scheduling/WebScheduleInputs';
 import { ProgressionPlanEditor, validateProgressionPlan } from '../components/tournament/ProgressionPlanEditor';
 import { WizardTimeline } from '../components/createTournament/WizardTimeline';
@@ -182,7 +183,8 @@ function WizardNavFooter({ activeTab, onBack, onContinue, isLastTab }) {
 export function CreateTournamentScreen({ navigation, route }) {
   const queryClient = useQueryClient();
   const { isDesktopWeb } = useResponsiveLayout();
-  const { scrollPaddingBottom } = useScreenInsets();
+  const { sp } = useTypography();
+  const { scrollPaddingBottom } = useTabScreenInsets();
   const { colors } = useTheme();
   const defaultStartsAt = useMemo(() => buildDefaultStartsAt(), []);
   const scrollRef = useRef(null);
@@ -623,7 +625,7 @@ export function CreateTournamentScreen({ navigation, route }) {
       <ScrollView
         ref={scrollRef}
         style={[tournamentUi.screen, isDesktopWeb && { backgroundColor: colors.backgroundAlt }]}
-        contentContainerStyle={{ paddingBottom: scrollPaddingBottom }}
+        contentContainerStyle={{ paddingBottom: scrollPaddingBottom + sp(12) }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >

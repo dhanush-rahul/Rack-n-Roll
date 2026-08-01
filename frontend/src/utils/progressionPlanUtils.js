@@ -307,6 +307,140 @@ export function areStageGamesComplete(games = []) {
   return games.every((game) => game.status === 'completed');
 }
 
+export function isGroupStageComplete(groupProgress) {
+  const totalGames = Number(groupProgress?.totalGames || 0);
+  if (totalGames <= 0) {
+    return false;
+  }
+
+  const pendingGames = Number(
+    groupProgress?.pendingGames ?? Math.max(totalGames - Number(groupProgress?.completedGames || 0), 0)
+  );
+
+  return pendingGames <= 0;
+}
+
+export function hasProgressionCompletedGames(stages = [], stageGamesById = {}) {
+  return stages.some((stage) => {
+    const games = stageGamesById[stage.stageId] || [];
+    return games.some((game) => game.status === 'completed');
+  });
+}
+
+export function findLatestProgressionStageWithCompletedGames(stages = [], stageGamesById = {}) {
+  const sortedStages = [...stages].sort(
+    (left, right) => Number(left.order || 0) - Number(right.order || 0)
+  );
+
+  return sortedStages.reduce((latestStage, stage) => {
+    const games = stageGamesById[stage.stageId] || [];
+    const hasCompletedGame = games.some((game) => game.status === 'completed');
+    return hasCompletedGame ? stage : latestStage;
+  }, null);
+}
+
+/**
+ * Decide which round the tournament is currently in.
+ * Group stage stays current until every group-stage match is complete, unless
+ * at least one progression-stage match has already been completed.
+ */
+export function resolveCurrentProgressionFocus({
+  progressionState = 'registration',
+  progressionPlan = null,
+  activeStageId = null,
+  groupProgress = null,
+  stageGamesById = {},
+} = {}) {
+  const stages = progressionPlan?.stages || [];
+  const groupComplete = isGroupStageComplete(groupProgress);
+  const progressionHasCompletedGames = hasProgressionCompletedGames(stages, stageGamesById);
+  const canFocusProgressionStage = groupComplete || progressionHasCompletedGames;
+
+  if (progressionState === 'completed') {
+    return {
+      kind: 'completed',
+      label: 'Completed',
+      heroLabel: 'Completed',
+      stageId: null,
+    };
+  }
+
+  if (progressionState === 'registration') {
+    return {
+      kind: 'setup',
+      label: 'Registration',
+      heroLabel: 'Registration',
+      stageId: null,
+    };
+  }
+
+  if (progressionState === 'groupSetup') {
+    return {
+      kind: 'setup',
+      label: 'Group setup',
+      heroLabel: 'Group setup',
+      stageId: null,
+    };
+  }
+
+  if (!canFocusProgressionStage) {
+    return {
+      kind: 'groups',
+      label: 'Group stage',
+      heroLabel: 'Group stage',
+      stageId: null,
+    };
+  }
+
+  const resolveStageFocus = (stage, { awaitingStart = false } = {}) => ({
+    kind: 'stage',
+    label: stage.name,
+    heroLabel: awaitingStart ? `${stage.name} · up next` : stage.name,
+    stageId: stage.stageId,
+    awaitingStart,
+  });
+
+  if (activeStageId) {
+    const activeStage = stages.find((stage) => String(stage.stageId) === String(activeStageId));
+    if (activeStage) {
+      return resolveStageFocus(activeStage);
+    }
+  }
+
+  if (!groupComplete && progressionHasCompletedGames) {
+    const stageWithCompletedGames = findLatestProgressionStageWithCompletedGames(stages, stageGamesById);
+    if (stageWithCompletedGames) {
+      return resolveStageFocus(stageWithCompletedGames);
+    }
+  }
+
+  const activeStage = stages.find((stage) => stage.status === 'active');
+  if (activeStage) {
+    return resolveStageFocus(activeStage);
+  }
+
+  const nextPendingStage = stages.find((stage) => stage.status === 'pending');
+  if (nextPendingStage) {
+    return resolveStageFocus(nextPendingStage, { awaitingStart: true });
+  }
+
+  if (progressionState === 'finalStage') {
+    return {
+      kind: 'stage',
+      label: 'Finale',
+      heroLabel: 'Finale',
+      stageId: activeStageId,
+    };
+  }
+
+  return {
+    kind: 'groups',
+    label: 'Group stage',
+    heroLabel: groupComplete ? 'Group stage complete' : 'Group stage',
+    stageId: null,
+  };
+}
+
 export function getKnockoutPlayedMatchCount(participantCount) {
   return Math.floor(Math.max(Number(participantCount) || 0, 0) / 2);
 }

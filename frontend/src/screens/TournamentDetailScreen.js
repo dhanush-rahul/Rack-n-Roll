@@ -41,6 +41,8 @@ import {
   findActiveFixtureRoundKey,
   findActiveFixtureRoundKeyForSection,
 } from '../utils/fixtureDisplay';
+import { resolveCurrentProgressionFocus } from '../utils/progressionPlanUtils';
+import { buildStageMatchProgress } from '../utils/trackerStats';
 import { StageStartModal } from './tournamentDetail/StageStartModal';
 import { StageTabView } from './tournamentDetail/StageTabView';
 import { HostGamesTab } from '../components/tournament/HostGamesTab';
@@ -50,7 +52,6 @@ import { RegistrationsTab } from './tournamentDetail/RegistrationsTab';
 import { TrackerTab } from '../components/tournament/tracker/TrackerTab';
 import { useTournamentTracker } from '../hooks/queries/useTournamentTracker';
 import {
-  formatProgressionLabel,
   SuccessBanner,
   TournamentScreenHero,
 } from '../components/tournament/TournamentChrome';
@@ -607,6 +608,57 @@ export function TournamentDetailScreen({ route, navigation }) {
     [detail?.progressionPlan?.stages, isDoubles, stageGamesById]
   );
 
+  const currentProgressionFocus = useMemo(
+    () =>
+      resolveCurrentProgressionFocus({
+        progressionState,
+        progressionPlan: detail?.progressionPlan,
+        activeStageId: detail?.activeStageId,
+        groupProgress: trackerData?.progress,
+        stageGamesById,
+      }),
+    [detail?.activeStageId, detail?.progressionPlan, progressionState, stageGamesById, trackerData?.progress]
+  );
+
+  const heroStats = useMemo(() => {
+    if (currentProgressionFocus.kind === 'stage' && currentProgressionFocus.stageId) {
+      const stageProgress = buildStageMatchProgress(stageGamesById[currentProgressionFocus.stageId] || []);
+      return [
+        {
+          label: 'PROGRESS',
+          value: `${stageProgress.percentComplete || 0}%`,
+        },
+        {
+          label: 'COMPLETED',
+          value: String(stageProgress.completedGames || 0),
+          accent: tournamentColors.accentMint,
+        },
+        {
+          label: 'PENDING',
+          value: String(stageProgress.pendingGames || 0),
+          accent: tournamentColors.accentSky,
+        },
+      ];
+    }
+
+    return [
+      {
+        label: 'PROGRESS',
+        value: trackerData?.progress ? `${trackerData.progress.percentComplete || 0}%` : '…',
+      },
+      {
+        label: 'COMPLETED',
+        value: trackerData?.progress ? String(trackerData.progress.completedGames || 0) : '…',
+        accent: tournamentColors.accentMint,
+      },
+      {
+        label: 'PENDING',
+        value: trackerData?.progress ? String(trackerData.progress.pendingGames || 0) : '…',
+        accent: tournamentColors.accentSky,
+      },
+    ];
+  }, [currentProgressionFocus, stageGamesById, trackerData?.progress]);
+
   const onRefreshDetail = useCallback(async () => {
     try {
       clearError();
@@ -973,7 +1025,7 @@ export function TournamentDetailScreen({ route, navigation }) {
   }, [navigation, tournamentId]);
 
   useEffect(() => {
-    if (activeTab !== 'groups' || groupsTabLoadStartedRef.current) {
+    if ((activeTab !== 'groups' && activeTab !== 'tracker') || groupsTabLoadStartedRef.current) {
       return;
     }
 
@@ -1238,25 +1290,10 @@ export function TournamentDetailScreen({ route, navigation }) {
               label: detail?.registrationStatus === 'closed' ? 'Registration closed' : 'Registration open',
               tone: detail?.registrationStatus === 'closed' ? 'warning' : 'success',
             },
-            { label: formatProgressionLabel(progressionState), tone: 'primary' },
+            { label: currentProgressionFocus.heroLabel, tone: 'primary' },
             { label: 'Host view', tone: 'host' },
           ]}
-          stats={[
-            {
-              label: 'PROGRESS',
-              value: trackerData?.progress ? `${trackerData.progress.percentComplete || 0}%` : '…',
-            },
-            {
-              label: 'COMPLETED',
-              value: trackerData?.progress ? String(trackerData.progress.completedGames || 0) : '…',
-              accent: tournamentColors.accentMint,
-            },
-            {
-              label: 'PENDING',
-              value: trackerData?.progress ? String(trackerData.progress.pendingGames || 0) : '…',
-              accent: tournamentColors.accentSky,
-            },
-          ]}
+          stats={heroStats}
         />
       </View>
 
@@ -1314,6 +1351,9 @@ export function TournamentDetailScreen({ route, navigation }) {
       {activeTab === 'tracker' && (
         <TrackerTab
           trackerData={trackerData}
+          progressionStandingsSections={progressionStandingsSections}
+          stageGamesById={stageGamesById}
+          currentProgressionFocus={currentProgressionFocus}
           isLoading={isTrackerLoading}
           isError={isTrackerError}
           errorMessage={trackerError ? formatApiError(trackerError, 'Unable to load tracker') : ''}

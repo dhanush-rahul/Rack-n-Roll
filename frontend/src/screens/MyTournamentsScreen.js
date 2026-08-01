@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo } from 'react';
 
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, View } from 'react-native';
 
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -23,6 +23,7 @@ import { useTabScreenInsets } from '../hooks/useTabScreenInsets';
 import { AppIcon } from '../components/ui/AppIcon';
 
 import { PageColumn } from '../components/layout/PageColumn';
+import { TabScreenScrollView } from '../components/layout/TabScreenScrollView';
 import { useResponsiveLayout } from '../utils/responsive';
 
 import { DiscoverFiltersPanel } from '../components/discover/DiscoverFiltersPanel';
@@ -410,9 +411,9 @@ export function MyTournamentsScreen({ navigation }) {
 
     <>
 
-      <ScrollView
+      <TabScreenScrollView
 
-        style={{ flex: 1, backgroundColor: isDesktopWeb ? colors.backgroundAlt : colors.background }}
+        style={{ backgroundColor: isDesktopWeb ? colors.backgroundAlt : colors.background }}
 
         contentContainerStyle={{ paddingBottom: scrollPaddingBottom }}
 
@@ -582,7 +583,7 @@ export function MyTournamentsScreen({ navigation }) {
 
         </PageColumn>
 
-      </ScrollView>
+      </TabScreenScrollView>
 
       <AuthPromptModal {...authPromptProps} />
 

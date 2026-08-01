@@ -1,9 +1,6 @@
 import React, { useMemo } from 'react';
 import { View } from 'react-native';
-import {
-  SCROLLABLE_TAB_THRESHOLD,
-  TournamentSegmentTabs,
-} from '../tournament/chrome/TournamentSegmentTabs';
+import { TournamentSegmentTabs } from '../tournament/chrome/TournamentSegmentTabs';
 import { useResponsiveLayout } from '../../utils/responsive';
 
 function buildHostTabs(stageTabs, showGamesTab) {
@@ -22,13 +19,11 @@ function buildHostTabs(stageTabs, showGamesTab) {
 }
 
 export function HostTournamentTabLayout({ activeTab, onSelectTab, stageTabs = [], showGamesTab = false, children }) {
-  const { isDesktopWeb } = useResponsiveLayout();
+  const { isDesktopWeb, sp } = useResponsiveLayout();
   const tabs = useMemo(() => buildHostTabs(stageTabs, showGamesTab), [showGamesTab, stageTabs]);
-  const useVerticalSidebar = isDesktopWeb && tabs.length <= SCROLLABLE_TAB_THRESHOLD;
-
-  if (!useVerticalSidebar) {
+  if (!isDesktopWeb) {
     return (
-      <View style={{ gap: 16 }}>
+      <View style={{ gap: sp(14) }}>
         <TournamentSegmentTabs tabs={tabs} activeTab={activeTab} onSelectTab={onSelectTab} />
         {children}
       </View>
@@ -36,22 +31,21 @@ export function HostTournamentTabLayout({ activeTab, onSelectTab, stageTabs = []
   }
 
   return (
-    <View style={{ flexDirection: 'row', gap: 24, alignItems: 'flex-start' }}>
-      <View style={{ width: 188, flexShrink: 0 }}>
+    <View style={{ flexDirection: 'row', gap: sp(18), alignItems: 'flex-start' }}>
+      <View style={{ width: sp(164), flexShrink: 0 }}>
         <TournamentSegmentTabs tabs={tabs} activeTab={activeTab} onSelectTab={onSelectTab} layout="vertical" />
       </View>
-      <View style={{ flex: 1, minWidth: 0, gap: 16 }}>{children}</View>
+      <View style={{ flex: 1, minWidth: 0, gap: sp(14) }}>{children}</View>
     </View>
   );
 }
 
 export function ScoresheetTabLayout({ tabs, activeTab, onSelectTab, children }) {
-  const { isDesktopWeb } = useResponsiveLayout();
-  const useVerticalSidebar = isDesktopWeb && tabs.length <= SCROLLABLE_TAB_THRESHOLD;
+  const { isDesktopWeb, sp } = useResponsiveLayout();
 
-  if (!useVerticalSidebar) {
+  if (!isDesktopWeb) {
     return (
-      <View style={{ gap: 16 }}>
+      <View style={{ gap: sp(14) }}>
         <TournamentSegmentTabs tabs={tabs} activeTab={activeTab} onSelectTab={onSelectTab} />
         {children}
       </View>
@@ -59,11 +53,11 @@ export function ScoresheetTabLayout({ tabs, activeTab, onSelectTab, children }) 
   }
 
   return (
-    <View style={{ flexDirection: 'row', gap: 24, alignItems: 'flex-start' }}>
-      <View style={{ width: 188, flexShrink: 0 }}>
+    <View style={{ flexDirection: 'row', gap: sp(18), alignItems: 'flex-start' }}>
+      <View style={{ width: sp(164), flexShrink: 0 }}>
         <TournamentSegmentTabs tabs={tabs} activeTab={activeTab} onSelectTab={onSelectTab} layout="vertical" />
       </View>
-      <View style={{ flex: 1, minWidth: 0, gap: 16 }}>{children}</View>
+      <View style={{ flex: 1, minWidth: 0, gap: sp(14) }}>{children}</View>
     </View>
   );
 }

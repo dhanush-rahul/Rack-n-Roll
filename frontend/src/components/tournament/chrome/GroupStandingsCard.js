@@ -23,7 +23,9 @@ const STANDINGS_TABLE_TYPE = {
   rowPadH: 10,
   rowPadV: 10,
   stat: 36,
-  pts: 40,
+  winLoss: 22,
+  draw: 24,
+  pts: 36,
   rankCol: 32,
   playerMin: 120,
 };
@@ -48,7 +50,7 @@ function ScrollableTableFrame({ tableMinWidth, children }) {
         nestedScrollEnabled
         bounces={false}
         style={{ width: '100%' }}
-        contentContainerStyle={{ flexGrow: 1 }}
+        contentContainerStyle={{ flexGrow: 1, minWidth: '100%' }}
       >
         <View style={{ width: '100%', minWidth: tableMinWidth }}>{children}</View>
       </ScrollView>
@@ -71,8 +73,8 @@ function BasicGroupStandingsTable({
   const rankWidth = col(STANDINGS_TABLE_TYPE.rankCol);
   const playerMinWidth = col(STANDINGS_TABLE_TYPE.playerMin);
   const gpWidth = col(STANDINGS_TABLE_TYPE.stat);
-  const statWidth = col(STANDINGS_TABLE_TYPE.stat);
-  const drawWidth = col(52);
+  const winLossWidth = col(STANDINGS_TABLE_TYPE.winLoss);
+  const drawWidth = col(STANDINGS_TABLE_TYPE.draw);
   const ptsWidth = col(STANDINGS_TABLE_TYPE.pts);
   const rowPaddingH = col(STANDINGS_TABLE_TYPE.rowPadH);
   const rowPaddingV = col(STANDINGS_TABLE_TYPE.rowPadV);
@@ -81,8 +83,8 @@ function BasicGroupStandingsTable({
   const playerFontSize = col(STANDINGS_TABLE_TYPE.player);
   const rankFontSize = col(STANDINGS_TABLE_TYPE.rank);
   const tableMinWidth = showExtendedStats
-    ? rankWidth + playerMinWidth + gpWidth * 2 + statWidth * 2 + drawWidth + ptsWidth + rowPaddingH * 2
-    : rankWidth + playerMinWidth + statWidth * 3 + drawWidth + ptsWidth + rowPaddingH * 2;
+    ? rankWidth + playerMinWidth + gpWidth * 2 + winLossWidth * 2 + drawWidth + ptsWidth + rowPaddingH * 2
+    : rankWidth + playerMinWidth + winLossWidth * 2 + drawWidth + ptsWidth + rowPaddingH * 2;
 
   const rowStyle = {
     flexDirection: 'row',
@@ -117,22 +119,22 @@ function BasicGroupStandingsTable({
           borderBottomColor: colors.border,
         }}
       >
-        <Text style={{ ...headerCell, width: rankWidth }}>#</Text>
+        <Text style={{ ...headerCell, width: rankWidth, flexShrink: 0 }}>#</Text>
         <Text style={{ ...headerCell, flex: 1, minWidth: playerMinWidth }}>{entityLabel}</Text>
         {showExtendedStats ? (
           <>
             <StandingsStatHeaderCell label="GP" width={gpWidth} textAlign="right" headerCell={headerCell} onPress={openHelp('GP')} />
             <StandingsStatHeaderCell label="GR" width={gpWidth} textAlign="right" headerCell={headerCell} onPress={openHelp('GR')} />
-            <StandingsStatHeaderCell label="W" width={statWidth} textAlign="right" headerCell={headerCell} onPress={openHelp('W')} />
+            <StandingsStatHeaderCell label="W" width={winLossWidth} textAlign="right" headerCell={headerCell} onPress={openHelp('W')} />
             <StandingsStatHeaderCell label="D" width={drawWidth} textAlign="right" headerCell={headerCell} onPress={openHelp('Draw')} />
-            <StandingsStatHeaderCell label="L" width={statWidth} textAlign="right" headerCell={headerCell} onPress={openHelp('L')} />
+            <StandingsStatHeaderCell label="L" width={winLossWidth} textAlign="right" headerCell={headerCell} onPress={openHelp('L')} />
             <StandingsStatHeaderCell label="Pts" width={ptsWidth} textAlign="right" headerCell={headerCell} onPress={openHelp('Pts')} />
           </>
         ) : (
           <>
-            <StandingsStatHeaderCell label="W" width={statWidth} textAlign="right" headerCell={headerCell} onPress={openHelp('W')} />
+            <StandingsStatHeaderCell label="W" width={winLossWidth} textAlign="right" headerCell={headerCell} onPress={openHelp('W')} />
             <StandingsStatHeaderCell label="D" width={drawWidth} textAlign="right" headerCell={headerCell} onPress={openHelp('Draw')} />
-            <StandingsStatHeaderCell label="L" width={statWidth} textAlign="right" headerCell={headerCell} onPress={openHelp('L')} />
+            <StandingsStatHeaderCell label="L" width={winLossWidth} textAlign="right" headerCell={headerCell} onPress={openHelp('L')} />
             <StandingsStatHeaderCell label="Pts" width={ptsWidth} textAlign="right" headerCell={headerCell} onPress={openHelp('Pts')} />
           </>
         )}
@@ -156,7 +158,7 @@ function BasicGroupStandingsTable({
               ...(hasMedal ? getMedalRowStyleByRank(rankNumber, colors) : null),
             }}
           >
-            <Text style={{ width: rankWidth, color: colors.text, fontWeight: '700', fontSize: rankFontSize }}>
+            <Text style={{ width: rankWidth, flexShrink: 0, color: colors.text, fontWeight: '700', fontSize: rankFontSize }}>
               {hasMedal ? <AppIcon name="medal" size={col(14)} color={MEDAL_COLORS[rankNumber]} /> : `#${rankNumber}`}
             </Text>
             <Text
@@ -173,21 +175,21 @@ function BasicGroupStandingsTable({
             </Text>
             {showExtendedStats ? (
               <>
-                <Text style={{ ...bodyCell, width: gpWidth, textAlign: 'right' }}>{playerGameStats.gamesPlayed}</Text>
-                <Text style={{ ...bodyCell, width: gpWidth, textAlign: 'right' }}>{playerGameStats.gamesRemaining}</Text>
-                <Text style={{ ...bodyCell, width: statWidth, textAlign: 'right' }}>{entry.wins || 0}</Text>
-                <Text style={{ ...bodyCell, width: drawWidth, textAlign: 'right' }}>{entry.draws || 0}</Text>
-                <Text style={{ ...bodyCell, width: statWidth, textAlign: 'right' }}>{entry.losses || 0}</Text>
-                <Text style={{ ...bodyCell, width: ptsWidth, textAlign: 'right', fontWeight: '700' }}>
+                <Text style={{ ...bodyCell, width: gpWidth, flexShrink: 0, textAlign: 'right' }}>{playerGameStats.gamesPlayed}</Text>
+                <Text style={{ ...bodyCell, width: gpWidth, flexShrink: 0, textAlign: 'right' }}>{playerGameStats.gamesRemaining}</Text>
+                <Text style={{ ...bodyCell, width: winLossWidth, flexShrink: 0, textAlign: 'right' }}>{entry.wins || 0}</Text>
+                <Text style={{ ...bodyCell, width: drawWidth, flexShrink: 0, textAlign: 'right' }}>{entry.draws || 0}</Text>
+                <Text style={{ ...bodyCell, width: winLossWidth, flexShrink: 0, textAlign: 'right' }}>{entry.losses || 0}</Text>
+                <Text style={{ ...bodyCell, width: ptsWidth, flexShrink: 0, textAlign: 'right', fontWeight: '700' }}>
                   {entry.points || 0}
                 </Text>
               </>
             ) : (
               <>
-                <Text style={{ ...bodyCell, width: statWidth, textAlign: 'right' }}>{entry.wins || 0}</Text>
-                <Text style={{ ...bodyCell, width: drawWidth, textAlign: 'right' }}>{entry.draws || 0}</Text>
-                <Text style={{ ...bodyCell, width: statWidth, textAlign: 'right' }}>{entry.losses || 0}</Text>
-                <Text style={{ ...bodyCell, width: ptsWidth, textAlign: 'right', fontWeight: '700' }}>
+                <Text style={{ ...bodyCell, width: winLossWidth, flexShrink: 0, textAlign: 'right' }}>{entry.wins || 0}</Text>
+                <Text style={{ ...bodyCell, width: drawWidth, flexShrink: 0, textAlign: 'right' }}>{entry.draws || 0}</Text>
+                <Text style={{ ...bodyCell, width: winLossWidth, flexShrink: 0, textAlign: 'right' }}>{entry.losses || 0}</Text>
+                <Text style={{ ...bodyCell, width: ptsWidth, flexShrink: 0, textAlign: 'right', fontWeight: '700' }}>
                   {entry.points || 0}
                 </Text>
               </>
@@ -221,9 +223,8 @@ function ScoresheetStandingsTable({
   const rankWidth = col(STANDINGS_TABLE_TYPE.rankCol);
   const playerWidth = col(STANDINGS_TABLE_TYPE.playerMin);
   const hcpWidth = col(48);
-  const statWidth = col(STANDINGS_TABLE_TYPE.stat);
-  const drawWidth = col(52);
-  const winPctWidth = col(56);
+  const winLossWidth = col(STANDINGS_TABLE_TYPE.winLoss);
+  const drawWidth = col(STANDINGS_TABLE_TYPE.draw);
   const ptsWidth = col(STANDINGS_TABLE_TYPE.pts);
   const headerFontSize = col(STANDINGS_TABLE_TYPE.header);
   const bodyFontSize = col(STANDINGS_TABLE_TYPE.body);
@@ -232,8 +233,16 @@ function ScoresheetStandingsTable({
   const rowPaddingH = col(STANDINGS_TABLE_TYPE.rowPadH);
   const rowPaddingV = col(STANDINGS_TABLE_TYPE.rowPadV);
   const tableMinWidth =
-    rankWidth + playerWidth + (handicapEnabled ? hcpWidth : 0) + statWidth * 4 + drawWidth + winPctWidth + ptsWidth;
+    rankWidth + playerWidth + (handicapEnabled ? hcpWidth : 0) + winLossWidth * 2 + drawWidth + ptsWidth;
 
+  const rowStyle = {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: rowPaddingH,
+    paddingVertical: rowPaddingV,
+    width: '100%',
+    minWidth: tableMinWidth,
+  };
   const headerCell = {
     fontWeight: '700',
     fontSize: headerFontSize,
@@ -248,18 +257,13 @@ function ScoresheetStandingsTable({
   const renderHeader = () => (
     <View
       style={{
-        flexDirection: 'row',
-        alignItems: 'center',
+        ...rowStyle,
         backgroundColor: colors.surfaceRaised,
         borderBottomWidth: 1,
         borderBottomColor: colors.border,
-        paddingHorizontal: rowPaddingH,
-        paddingVertical: rowPaddingV,
-        width: '100%',
-        minWidth: tableMinWidth,
       }}
     >
-      <Text style={{ ...headerCell, width: rankWidth }}>#</Text>
+      <Text style={{ ...headerCell, width: rankWidth, flexShrink: 0 }}>#</Text>
       <Text style={{ ...headerCell, flex: 1, minWidth: playerWidth }}>Player</Text>
       {handicapEnabled ? (
         <StandingsStatHeaderCell
@@ -272,7 +276,7 @@ function ScoresheetStandingsTable({
       ) : null}
       <StandingsStatHeaderCell
         label="W"
-        width={statWidth}
+        width={winLossWidth}
         textAlign="right"
         headerCell={headerCell}
         onPress={() => setActiveStatHelp('W')}
@@ -286,31 +290,10 @@ function ScoresheetStandingsTable({
       />
       <StandingsStatHeaderCell
         label="L"
-        width={statWidth}
+        width={winLossWidth}
         textAlign="right"
         headerCell={headerCell}
         onPress={() => setActiveStatHelp('L')}
-      />
-      <StandingsStatHeaderCell
-        label="Win%"
-        width={winPctWidth}
-        textAlign="right"
-        headerCell={headerCell}
-        onPress={() => setActiveStatHelp('Win%')}
-      />
-      <StandingsStatHeaderCell
-        label="PPM"
-        width={statWidth}
-        textAlign="right"
-        headerCell={headerCell}
-        onPress={() => setActiveStatHelp('PPM')}
-      />
-      <StandingsStatHeaderCell
-        label="PAA"
-        width={statWidth}
-        textAlign="right"
-        headerCell={headerCell}
-        onPress={() => setActiveStatHelp('PAA')}
       />
       <StandingsStatHeaderCell
         label="Pts"
@@ -332,18 +315,13 @@ function ScoresheetStandingsTable({
       <View
         key={`${groupName}-${entry.playerId}`}
         style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          paddingHorizontal: rowPaddingH,
-          paddingVertical: rowPaddingV,
+          ...rowStyle,
           borderBottomWidth: isLastRow ? 0 : 1,
           borderBottomColor: colors.border,
-          width: '100%',
-          minWidth: tableMinWidth,
           ...(hasMedal ? getMedalRowStyleByRank(rankNumber, colors) : null),
         }}
       >
-        <Text style={{ width: rankWidth, color: colors.text, fontWeight: '700', fontSize: rankFontSize }}>
+        <Text style={{ width: rankWidth, flexShrink: 0, color: colors.text, fontWeight: '700', fontSize: rankFontSize }}>
           {hasMedal ? <AppIcon name="medal" size={col(14)} color={MEDAL_COLORS[rankNumber]} /> : `#${rankNumber}`}
         </Text>
         <Text
@@ -359,21 +337,16 @@ function ScoresheetStandingsTable({
           {playerName}
         </Text>
         {handicapEnabled ? (
-          <Text style={{ ...bodyCell, width: hcpWidth, textAlign: 'right' }}>
+          <Text style={{ ...bodyCell, width: hcpWidth, flexShrink: 0, textAlign: 'right' }}>
             {entry.player?.handicapEnabled ? entry.player.handicapValue : '—'}
           </Text>
         ) : null}
-        <Text style={{ ...bodyCell, width: statWidth, textAlign: 'right' }}>
+        <Text style={{ ...bodyCell, width: winLossWidth, flexShrink: 0, textAlign: 'right' }}>
           {entry.stats?.matchesWon ?? entry.wins ?? 0}
         </Text>
-        <Text style={{ ...bodyCell, width: drawWidth, textAlign: 'right' }}>{entry.draws || 0}</Text>
-        <Text style={{ ...bodyCell, width: statWidth, textAlign: 'right' }}>{entry.losses || 0}</Text>
-        <Text style={{ ...bodyCell, width: winPctWidth, textAlign: 'right' }}>
-          {entry.stats?.winPct ?? 0}%
-        </Text>
-        <Text style={{ ...bodyCell, width: statWidth, textAlign: 'right' }}>{entry.stats?.ppm ?? 0}</Text>
-        <Text style={{ ...bodyCell, width: statWidth, textAlign: 'right' }}>{entry.stats?.paa ?? 0}</Text>
-        <Text style={{ ...bodyCell, width: ptsWidth, textAlign: 'right', fontWeight: '700' }}>
+        <Text style={{ ...bodyCell, width: drawWidth, flexShrink: 0, textAlign: 'right' }}>{entry.draws || 0}</Text>
+        <Text style={{ ...bodyCell, width: winLossWidth, flexShrink: 0, textAlign: 'right' }}>{entry.losses || 0}</Text>
+        <Text style={{ ...bodyCell, width: ptsWidth, flexShrink: 0, textAlign: 'right', fontWeight: '700' }}>
           {entry.points || 0}
         </Text>
       </View>
@@ -411,12 +384,12 @@ export function GroupStandingsCard({
   embedded = false,
 }) {
   const { colors } = useTheme();
-  const { sp, isWide } = useTypography();
-  const col = (width) => (isWide ? sp(width) : width);
+  const { sp, fs } = useTypography();
+  const col = (width) => sp(width);
 
   const tableContent =
     standings.length === 0 ? (
-      <Text style={{ color: colors.textMuted, fontSize: 13 }}>No players in this group yet.</Text>
+      <Text style={{ color: colors.textMuted, fontSize: fs(13) }}>No players in this group yet.</Text>
     ) : showScoresheetStats ? (
       <ScoresheetStandingsTable
         groupName={groupName}
@@ -446,9 +419,9 @@ export function GroupStandingsCard({
   }
 
   return (
-    <View style={[discoverUi.listCard, { width: '100%', alignSelf: 'stretch' }]}>
-      <View style={{ padding: isWide ? sp(12) : 12, gap: isWide ? sp(8) : 8, width: '100%' }}>
-        <Text style={{ fontSize: 16, fontWeight: '800', color: colors.text }}>{groupName}</Text>
+    <View style={[discoverUi.listCard, { width: '100%', alignSelf: 'stretch', borderRadius: sp(14) }]}>
+      <View style={{ padding: sp(11), gap: sp(7), width: '100%' }}>
+        <Text style={{ fontSize: fs(15), fontWeight: '800', color: colors.text }}>{groupName}</Text>
         {wrappedContent}
       </View>
     </View>

@@ -3,46 +3,73 @@ import { Pressable, View } from 'react-native';
 import { ScaledText as Text } from '../ui/ScaledText';
 import { ScaledTextInput as TextInput } from '../ui/ScaledTextInput';
 import { ActionButton, ChipSelector, SectionCard } from './TournamentChrome';
-import { tournamentColors } from '../../styles/tournamentUi';
+import { useTheme } from '../../context/ThemeContext';
+import { useTypography } from '../../context/TypographyContext';
 import { BEST_OF_OPTIONS, createStageId, getKnockoutAdvanceCount, getKnockoutByeCount, getKnockoutPlayedMatchCount } from '../../utils/progressionPlanUtils';
 
 function Stepper({ label, value, onChange, min = 0, max = 32 }) {
+  const { colors } = useTheme();
+  const { sp, fs } = useTypography();
+  const controlSize = sp(36);
+
   return (
-    <View style={{ gap: 6 }}>
-      <Text style={{ fontSize: 13, fontWeight: '600', color: tournamentColors.textMuted }}>{label}</Text>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+    <View style={{ gap: sp(6) }}>
+      <Text style={{ fontSize: fs(13), fontWeight: '600', color: colors.textMuted }}>{label}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: sp(10) }}>
         <Pressable
           onPress={() => onChange(Math.max(min, value - 1))}
           style={{
-            width: 36,
-            height: 36,
-            borderRadius: 8,
+            width: controlSize,
+            height: controlSize,
+            borderRadius: sp(8),
             borderWidth: 1,
-            borderColor: tournamentColors.border,
+            borderColor: colors.border,
             alignItems: 'center',
             justifyContent: 'center',
-            backgroundColor: tournamentColors.white,
+            backgroundColor: colors.inputFill,
           }}
         >
-          <Text style={{ fontSize: 18, fontWeight: '700' }}>−</Text>
+          <Text style={{ fontSize: fs(18), fontWeight: '700', color: colors.text }}>−</Text>
         </Pressable>
-        <Text style={{ minWidth: 28, textAlign: 'center', fontWeight: '700' }}>{value}</Text>
+        <Text style={{ minWidth: sp(28), textAlign: 'center', fontWeight: '700', color: colors.text, fontSize: fs(15) }}>
+          {value}
+        </Text>
         <Pressable
           onPress={() => onChange(Math.min(max, value + 1))}
           style={{
-            width: 36,
-            height: 36,
-            borderRadius: 8,
+            width: controlSize,
+            height: controlSize,
+            borderRadius: sp(8),
             borderWidth: 1,
-            borderColor: tournamentColors.border,
+            borderColor: colors.border,
             alignItems: 'center',
             justifyContent: 'center',
-            backgroundColor: tournamentColors.white,
+            backgroundColor: colors.inputFill,
           }}
         >
-          <Text style={{ fontSize: 18, fontWeight: '700' }}>+</Text>
+          <Text style={{ fontSize: fs(18), fontWeight: '700', color: colors.text }}>+</Text>
         </Pressable>
       </View>
+    </View>
+  );
+}
+
+function InfoCallout({ children }) {
+  const { colors } = useTheme();
+  const { sp, fs } = useTypography();
+
+  return (
+    <View
+      style={{
+        gap: sp(6),
+        borderWidth: 1,
+        borderColor: colors.border,
+        borderRadius: sp(12),
+        padding: sp(12),
+        backgroundColor: colors.primarySoft,
+      }}
+    >
+      {children({ colors, fs })}
     </View>
   );
 }
@@ -73,6 +100,8 @@ export function StageToStageProgressionPanel({
   existingStageName = null,
   isLastConfiguredStage = false,
 }) {
+  const { colors } = useTheme();
+  const { sp, fs } = useTypography();
   const [draft, setDraft] = useState(() =>
     buildDefaultNextStageDraft({ participantCount, bestOf: defaultBestOf })
   );
@@ -122,25 +151,20 @@ export function StageToStageProgressionPanel({
         title="Finish tournament"
         subtitle={`${participantCount} player${participantCount === 1 ? '' : 's'} remain in ${sourceStageName}.`}
       >
-        <View style={{ gap: 14 }}>
-          <View
-            style={{
-              gap: 6,
-              borderWidth: 1,
-              borderColor: tournamentColors.border,
-              borderRadius: 12,
-              padding: 12,
-              backgroundColor: tournamentColors.primarySoft,
-            }}
-          >
-            <Text style={{ fontWeight: '700', color: tournamentColors.text }}>
-              This round decides the champion
-            </Text>
-            <Text style={{ fontSize: 13, color: tournamentColors.textMuted }}>
-              With only {participantCount} player{participantCount === 1 ? '' : 's'} left, there is no next round to
-              plan. End the tournament once {sourceStageName} is complete.
-            </Text>
-          </View>
+        <View style={{ gap: sp(14) }}>
+          <InfoCallout>
+            {({ colors: calloutColors, fs: calloutFs }) => (
+              <>
+                <Text style={{ fontWeight: '700', color: calloutColors.text, fontSize: calloutFs(14) }}>
+                  This round decides the champion
+                </Text>
+                <Text style={{ fontSize: calloutFs(13), color: calloutColors.textMuted, lineHeight: calloutFs(18) }}>
+                  With only {participantCount} player{participantCount === 1 ? '' : 's'} left, there is no next round to
+                  plan. End the tournament once {sourceStageName} is complete.
+                </Text>
+              </>
+            )}
+          </InfoCallout>
 
           <ActionButton
             label={isProgressing ? 'Working…' : 'End tournament'}
@@ -158,20 +182,22 @@ export function StageToStageProgressionPanel({
       title={existingStageName ? `Continue to ${existingStageName}` : 'Plan the next round'}
       subtitle={`Set up the round after ${sourceStageName}.`}
     >
-      <View style={{ gap: 14 }}>
-        <View style={{ gap: 6 }}>
-          <Text style={{ fontSize: 13, fontWeight: '600', color: tournamentColors.textMuted }}>Round name</Text>
+      <View style={{ gap: sp(14) }}>
+        <View style={{ gap: sp(6) }}>
+          <Text style={{ fontSize: fs(13), fontWeight: '600', color: colors.textMuted }}>Round name</Text>
           <TextInput
             value={draft.name}
             onChangeText={(name) => updateDraft({ name })}
             placeholder="e.g. Semi Finals"
+            placeholderTextColor={colors.placeholder}
             style={{
               borderWidth: 1,
-              borderColor: tournamentColors.border,
-              borderRadius: 10,
-              paddingHorizontal: 12,
-              paddingVertical: 10,
-              backgroundColor: tournamentColors.white,
+              borderColor: colors.border,
+              borderRadius: sp(10),
+              paddingHorizontal: sp(12),
+              paddingVertical: sp(10),
+              backgroundColor: colors.inputFill,
+              color: colors.text,
             }}
           />
         </View>
@@ -187,7 +213,7 @@ export function StageToStageProgressionPanel({
           min={1}
           max={Math.max(participantCount, 1)}
         />
-        <Text style={{ fontSize: 12, lineHeight: 17, color: tournamentColors.textMuted }}>
+        <Text style={{ fontSize: fs(12), lineHeight: fs(17), color: colors.textMuted }}>
           How many players from {sourceStageName} will play in the next round.
         </Text>
 
@@ -216,33 +242,28 @@ export function StageToStageProgressionPanel({
           onChange={(bestOf) => updateDraft({ bestOf })}
         />
 
-        <View
-          style={{
-            gap: 6,
-            borderWidth: 1,
-            borderColor: tournamentColors.border,
-            borderRadius: 12,
-            padding: 12,
-            backgroundColor: tournamentColors.primarySoft,
-          }}
-        >
-          <Text style={{ fontWeight: '700', color: tournamentColors.text }}>
-            {nextRoundCount} player{nextRoundCount === 1 ? '' : 's'} advance from {participantCount} in{' '}
-            {sourceStageName}
-          </Text>
-          <Text style={{ fontSize: 13, color: tournamentColors.textMuted }}>
-            {byeCount > 0
-              ? `${playedMatchCount} head-to-head match${playedMatchCount === 1 ? '' : 'es'} plus ${byeCount} bye${byeCount === 1 ? '' : 's'}. `
-              : ''}
-            {nextRoundName
-              ? advanceBeyondCount === 0
-                ? `${nextRoundCount} player${nextRoundCount === 1 ? '' : 's'} will play in “${nextRoundName}”. The tournament ends after that round.`
-                : `${nextRoundCount} player${nextRoundCount === 1 ? '' : 's'} will play in “${nextRoundName}”. Then ${advanceBeyondCount} advance further.`
-              : `${nextRoundCount} player${nextRoundCount === 1 ? '' : 's'} will fill the next round you name above.`}
-          </Text>
-        </View>
+        <InfoCallout>
+          {({ colors: calloutColors, fs: calloutFs }) => (
+            <>
+              <Text style={{ fontWeight: '700', color: calloutColors.text, fontSize: calloutFs(14) }}>
+                {nextRoundCount} player{nextRoundCount === 1 ? '' : 's'} advance from {participantCount} in{' '}
+                {sourceStageName}
+              </Text>
+              <Text style={{ fontSize: calloutFs(13), color: calloutColors.textMuted, lineHeight: calloutFs(18) }}>
+                {byeCount > 0
+                  ? `${playedMatchCount} head-to-head match${playedMatchCount === 1 ? '' : 'es'} plus ${byeCount} bye${byeCount === 1 ? '' : 's'}. `
+                  : ''}
+                {nextRoundName
+                  ? advanceBeyondCount === 0
+                    ? `${nextRoundCount} player${nextRoundCount === 1 ? '' : 's'} will play in “${nextRoundName}”. The tournament ends after that round.`
+                    : `${nextRoundCount} player${nextRoundCount === 1 ? '' : 's'} will play in “${nextRoundName}”. Then ${advanceBeyondCount} advance further.`
+                  : `${nextRoundCount} player${nextRoundCount === 1 ? '' : 's'} will fill the next round you name above.`}
+              </Text>
+            </>
+          )}
+        </InfoCallout>
 
-        <View style={{ flexDirection: 'row', gap: 8 }}>
+        <View style={{ flexDirection: 'row', gap: sp(8) }}>
           <View style={{ flex: 1 }}>
             <ActionButton
               label={isProgressing ? 'Working…' : existingStageName ? `Set up ${existingStageName}` : 'Continue'}

@@ -2,10 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, View } from 'react-native';
 import { ScaledText as Text } from '../../components/ui/ScaledText';
 import { AppIcon } from '../../components/ui/AppIcon';
-import { ActionButton, ChipSelector, SectionCard } from '../../components/tournament/TournamentChrome';
+import { ActionButton, ChipSelector } from '../../components/tournament/TournamentChrome';
 import { ScaledTextInput as TextInput } from '../../components/ui/ScaledTextInput';
+import { useTheme } from '../../context/ThemeContext';
 import { useTypography } from '../../context/TypographyContext';
-import { tournamentColors, tournamentUi } from '../../styles/tournamentUi';
+import { tournamentUi } from '../../styles/tournamentUi';
 import { getWebModalStyles } from '../../utils/modalStyles';
 
 function countSelectedParticipants(selectedParticipantIds = {}) {
@@ -82,6 +83,7 @@ export function StageStartModal({
   participantNameById,
   backButtonLabel = 'Back',
 }) {
+  const { colors } = useTheme();
   const { width } = useTypography();
   const webModal = getWebModalStyles(width);
   const stageName = stage?.name || 'Stage';
@@ -90,6 +92,20 @@ export function StageStartModal({
   const [oddResolution, setOddResolution] = useState('knockout');
   const [promoteBypassParticipantId, setPromoteBypassParticipantId] = useState('');
   const [promoteBypassTargetStageName, setPromoteBypassTargetStageName] = useState('');
+
+  const modalCardStyle = useMemo(
+    () => [
+      tournamentUi.modalCard,
+      webModal?.card,
+      {
+        maxHeight: '80%',
+        backgroundColor: colors.surface,
+        borderColor: colors.cardBorder,
+      },
+      step === 'pick' ? { maxWidth: webModal?.card?.maxWidth ? 520 : undefined } : null,
+    ],
+    [colors.cardBorder, colors.surface, step, webModal?.card]
+  );
 
   const selectedCount = useMemo(
     () => countSelectedParticipants(selectedParticipantIds),
@@ -181,6 +197,15 @@ export function StageStartModal({
 
   const participantLabel = isDoubles ? 'team' : 'player';
 
+  const participantRowStyle = (selected, suggested) => ({
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: selected ? colors.primary : suggested ? colors.primaryTint || colors.primary : colors.border,
+    backgroundColor: selected ? colors.chipSelectedBg || colors.primarySoft : colors.surfaceRaised || colors.surfaceAlt,
+  });
+
   return (
     <Modal
       animationType="slide"
@@ -188,23 +213,31 @@ export function StageStartModal({
       visible={visible}
       onRequestClose={step === 'confirm' ? handleBackFromConfirm : handleClose}
     >
-      <View style={[tournamentUi.modalOverlay, webModal?.overlay]}>
+      <View style={[tournamentUi.modalOverlay, webModal?.overlay, { backgroundColor: colors.drawerOverlay }]}>
         <Pressable
           style={tournamentUi.modalBackdrop}
           onPress={step === 'confirm' ? handleBackFromConfirm : handleClose}
         />
-        <View style={[tournamentUi.modalCard, webModal?.card, { maxHeight: '80%' }]}>
+        <View style={modalCardStyle}>
           {step === 'confirm' ? (
             <>
-              <View style={[tournamentUi.modalIconWrap('primary'), webModal?.iconWrap]}>
-                <AppIcon name="trophy" size={webModal?.iconSize || 26} color={tournamentColors.primary} />
+              <View
+                style={[
+                  tournamentUi.modalIconWrap('primary'),
+                  webModal?.iconWrap,
+                  { backgroundColor: colors.primarySoft },
+                ]}
+              >
+                <AppIcon name="trophy" size={webModal?.iconSize || 26} color={colors.primary} />
               </View>
-              <Text style={[tournamentUi.modalTitle, webModal?.title]}>Launch {stageName}?</Text>
-              <Text style={[tournamentUi.modalMessage, webModal?.message, { marginTop: 8 }]}>
+              <Text style={[tournamentUi.modalTitle, webModal?.title, { color: colors.text }]}>
+                Launch {stageName}?
+              </Text>
+              <Text style={[tournamentUi.modalMessage, webModal?.message, { marginTop: 8, color: colors.textMuted }]}>
                 Create matches for {confirmCount} selected {participantLabel}
                 {confirmCount === 1 ? '' : 's'} in {stageName}.
               </Text>
-              <Text style={{ marginTop: 8, fontSize: 13, color: tournamentColors.textMuted }}>
+              <Text style={{ marginTop: 8, fontSize: 13, color: colors.textMuted }}>
                 {stage?.format === 'knockout' ? 'Knockout bracket' : 'Round-robin pool'} · Best of{' '}
                 {stage?.bestOf || 3}
               </Text>
@@ -227,7 +260,7 @@ export function StageStartModal({
                   />
                   <Text
                     numberOfLines={2}
-                    style={{ fontSize: 12, textAlign: 'center', color: tournamentColors.textMuted }}
+                    style={{ fontSize: 12, textAlign: 'center', color: colors.textMuted }}
                   >
                     {stageName}
                   </Text>
@@ -236,22 +269,24 @@ export function StageStartModal({
             </>
           ) : (
             <>
-              <Text style={[tournamentUi.modalTitle, webModal?.title]}>Pick players for {stageName}</Text>
-              <Text style={{ marginTop: 4 }}>
+              <Text style={[tournamentUi.modalTitle, webModal?.title, { color: colors.text }]}>
+                Pick players for {stageName}
+              </Text>
+              <Text style={{ marginTop: 4, color: colors.text, fontSize: 14 }}>
                 {stage?.format === 'knockout' ? 'Knockout bracket' : 'Round-robin pool'} · Best of{' '}
                 {stage?.bestOf || 3}
               </Text>
-              <Text style={{ marginTop: 6, fontSize: 13, color: tournamentColors.textMuted, lineHeight: 18 }}>
+              <Text style={{ marginTop: 6, fontSize: 13, color: colors.textMuted, lineHeight: 18 }}>
                 {selectionHint}
               </Text>
-              <Text style={{ marginTop: 4, color: tournamentColors.success }}>
+              <Text style={{ marginTop: 4, color: colors.success, fontSize: 13 }}>
                 Selected: {selectedCount}
                 {suggestedCount > 0 ? ` · ${suggestedCount} suggested` : ''}
               </Text>
 
               {needsOddResolution ? (
                 <View style={{ marginTop: 12, gap: 10 }}>
-                  <Text style={{ fontSize: 13, color: tournamentColors.textMuted, lineHeight: 18 }}>
+                  <Text style={{ fontSize: 13, color: colors.textMuted, lineHeight: 18 }}>
                     You selected an odd number of players for a knockout round. Choose how to proceed:
                   </Text>
                   <ChipSelector
@@ -270,7 +305,7 @@ export function StageStartModal({
                   />
                   {oddResolution === 'promote' ? (
                     <View style={{ gap: 6 }}>
-                      <Text style={{ fontSize: 13, fontWeight: '600', color: tournamentColors.textMuted }}>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: colors.textMuted }}>
                         Player to promote to {stageName}
                       </Text>
                       {selectedParticipantEntries.map((entry) => {
@@ -283,15 +318,17 @@ export function StageStartModal({
                               padding: 10,
                               borderRadius: 8,
                               borderWidth: 1,
-                              borderColor: selected ? tournamentColors.primary : tournamentColors.border,
-                              backgroundColor: selected ? tournamentColors.chipSelectedBg : tournamentColors.white,
+                              borderColor: selected ? colors.primary : colors.border,
+                              backgroundColor: selected
+                                ? colors.chipSelectedBg || colors.primarySoft
+                                : colors.surfaceRaised || colors.surfaceAlt,
                             }}
                           >
-                            <Text style={{ fontWeight: '600' }}>{entry.label}</Text>
+                            <Text style={{ fontWeight: '600', color: colors.text }}>{entry.label}</Text>
                           </Pressable>
                         );
                       })}
-                      <Text style={{ fontSize: 12, color: tournamentColors.textMuted }}>
+                      <Text style={{ fontSize: 12, color: colors.textMuted }}>
                         The promoted player skips this round and joins the named future round directly. The remaining
                         players play knockout matches now.
                       </Text>
@@ -299,21 +336,24 @@ export function StageStartModal({
                         value={promoteBypassTargetStageName}
                         onChangeText={setPromoteBypassTargetStageName}
                         placeholder="Future round name (e.g. Finals)"
-                        style={{
-                          borderWidth: 1,
-                          borderColor: tournamentColors.border,
-                          borderRadius: 10,
-                          paddingHorizontal: 12,
-                          paddingVertical: 10,
-                          backgroundColor: tournamentColors.white,
-                        }}
+                        placeholderTextColor={colors.placeholder}
+                        style={[
+                          tournamentUi.input,
+                          {
+                            borderColor: colors.border,
+                            backgroundColor: colors.inputFill,
+                            color: colors.text,
+                          },
+                        ]}
                       />
                     </View>
                   ) : null}
                 </View>
               ) : null}
 
-              {isLoadingStageCandidates && <Text style={{ marginTop: 8 }}>Loading candidates…</Text>}
+              {isLoadingStageCandidates ? (
+                <Text style={{ marginTop: 8, color: colors.textMuted }}>Loading candidates…</Text>
+              ) : null}
 
               <ScrollView style={{ marginTop: 12, maxHeight: 320 }}>
                 {groupStandings.map((group) => {
@@ -321,7 +361,9 @@ export function StageStartModal({
 
                   return (
                     <View key={group.divisionId} style={{ marginBottom: 12 }}>
-                      <Text style={{ fontWeight: '700', marginBottom: 6 }}>{group.divisionName}</Text>
+                      <Text style={{ fontWeight: '700', marginBottom: 6, color: colors.text }}>
+                        {group.divisionName}
+                      </Text>
                       {entries.map((entry) => {
                         const id = String(isDoubles ? entry.teamId : entry.playerId);
                         const { rank, isBypassed, bypassTarget } = getEntrySelectionState({
@@ -344,11 +386,11 @@ export function StageStartModal({
                                 borderRadius: 8,
                                 marginBottom: 6,
                                 borderWidth: 1,
-                                borderColor: tournamentColors.border,
-                                backgroundColor: tournamentColors.surfaceAlt,
+                                borderColor: colors.border,
+                                backgroundColor: colors.surfaceAlt,
                               }}
                             >
-                              <Text style={{ fontWeight: '600', color: tournamentColors.textMuted }}>
+                              <Text style={{ fontWeight: '600', color: colors.textMuted }}>
                                 {rank ? `#${rank} ` : ''}
                                 {label}
                                 {pointsLabel} ({bypassTarget})
@@ -361,16 +403,9 @@ export function StageStartModal({
                           <Pressable
                             key={id}
                             onPress={() => onToggleParticipant(id)}
-                            style={{
-                              padding: 10,
-                              borderRadius: 8,
-                              marginBottom: 6,
-                              borderWidth: 1,
-                              borderColor: selected ? tournamentColors.primary : suggested ? tournamentColors.primaryTint : tournamentColors.border,
-                              backgroundColor: selected ? tournamentColors.chipSelectedBg : tournamentColors.white,
-                            }}
+                            style={participantRowStyle(selected, suggested)}
                           >
-                            <Text style={{ fontWeight: '600' }}>
+                            <Text style={{ fontWeight: '600', color: colors.text }}>
                               {rank ? `#${rank} ` : ''}
                               {label}
                               {pointsLabel}

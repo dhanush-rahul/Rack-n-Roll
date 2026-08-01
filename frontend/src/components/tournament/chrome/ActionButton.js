@@ -2,9 +2,11 @@ import React, { useMemo } from 'react';
 import { Pressable } from 'react-native';
 import { ScaledText as Text } from '../../ui/ScaledText';
 import { useTheme } from '../../../context/ThemeContext';
+import { useTypography } from '../../../context/TypographyContext';
 
 export function ActionButton({ label, onPress, disabled, variant = 'primary', fullWidth = false }) {
   const { colors } = useTheme();
+  const { sp, fs } = useTypography();
 
   const styles = useMemo(() => {
     const variants = {
@@ -32,9 +34,9 @@ export function ActionButton({ label, onPress, disabled, variant = 'primary', fu
       disabled={disabled}
       style={({ pressed }) => ({
         width: fullWidth ? '100%' : undefined,
-        paddingVertical: 12,
-        paddingHorizontal: 14,
-        borderRadius: 11,
+        paddingVertical: sp(10),
+        paddingHorizontal: sp(12),
+        borderRadius: sp(10),
         borderWidth: 1,
         borderColor: disabled ? colors.border : styles.border,
         backgroundColor,
@@ -42,7 +44,7 @@ export function ActionButton({ label, onPress, disabled, variant = 'primary', fu
         opacity: pressed || disabled ? 0.72 : 1,
       })}
     >
-      <Text style={{ fontWeight: '700', fontSize: 14, color: textColor, numberOfLines: 2 }}>
+      <Text style={{ fontWeight: '700', fontSize: fs(14), color: textColor, numberOfLines: 2 }}>
         {label}
       </Text>
     </Pressable>

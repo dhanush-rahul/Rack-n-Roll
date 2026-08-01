@@ -7,7 +7,6 @@ import {
   Easing,
   Pressable,
   RefreshControl,
-  ScrollView,
   View,
 } from 'react-native';
 import { ScaledText as Text } from '../components/ui/ScaledText';
@@ -23,6 +22,7 @@ import {
 import { useTabScreenInsets } from '../hooks/useTabScreenInsets';
 import { AppIcon } from '../components/ui/AppIcon';
 import { PageColumn } from '../components/layout/PageColumn';
+import { TabScreenScrollView } from '../components/layout/TabScreenScrollView';
 import { useResponsiveLayout } from '../utils/responsive';
 import { useDiscoverFilters } from '../hooks/useDiscoverFilters';
 import { DiscoverHero } from '../components/discover/DiscoverHero';
@@ -511,9 +511,9 @@ export function DiscoverScreen({ navigation, route }) {
 
   return (
     <>
-      <ScrollView
+      <TabScreenScrollView
         ref={scrollViewRef}
-        style={{ flex: 1, backgroundColor: isDesktopWeb ? colors.backgroundAlt : colors.background }}
+        style={{ backgroundColor: isDesktopWeb ? colors.backgroundAlt : colors.background }}
         contentContainerStyle={{ paddingBottom: scrollPaddingBottom }}
         keyboardShouldPersistTaps="handled"
         refreshControl={
@@ -618,7 +618,7 @@ export function DiscoverScreen({ navigation, route }) {
           </View>
         )}
         </PageColumn>
-      </ScrollView>
+      </TabScreenScrollView>
       <AuthPromptModal {...authPromptProps} />
     </>
   );

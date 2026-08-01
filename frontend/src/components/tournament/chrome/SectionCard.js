@@ -2,8 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Animated, LayoutAnimation, Platform, Pressable, UIManager, View } from 'react-native';
 import { ScaledText as Text } from '../../ui/ScaledText';
 import { AppIcon } from '../../ui/AppIcon';
+import { useDiscoverSurfaceCard } from '../../../hooks/useDiscoverSurfaceCard';
+import { useTheme } from '../../../context/ThemeContext';
 import { useTypography } from '../../../context/TypographyContext';
-import { discoverUi, tournamentColors } from '../../../styles/tournamentUi';
 
 const EXPAND_ANIM_MS = 260;
 
@@ -30,18 +31,20 @@ const configureExpandAnimation = () => {
 };
 
 export function SectionCard({ title, subtitle, children, headerAction }) {
-  const { sp, isWide } = useTypography();
+  const { colors } = useTheme();
+  const { sp, fs } = useTypography();
+  const surfaceCardStyle = useDiscoverSurfaceCard();
 
   return (
-    <View style={[discoverUi.surfaceCard, { gap: isWide ? sp(14) : 12, padding: isWide ? sp(14) : 12 }]}>
+    <View style={surfaceCardStyle}>
       {(Boolean(title) || headerAction) && (
-        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: isWide ? sp(10) : 10 }}>
-          <View style={{ flex: 1, gap: isWide ? sp(6) : 4 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: sp(10) }}>
+          <View style={{ flex: 1, gap: sp(4) }}>
             {Boolean(title) && (
-              <Text style={{ fontSize: 16, fontWeight: '800', color: tournamentColors.text }}>{title}</Text>
+              <Text style={{ fontSize: fs(16), fontWeight: '800', color: colors.text }}>{title}</Text>
             )}
             {Boolean(subtitle) && (
-              <Text style={{ fontSize: 13, lineHeight: 18, color: tournamentColors.textMuted }}>{subtitle}</Text>
+              <Text style={{ fontSize: fs(13), lineHeight: fs(18), color: colors.textMuted }}>{subtitle}</Text>
             )}
           </View>
           {headerAction}
@@ -63,7 +66,9 @@ export function CollapsibleSectionCard({
   headerAction,
   sectionRef,
 }) {
-  const { sp, isWide } = useTypography();
+  const { colors } = useTheme();
+  const { sp, fs } = useTypography();
+  const surfaceCardStyle = useDiscoverSurfaceCard();
   const [internalExpanded, setInternalExpanded] = useState(defaultExpanded);
   const isControlled = expandedProp !== undefined;
   const expanded = isControlled ? expandedProp : internalExpanded;
@@ -110,38 +115,39 @@ export function CollapsibleSectionCard({
 
   const borderColor = highlightAnimation.interpolate({
     inputRange: [0, 1],
-    outputRange: [tournamentColors.cardBorder, tournamentColors.primary],
+    outputRange: [colors.cardBorder, colors.primary],
   });
 
-  const cardPadding = isWide ? sp(14) : 12;
+  const cardPadding = sp(12);
 
   return (
     <Animated.View
       ref={sectionRef}
       style={[
-        discoverUi.surfaceCard,
+        surfaceCardStyle[0],
+        surfaceCardStyle[1],
         {
           padding: 0,
           overflow: 'hidden',
           borderWidth: highlighted ? 2 : 1,
-          borderColor: highlighted ? borderColor : expanded ? tournamentColors.primaryTint : tournamentColors.cardBorder,
-          backgroundColor: highlighted ? tournamentColors.primarySoft : tournamentColors.white,
+          borderColor: highlighted ? borderColor : expanded ? colors.primaryTint : colors.cardBorder,
+          backgroundColor: highlighted ? colors.primarySoft : colors.surface,
         },
       ]}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: cardPadding }}>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: sp(10), padding: cardPadding }}>
         <Pressable
           onPress={toggleExpanded}
-          style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.88 : 1, gap: isWide ? sp(6) : 4 })}
+          style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.88 : 1, gap: sp(4) })}
           accessibilityRole="button"
           accessibilityState={{ expanded }}
           accessibilityLabel={expanded ? `Collapse ${title}` : `Expand ${title}`}
         >
           {Boolean(title) && (
-            <Text style={{ fontSize: 16, fontWeight: '800', color: tournamentColors.text }}>{title}</Text>
+            <Text style={{ fontSize: fs(16), fontWeight: '800', color: colors.text }}>{title}</Text>
           )}
           {Boolean(subtitle) && (
-            <Text style={{ fontSize: 13, lineHeight: 18, color: tournamentColors.textMuted }} numberOfLines={expanded ? 3 : 2}>
+            <Text style={{ fontSize: fs(13), lineHeight: fs(18), color: colors.textMuted }} numberOfLines={expanded ? 3 : 2}>
               {subtitle}
             </Text>
           )}
@@ -155,17 +161,17 @@ export function CollapsibleSectionCard({
           accessibilityRole="button"
           accessibilityLabel={expanded ? 'Collapse section' : 'Expand section'}
           style={({ pressed }) => ({
-            width: 32,
-            height: 32,
-            borderRadius: 16,
+            width: sp(30),
+            height: sp(30),
+            borderRadius: sp(15),
             alignItems: 'center',
             justifyContent: 'center',
-            backgroundColor: expanded ? tournamentColors.chipSelectedBg : tournamentColors.inputFill,
+            backgroundColor: expanded ? colors.chipSelectedBg : colors.inputFill,
             opacity: pressed ? 0.75 : 1,
           })}
         >
           <Animated.View style={{ transform: [{ rotate: chevronRotation }] }}>
-            <AppIcon name="chevronDown" size={16} color={tournamentColors.primary} />
+            <AppIcon name="chevronDown" size={sp(15)} color={colors.primary} />
           </Animated.View>
         </Pressable>
       </View>
@@ -173,11 +179,11 @@ export function CollapsibleSectionCard({
       {expanded ? (
         <View
           style={{
-            gap: isWide ? sp(14) : 12,
+            gap: sp(12),
             paddingHorizontal: cardPadding,
             paddingBottom: cardPadding,
             borderTopWidth: 1,
-            borderTopColor: tournamentColors.borderLight,
+            borderTopColor: colors.borderLight,
             paddingTop: cardPadding,
           }}
         >

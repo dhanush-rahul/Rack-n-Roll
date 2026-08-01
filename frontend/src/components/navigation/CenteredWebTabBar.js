@@ -3,10 +3,16 @@ import { BottomTabBar } from '@react-navigation/bottom-tabs';
 import { Platform, View } from 'react-native';
 import { PageColumn } from '../layout/PageColumn';
 import { useTheme } from '../../context/ThemeContext';
-import { WEB_TAB_BAR_FAB_CLEARANCE } from '../../hooks/useTabScreenInsets';
+import { useTypography } from '../../context/TypographyContext';
+import {
+  WEB_TAB_BAR_FAB_CLEARANCE,
+  WEB_TAB_BAR_BOTTOM_PADDING,
+  WEB_TAB_BAR_RIGHT_PADDING,
+} from '../../hooks/useTabScreenInsets';
 
 export function CenteredWebTabBar(props) {
   const { colors } = useTheme();
+  const { sp } = useTypography();
 
   if (Platform.OS !== 'web') {
     return <BottomTabBar {...props} />;
@@ -23,9 +29,10 @@ export function CenteredWebTabBar(props) {
         overflow: 'visible',
         zIndex: 20,
         paddingTop: WEB_TAB_BAR_FAB_CLEARANCE,
+        paddingBottom: sp(WEB_TAB_BAR_BOTTOM_PADDING),
       }}
     >
-      <PageColumn shellNativeID="racknroll-tab-bar-shell" style={{ transform: [{ translateX: -4 }] }}>
+      <PageColumn shellNativeID="racknroll-tab-bar-shell">
         <View
           nativeID="racknroll-tab-bar-panel"
           style={{
@@ -40,6 +47,8 @@ export function CenteredWebTabBar(props) {
               borderTopColor: colors.tabBarBorder,
               backgroundColor: colors.tabBar,
               overflow: 'visible',
+              paddingBottom: sp(6),
+              paddingRight: sp(WEB_TAB_BAR_RIGHT_PADDING),
             }}
           >
             <BottomTabBar {...props} />
