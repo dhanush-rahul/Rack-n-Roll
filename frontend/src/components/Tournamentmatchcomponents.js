@@ -45,8 +45,8 @@ export function MatchCard({
   onAddSeriesRow,
   onSaveScores,
 }) {
-  const playerAName = game.playerA?.displayName || game.playerAId;
-  const playerBName = game.playerB?.displayName || game.playerBId;
+  const playerAName = game.playerAPendingLabel || game.playerA?.displayName || game.playerAId;
+  const playerBName = game.playerBPendingLabel || game.playerB?.displayName || game.playerBId;
   const stageScope = String(game.stageId || game.stage || 'groupStage');
   const hasPlayerA = Boolean(game.playerA?.id || game.playerAId || game.teamA?.id || game.teamAId);
   const hasPlayerB = Boolean(game.playerB?.id || game.playerBId || game.teamB?.id || game.teamBId);

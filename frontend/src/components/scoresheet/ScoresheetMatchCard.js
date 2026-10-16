@@ -35,8 +35,8 @@ export function ScoresheetMatchCard({ game, matchNumber, scoresByGameId }) {
   );
 
   const completedGamesCount = scoreInputEntries.filter((entry) => isPlayedScoreEntry(entry)).length;
-  const playerAName = game.playerA?.displayName || game.playerAId;
-  const playerBName = game.playerB?.displayName || game.playerBId;
+  const playerAName = game.playerAPendingLabel || game.playerA?.displayName || game.playerAId || 'Pending';
+  const playerBName = game.playerBPendingLabel || game.playerB?.displayName || game.playerBId || 'Pending';
 
   const scoreInputStyle = {
     borderWidth: 1,

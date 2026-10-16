@@ -72,6 +72,14 @@ export function buildParticipantGameStatsFromGames(games = [], isDoubles = false
 
 export function buildStageMatchProgress(games = []) {
   const playableGames = games.filter((game) => {
+    if (game.isBye) {
+      return false;
+    }
+
+    if (game.scoreBlockedReason || game.playerAPendingLabel || game.playerBPendingLabel) {
+      return true;
+    }
+
     const hasA = Boolean(game.playerAId || game.teamAId);
     const hasB = Boolean(game.playerBId || game.teamBId);
     return hasA && hasB;

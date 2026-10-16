@@ -52,7 +52,14 @@ export function StageTabView({
   onSetGamesView,
   scoringStyle = 'individualGames',
 }) {
-  if (stage?.status === 'preview' || stage?.isBypassPreview) {
+  const stageName = stage?.name || 'Stage';
+  const hasFixtures = games.length > 0 || displaySections.length > 0;
+
+  if (isLoading && !hasFixtures) {
+    return <LoadingPlaceholder message={`Loading ${stageName} matches…`} />;
+  }
+
+  if (!hasFixtures && (stage?.status === 'preview' || stage?.isBypassPreview)) {
     return (
       <StagePendingTabView
         stage={stage}
@@ -63,15 +70,13 @@ export function StageTabView({
     );
   }
 
-  if (stage?.status === 'locked') {
+  if (!hasFixtures && stage?.status === 'locked') {
     return <LoadingPlaceholder message={`${stage.name} unlocks when the previous stage is complete.`} />;
   }
 
-  if (stage?.status === 'ready') {
+  if (!hasFixtures && stage?.status === 'ready') {
     return <LoadingPlaceholder message={`Ready to start ${stage.name}. Use the button above.`} />;
   }
-
-  const stageName = stage?.name || 'Stage';
 
   return (
     <FixturesTabPanel

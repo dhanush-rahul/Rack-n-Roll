@@ -11,6 +11,7 @@ import { AuthField, AuthPasswordMatchHint } from '../components/auth/AuthChrome'
 import { tournamentUi } from '../styles/tournamentUi';
 import { useResponsiveLayout, centeredContentStyle } from '../utils/responsive';
 import { setMyPassword, updateMyEmail } from '../services/userService';
+import { DeleteAccountSection } from '../components/settings/DeleteAccountSection';
 import { queryKeys } from '../hooks/queries/queryKeys';
 import { formatApiError } from '../hooks/useScreenFeedback';
 import { getAuthErrorMessage } from '../utils/authErrors';
@@ -23,7 +24,7 @@ import {
 
 export function SettingsScreen() {
   const { colors } = useTheme();
-  const { currentUser } = useAuth();
+  const { currentUser, signOut } = useAuth();
   const queryClient = useQueryClient();
   const { scrollPaddingBottom } = useScreenInsets();
   const { contentMaxWidth, horizontalPadding, isDesktopWeb } = useResponsiveLayout();
@@ -206,6 +207,15 @@ export function SettingsScreen() {
             />
           </SectionCard>
         ) : null}
+
+        <DeleteAccountSection
+          onDeleted={() =>
+            signOut({
+              title: 'Account deleted',
+              message: 'Your account has been deleted. Tournament results stay, under the name Deleted player.',
+            })
+          }
+        />
       </View>
     </ScrollView>
   );

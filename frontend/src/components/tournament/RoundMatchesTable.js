@@ -52,10 +52,22 @@ function withCellPadding(width, minWidth = 0) {
 
 function getMatchPlayerName(match, side) {
   if (side === 'a') {
-    return match.playerA?.name || match.playerA?.displayName || match.playerAName || 'Player A';
+    return (
+      match.playerAPendingLabel ||
+      match.playerA?.name ||
+      match.playerA?.displayName ||
+      match.playerAName ||
+      'Player A'
+    );
   }
 
-  return match.playerB?.name || match.playerB?.displayName || match.playerBName || 'Player B';
+  return (
+    match.playerBPendingLabel ||
+    match.playerB?.name ||
+    match.playerB?.displayName ||
+    match.playerBName ||
+    'Player B'
+  );
 }
 
 function getScoresColumnWidth(boxCount) {
@@ -405,7 +417,7 @@ const MatchTableRow = memo(
     const playerAName = getMatchPlayerName(match, 'a');
     const playerBName = getMatchPlayerName(match, 'b');
     const tone = statusTone(match.status);
-    const canEditThisMatch = viewOnly ? false : (match.canEditMatch ?? canEditPatternScores);
+    const canEditThisMatch = viewOnly || match.scoreBlockedReason ? false : (match.canEditMatch ?? canEditPatternScores);
     const appointmentLabel = match.scheduledStartAt
       ? formatMatchScheduledAt(match.scheduledStartAt)
       : 'Not scheduled';
@@ -525,13 +537,18 @@ const MatchTableRow = memo(
         </TableCell>
         {showActions ? (
           <TableCell width={columnWidths.actions}>
-            {useLiveSessionScoring && matchId && match.status !== 'completed' ? (
+            {useLiveSessionScoring && matchId && match.status !== 'completed' && !match.scoreBlockedReason ? (
               <MatchActionButton
                 label={match.status === 'inProgress' ? 'Resume' : 'Start'}
                 onPress={() => onStartGame?.({ gameId: matchId, match })}
               />
             ) : null}
-            {match.canScheduleMatch !== false && matchId ? (
+            {match.scoreBlockedReason ? (
+              <Text style={{ fontSize: 11, color: tournamentColors.textMuted, flexShrink: 1 }}>
+                {match.scoreBlockedReason}
+              </Text>
+            ) : null}
+            {match.canScheduleMatch !== false && matchId && !match.scoreBlockedReason ? (
               <MatchActionButton
                 label={match.scheduledStartAt ? 'Reschedule' : 'Schedule'}
                 onPress={() =>

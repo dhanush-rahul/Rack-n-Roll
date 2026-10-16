@@ -14,6 +14,7 @@ import {
 import { AuthUsernameField } from '../components/auth/AuthUsernameField';
 import { LegalConsent, LegalFooter } from '../components/legal/LegalLinks';
 import { GoogleSignInSection } from '../components/auth/GoogleSignInSection';
+import { AppleSignInSection } from '../components/auth/AppleSignInSection';
 import { isGoogleSignInAvailable } from '../config/googleAuth';
 import { useAuth } from '../context/AuthContext';
 import { useUsernameAvailability } from '../hooks/useUsernameAvailability';
@@ -25,7 +26,7 @@ import { navigateAfterGoogleAuth } from '../utils/navigateAfterGoogleAuth';
 import { suggestUsernameFromFirstName } from '../utils/usernameUtils';
 
 export function SignUpScreen({ navigation, route }) {
-  const { signUp, signInWithGoogle } = useAuth();
+  const { signUp, signInWithGoogle, signInWithApple } = useAuth();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [username, setUsername] = useState('');
@@ -45,6 +46,7 @@ export function SignUpScreen({ navigation, route }) {
   const [errorText, setErrorText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
+  const [isAppleSubmitting, setIsAppleSubmitting] = useState(false);
   const usernameTouchedRef = useRef(false);
 
   const { status, reason, isAvailable, isChecking } = useUsernameAvailability(username, {
@@ -110,6 +112,19 @@ export function SignUpScreen({ navigation, route }) {
       setErrorText(getAuthErrorMessage(error, 'Google sign-in failed. Please try again.'));
     } finally {
       setIsGoogleSubmitting(false);
+    }
+  };
+
+  const handleAppleCredential = async (credential) => {
+    try {
+      setIsAppleSubmitting(true);
+      setErrorText('');
+      const result = await signInWithApple(credential);
+      navigateAfterGoogleAuth(navigation, route, result);
+    } catch (error) {
+      setErrorText(getAuthErrorMessage(error, 'Apple sign-in failed. Please try again.'));
+    } finally {
+      setIsAppleSubmitting(false);
     }
   };
 
@@ -281,16 +296,20 @@ export function SignUpScreen({ navigation, route }) {
         <AuthPrimaryButton
           label="Create account"
           onPress={onSubmit}
-          disabled={isSubmitting || isGoogleSubmitting || isChecking}
+          disabled={isSubmitting || isGoogleSubmitting || isAppleSubmitting || isChecking}
           loading={isSubmitting}
         />
 
         {isGoogleSignInAvailable() ? (
           <GoogleSignInSection
             onIdToken={handleGoogleIdToken}
-            disabled={isSubmitting || isGoogleSubmitting}
+            disabled={isSubmitting || isGoogleSubmitting || isAppleSubmitting}
           />
         ) : null}
+        <AppleSignInSection
+          onCredential={handleAppleCredential}
+          disabled={isSubmitting || isGoogleSubmitting || isAppleSubmitting}
+        />
       </AuthFormCard>
 
       <AuthTextLink prompt="Already registered?" actionLabel="Sign in" onPress={() => navigation.navigate('SignIn')} />

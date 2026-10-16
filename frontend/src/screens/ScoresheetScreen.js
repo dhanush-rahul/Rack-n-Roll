@@ -101,11 +101,7 @@ export function ScoresheetScreen({ route, navigation }) {
   );
 
   const activeStageTabReady = Boolean(
-    activeProgressionStageMeta &&
-      activeProgressionStageMeta.status !== 'locked' &&
-      activeProgressionStageMeta.status !== 'ready' &&
-      activeProgressionStageMeta.status !== 'preview' &&
-      !activeProgressionStageMeta.isBypassPreview
+    activeProgressionStageMeta && !activeProgressionStageMeta.isBypassPreview
   );
 
   const scoringStyle =
@@ -381,9 +377,7 @@ export function ScoresheetScreen({ route, navigation }) {
       nextGroups = applyGroupFallback(nextGroups, fallbackData.divisionsById);
       setGroupsTabItems(nextGroups);
 
-      const startedStages = (scoresheetMeta?.progressionPlan?.stages || []).filter(
-        (stage) => stage.status === 'active' || stage.status === 'completed'
-      );
+      const startedStages = scoresheetMeta?.progressionPlan?.stages || [];
       await Promise.all(startedStages.map((stage) => loadStageScores(stage.stageId)));
 
       if (!standingsLoaded && nextGroups.length === 0) clearError();

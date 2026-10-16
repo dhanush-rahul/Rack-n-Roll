@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { FeedbackModal } from '../components/FeedbackModal';
 import { clearToken, getToken, setToken } from '../utils/tokenStore';
-import { loginUser, signInWithGoogle as signInWithGoogleApi, signupUser } from '../services/authService';
+import { loginUser, signInWithApple as signInWithAppleApi, signInWithGoogle as signInWithGoogleApi, signupUser } from '../services/authService';
 import { apiGet } from '../services/api';
 import { wakeBackendIfNeeded } from '../services/systemService';
 import { logWarning } from '../utils/errorLogger';
@@ -15,6 +15,8 @@ export function AuthProvider({ children }) {
   const [token, setTokenState] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [signedOutModalVisible, setSignedOutModalVisible] = useState(false);
+  const [signedOutTitle, setSignedOutTitle] = useState('Signed out');
+  const [signedOutMessage, setSignedOutMessage] = useState("You've been signed out successfully. See you next time!");
 
   useEffect(() => {
     let isMounted = true;
@@ -89,14 +91,25 @@ export function AuthProvider({ children }) {
         setCurrentUser(result.user);
         return result;
       },
+      async signInWithApple(credential) {
+        const result = await signInWithAppleApi(credential);
+        await setToken(result.token);
+        setTokenState(result.token);
+        setCurrentUser(result.user);
+        return result;
+      },
       updateCurrentUser(nextUser) {
         setCurrentUser((current) => ({ ...(current || {}), ...(nextUser || {}) }));
       },
-      async signOut() {
+      async signOut(options = {}) {
         await clearToken();
         setTokenState(null);
         setCurrentUser(null);
         queryClient.clear();
+        setSignedOutTitle(options.title || 'Signed out');
+        setSignedOutMessage(
+          options.message || "You've been signed out successfully. See you next time!"
+        );
         setSignedOutModalVisible(true);
       },
     }),
@@ -108,8 +121,8 @@ export function AuthProvider({ children }) {
       {children}
       <FeedbackModal
         visible={signedOutModalVisible}
-        title="Signed out"
-        message="You've been signed out successfully. See you next time!"
+        title={signedOutTitle}
+        message={signedOutMessage}
         icon="success"
         dismissLabel="OK"
         onDismiss={() => setSignedOutModalVisible(false)}

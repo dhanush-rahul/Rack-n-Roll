@@ -12,6 +12,7 @@ import {
 import { ActionButton } from '../components/tournament/TournamentChrome';
 import { LegalFooter } from '../components/legal/LegalLinks';
 import { GoogleSignInSection } from '../components/auth/GoogleSignInSection';
+import { AppleSignInSection } from '../components/auth/AppleSignInSection';
 import { AppIcon } from '../components/ui/AppIcon';
 import { ScaledText as Text } from '../components/ui/ScaledText';
 import { isGoogleSignInAvailable } from '../config/googleAuth';
@@ -28,7 +29,7 @@ import {
 import { tournamentColors } from '../styles/tournamentUi';
 
 export function SignInScreen({ navigation, route }) {
-  const { signIn, signInWithGoogle } = useAuth();
+  const { signIn, signInWithGoogle, signInWithApple } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -36,6 +37,7 @@ export function SignInScreen({ navigation, route }) {
   const [errorText, setErrorText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
+  const [isAppleSubmitting, setIsAppleSubmitting] = useState(false);
   const [isLoadingRememberedCredentials, setIsLoadingRememberedCredentials] = useState(true);
 
   useEffect(() => {
@@ -103,6 +105,19 @@ export function SignInScreen({ navigation, route }) {
       setErrorText(getAuthErrorMessage(error, 'Google sign-in failed. Please try again.'));
     } finally {
       setIsGoogleSubmitting(false);
+    }
+  };
+
+  const handleAppleCredential = async (credential) => {
+    try {
+      setIsAppleSubmitting(true);
+      setErrorText('');
+      const result = await signInWithApple(credential);
+      navigateAfterGoogleAuth(navigation, route, result);
+    } catch (error) {
+      setErrorText(getAuthErrorMessage(error, 'Apple sign-in failed. Please try again.'));
+    } finally {
+      setIsAppleSubmitting(false);
     }
   };
 
@@ -194,7 +209,7 @@ export function SignInScreen({ navigation, route }) {
           <AuthPrimaryButton
             label="Sign in"
             onPress={onSubmit}
-            disabled={isSubmitting || isGoogleSubmitting || isLoadingRememberedCredentials}
+            disabled={isSubmitting || isGoogleSubmitting || isAppleSubmitting || isLoadingRememberedCredentials}
             loading={isSubmitting}
           />
         </View>
@@ -206,9 +221,13 @@ export function SignInScreen({ navigation, route }) {
         {isGoogleSignInAvailable() ? (
           <GoogleSignInSection
             onIdToken={handleGoogleIdToken}
-            disabled={isSubmitting || isGoogleSubmitting}
+            disabled={isSubmitting || isGoogleSubmitting || isAppleSubmitting}
           />
         ) : null}
+        <AppleSignInSection
+          onCredential={handleAppleCredential}
+          disabled={isSubmitting || isGoogleSubmitting || isAppleSubmitting}
+        />
       </AuthFormCard>
 
       <AuthTextLink prompt="New here?" actionLabel="Create an account" onPress={() => navigation.navigate('SignUp')} />

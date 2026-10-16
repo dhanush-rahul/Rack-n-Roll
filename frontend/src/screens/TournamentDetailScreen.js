@@ -273,11 +273,7 @@ export function TournamentDetailScreen({ route, navigation }) {
   );
 
   const activeStageTabReady = Boolean(
-    activeProgressionStageMeta &&
-      activeProgressionStageMeta.status !== 'locked' &&
-      activeProgressionStageMeta.status !== 'ready' &&
-      activeProgressionStageMeta.status !== 'preview' &&
-      !activeProgressionStageMeta.isBypassPreview
+    activeProgressionStageMeta && !activeProgressionStageMeta.isBypassPreview
   );
 
   const stageFixtures = useStageFixtures(tournamentId, {
@@ -737,9 +733,7 @@ export function TournamentDetailScreen({ route, navigation }) {
     try {
       dispatchLoading({ type: 'set', key: 'groups', value: true });
       clearError();
-      const startedStages = (detail?.progressionPlan?.stages || []).filter(
-        (stage) => stage.status === 'active' || stage.status === 'completed'
-      );
+      const startedStages = detail?.progressionPlan?.stages || [];
       await Promise.all([
         loadGroupsTab(),
         loadFinalStageScores(),

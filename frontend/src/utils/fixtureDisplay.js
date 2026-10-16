@@ -178,6 +178,10 @@ export const dedupeRoundMatches = (matches = []) => {
 };
 
 export const isKnockoutByeGame = (game = {}) => {
+  if (game.scoreBlockedReason || game.playerAPendingLabel || game.playerBPendingLabel) {
+    return false;
+  }
+
   if (game.isBye) {
     return true;
   }
@@ -212,19 +216,21 @@ const resolveSideDisplay = (game, side) => {
   if (isTeamMatch) {
     const team = side === 'A' ? game.teamA : game.teamB;
     const teamId = side === 'A' ? game.teamAId : game.teamBId;
+    const pendingLabel = side === 'A' ? game.playerAPendingLabel : game.playerBPendingLabel;
 
     return {
       id: team?.id || teamId,
-      name: team?.displayName || teamId || (side === 'A' ? 'Team A' : 'Team B'),
+      name: pendingLabel || team?.displayName || teamId || (side === 'A' ? 'Team A' : 'Team B'),
     };
   }
 
   const player = side === 'A' ? game.playerA : game.playerB;
   const playerId = side === 'A' ? game.playerAId : game.playerBId;
+  const pendingLabel = side === 'A' ? game.playerAPendingLabel : game.playerBPendingLabel;
 
   return {
     id: player?.userId || player?.id || playerId,
-    name: player?.displayName || playerId,
+    name: pendingLabel || player?.displayName || playerId || pendingLabel || (side === 'A' ? 'Player A' : 'Player B'),
   };
 };
 
@@ -259,8 +265,11 @@ export const mapGameToDisplayMatch = (game, { groupStageBestOf = 1, isPlayedScor
     playerAId: game.playerAId ? String(game.playerAId) : null,
     playerBId: game.playerBId ? String(game.playerBId) : null,
     scoreEntries: Array.isArray(game.scoreEntries) ? game.scoreEntries : [],
-    canEditMatch: Boolean(game.canEditMatch),
-    canScheduleMatch: Boolean(game.canScheduleMatch),
+    canEditMatch: Boolean(game.canEditMatch) && !game.scoreBlockedReason,
+    canScheduleMatch: Boolean(game.canScheduleMatch) && !game.scoreBlockedReason,
+    playerAPendingLabel: game.playerAPendingLabel || null,
+    playerBPendingLabel: game.playerBPendingLabel || null,
+    scoreBlockedReason: game.scoreBlockedReason || null,
     scheduledStartAt: game.scheduledStartAt || null,
     matchStartedAt: game.matchStartedAt || null,
     matchDurationMs: Number.isFinite(Number(game.matchDurationMs)) ? Number(game.matchDurationMs) : null,

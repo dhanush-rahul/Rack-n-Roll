@@ -1,4 +1,4 @@
-import { apiGet, apiPatch, apiPost } from './api';
+import { apiDelete, apiGet, apiPatch, apiPost } from './api';
 
 export async function changeMyUsername(username) {
   const response = await apiPatch('/api/users/me/username', { username });
@@ -22,6 +22,16 @@ export async function fetchPublicProfile(username) {
 
 export async function updateMyHandicap(handicap) {
   const response = await apiPatch('/api/users/me/handicap', { handicap });
+  return response.data;
+}
+
+export async function fetchAccountDeletionPreview() {
+  const response = await apiGet('/api/users/me/account-deletion');
+  return response.data;
+}
+
+export async function deleteMyAccount(payload) {
+  const response = await apiDelete('/api/users/me', { data: payload });
   return response.data;
 }
 

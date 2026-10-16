@@ -36,6 +36,15 @@ export async function signInWithGoogle({ idToken }) {
   return response.data;
 }
 
+export async function signInWithApple({ identityToken, authorizationCode, fullName }) {
+  const response = await apiPostWithWakeRetry('/api/auth/apple', {
+    identityToken,
+    authorizationCode,
+    fullName,
+  });
+  return response.data;
+}
+
 export async function requestPasswordResetPin({ email }) {
   const response = await apiPost('/api/auth/forgot-password/request', { email });
   return response.data;
