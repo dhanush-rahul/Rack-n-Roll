@@ -261,11 +261,9 @@ const endSeriesGame = async (tournamentId, gameId, userId, payload = {}) => {
 
   if (seriesComplete) {
     await recomputeLeaderboardForScope(tournamentId, game.divisionId);
-    if (game.nextWinnerGameId) {
-      const { advanceKnockoutWinner } = require('../tournament/knockoutFixtures.service');
-      const isDoubles = Boolean(game.teamAId || game.teamBId);
-      await advanceKnockoutWinner(game.toObject(), isDoubles);
-    }
+    const { syncDownstreamProgressionGame } = require('../tournament/pendingProgressionGames.service');
+    const isDoubles = Boolean(game.teamAId || game.teamBId);
+    await syncDownstreamProgressionGame(game.toObject(), isDoubles);
   } else {
     invalidateScoresheetCache(tournamentId);
   }

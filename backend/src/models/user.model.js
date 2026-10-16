@@ -51,13 +51,23 @@ const userSchema = new mongoose.Schema(
     },
     authProvider: {
       type: String,
-      enum: ['local', 'google'],
+      enum: ['local', 'google', 'apple'],
       default: 'local',
     },
     googleId: {
       type: String,
       sparse: true,
       unique: true,
+    },
+    appleId: {
+      type: String,
+      sparse: true,
+      unique: true,
+    },
+    appleRefreshToken: {
+      type: String,
+      default: null,
+      select: false,
     },
     passwordHash: {
       type: String,

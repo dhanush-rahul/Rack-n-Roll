@@ -22,6 +22,13 @@ const startGameSession = async (tournamentId, gameId, userId) => {
 
   await assertLiveScoringEnabled(tournamentId, game);
 
+  const { getProgressionScoreBlockReason } = require('../tournament/pendingProgressionGames.service');
+  const progressionBlockReason = await getProgressionScoreBlockReason(game);
+
+  if (progressionBlockReason) {
+    throw new ApiError(409, 'PROGRESSION_MATCH_PENDING', progressionBlockReason);
+  }
+
   if (game.status === 'completed') {
     throw new ApiError(409, 'GAME_ALREADY_COMPLETED', 'This match is already completed');
   }

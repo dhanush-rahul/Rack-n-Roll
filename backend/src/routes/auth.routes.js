@@ -3,6 +3,7 @@ const {
 	signupController,
 	loginController,
 	googleSignInController,
+	appleSignInController,
 	checkUsernameController,
 	requestPasswordResetController,
 	validatePasswordResetPinController,
@@ -17,6 +18,7 @@ router.get('/username/check', authRateLimiter, checkUsernameController);
 router.post('/signup', authRateLimiter, signupController);
 router.post('/login', authRateLimiter, loginController);
 router.post('/google', authRateLimiter, googleSignInController);
+router.post('/apple', authRateLimiter, appleSignInController);
 router.post('/forgot-password/request', passwordResetRateLimiter, requestPasswordResetController);
 router.post('/forgot-password/validate-pin', passwordResetRateLimiter, validatePasswordResetPinController);
 router.post('/forgot-password', passwordResetRateLimiter, resetPasswordWithTokenController);

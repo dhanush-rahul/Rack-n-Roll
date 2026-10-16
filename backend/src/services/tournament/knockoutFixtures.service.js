@@ -239,11 +239,21 @@ const createKnockoutBracketGames = async ({
 
 const advanceKnockoutWinner = async (completedGame, isDoubles) => {
   const winnerId = resolveWinnerId(completedGame, isDoubles);
-  if (!winnerId || !completedGame.nextWinnerGameId) {
+  if (!winnerId) {
     return null;
   }
 
-  const parentGame = await Game.findById(completedGame.nextWinnerGameId);
+  let parentGame = null;
+
+  if (completedGame.nextWinnerGameId) {
+    parentGame = await Game.findById(completedGame.nextWinnerGameId);
+  } else if (completedGame._id) {
+    parentGame = await Game.findOne({
+      tournamentId: completedGame.tournamentId,
+      feedsFromGameIds: completedGame._id,
+    });
+  }
+
   if (!parentGame) {
     return null;
   }

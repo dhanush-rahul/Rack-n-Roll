@@ -6,6 +6,7 @@ const ApiError = require('../utils/ApiError');
 const { sendPasswordResetPinEmail } = require('./email.service');
 const { linkPendingGuestPlayersForUser } = require('./tournament');
 const { verifyGoogleIdToken } = require('./googleAuth.service');
+const { verifyAppleIdentityToken, exchangeAppleAuthorizationCode } = require('./appleAuth.service');
 const {
   USERNAME_MAX_CHANGE_COUNT,
   normalizeUsername,
@@ -123,7 +124,7 @@ const sanitizeUser = (userDoc, { hasPassword } = {}) => ({
   name: userDoc.name,
   email: userDoc.email || null,
   authProvider: userDoc.authProvider || 'local',
-  hasPassword: hasPassword ?? (userDoc.authProvider !== 'google'),
+  hasPassword: hasPassword ?? userDoc.authProvider === 'local',
   usernameChangesRemaining: Math.max(
     USERNAME_MAX_CHANGE_COUNT - Number(userDoc.usernameChangeCount || 0),
     0
@@ -463,6 +464,116 @@ const signInWithGoogle = async ({ idToken }) => {
   };
 };
 
+const appleEmailIsVerified = (payload) => payload?.email_verified === true || payload?.email_verified === 'true';
+
+const buildAppleDisplayName = (fullName, email) => {
+  const givenName = normalizeName(fullName?.givenName || '');
+  const familyName = normalizeName(fullName?.familyName || '');
+  const combined = normalizeName(`${givenName} ${familyName}`);
+
+  if (combined.length >= NAME_MIN_LENGTH) {
+    return combined.slice(0, NAME_MAX_LENGTH);
+  }
+
+  return normalizeGoogleName({ name: '' }, email);
+};
+
+const signInWithApple = async ({ identityToken, authorizationCode, fullName }) => {
+  const normalizedToken = String(identityToken || '').trim();
+
+  if (!normalizedToken) {
+    throw new ApiError(400, 'ID_TOKEN_REQUIRED', 'Apple identity token is required');
+  }
+
+  let payload;
+
+  try {
+    payload = await verifyAppleIdentityToken(normalizedToken);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+
+    throw new ApiError(401, 'INVALID_APPLE_TOKEN', 'Apple sign-in token is invalid or expired');
+  }
+
+  const appleId = String(payload?.sub || '').trim();
+
+  if (!appleId) {
+    throw new ApiError(401, 'INVALID_APPLE_TOKEN', 'Apple sign-in token is missing required profile data');
+  }
+
+  const normalizedEmail = appleEmailIsVerified(payload) ? normalizeEmail(payload?.email) : '';
+  const verifiedEmail = normalizedEmail && emailRegex.test(normalizedEmail) ? normalizedEmail : '';
+
+  let isNewUser = false;
+  let user = await User.findOne({ appleId }).select('+passwordHash +appleRefreshToken +failedLoginAttempts +lockoutUntil');
+
+  if (!user && verifiedEmail) {
+    user = await User.findOne({ email: verifiedEmail }).select(
+      '+passwordHash +appleRefreshToken +failedLoginAttempts +lockoutUntil'
+    );
+  }
+
+  if (user) {
+    if (user.appleId && user.appleId !== appleId) {
+      throw new ApiError(409, 'APPLE_ACCOUNT_MISMATCH', 'This email is linked to a different Apple account');
+    }
+
+    if (!user.appleId) {
+      user.appleId = appleId;
+
+      if (!user.passwordHash && user.authProvider !== 'google') {
+        user.authProvider = 'apple';
+      }
+    }
+  } else {
+    const displayName = buildAppleDisplayName(fullName, verifiedEmail);
+    const parsedName = parseNameParts(displayName);
+    const allocatedUsername = await suggestMigrationUsername(displayName, verifiedEmail);
+    const createPayload = {
+      username: allocatedUsername,
+      firstName: parsedName.firstName,
+      lastName: parsedName.lastName,
+      name: displayName,
+      appleId,
+      authProvider: 'apple',
+      passwordHash: null,
+    };
+
+    if (verifiedEmail) {
+      createPayload.email = verifiedEmail;
+    }
+
+    user = await User.create(createPayload);
+    isNewUser = true;
+  }
+
+  const refreshToken = await exchangeAppleAuthorizationCode(authorizationCode);
+
+  if (refreshToken && user.appleRefreshToken !== refreshToken) {
+    user.appleRefreshToken = refreshToken;
+  }
+
+  if (user.failedLoginAttempts || user.lockoutUntil) {
+    clearLoginLockoutState(user);
+  }
+
+  if (user.isModified()) {
+    await user.save();
+  }
+
+  await linkPendingGuestPlayersForUser(user._id);
+
+  const token = createToken(user._id);
+
+  return {
+    token,
+    user: sanitizeUser(user, { hasPassword: Boolean(user.passwordHash) }),
+    isNewUser,
+  };
+};
+
 const requestPasswordReset = async ({ email }) => {
   const normalizedEmail = validateEmail(email);
   const user = await User.findOne({ email: normalizedEmail }).select(
@@ -672,6 +783,7 @@ module.exports = {
   signup,
   login,
   signInWithGoogle,
+  signInWithApple,
   setAccountPassword,
   changeAccountPassword,
   requestPasswordReset,

@@ -187,8 +187,10 @@ const assertCanEditTournamentScores = async (tournamentId, userId) => {
 const resolveGameDisplayStatus = (game) => {
   const playerAId = game.playerAId || game.teamAId;
   const playerBId = game.playerBId || game.teamBId;
+  const fedByPreviousMatch = Array.isArray(game.feedsFromGameIds) && game.feedsFromGameIds.length > 0;
   const isByeGame =
-    Boolean(game.isBye) || (Boolean(playerAId) !== Boolean(playerBId) && (playerAId || playerBId));
+    !fedByPreviousMatch &&
+    (Boolean(game.isBye) || (Boolean(playerAId) !== Boolean(playerBId) && (playerAId || playerBId)));
 
   if (isByeGame) {
     return 'bye';
@@ -219,6 +221,7 @@ const mapGameForScoresheet = (
     teamSummaryById = new Map(),
     tournamentMeta = null,
     viewerUserId = null,
+    pendingMeta = null,
   } = {}
 ) => {
   const scoringStyle =
@@ -229,6 +232,11 @@ const mapGameForScoresheet = (
     (tournamentMeta && viewerUserId
       ? canUserScheduleMatch(tournamentMeta, viewerUserId, game, playerSummaryById, teamSummaryById)
       : false);
+  const scoreBlockedReason = pendingMeta?.scoreBlockedReason || null;
+  const fedByPreviousMatch = Array.isArray(game.feedsFromGameIds) && game.feedsFromGameIds.length > 0;
+  const oneSideOnly =
+    Boolean(game.playerAId || game.teamAId) !== Boolean(game.playerBId || game.teamBId) &&
+    Boolean(game.playerAId || game.teamAId || game.playerBId || game.teamBId);
 
   return {
     id: String(game._id),
@@ -247,6 +255,9 @@ const mapGameForScoresheet = (
     playerB: game.playerBId ? playerSummaryById.get(String(game.playerBId)) || null : null,
     teamA: game.teamAId ? teamSummaryById.get(String(game.teamAId)) || null : null,
     teamB: game.teamBId ? teamSummaryById.get(String(game.teamBId)) || null : null,
+    playerAPendingLabel: pendingMeta?.playerAPendingLabel || null,
+    playerBPendingLabel: pendingMeta?.playerBPendingLabel || null,
+    scoreBlockedReason,
     playerASeriesWins: seriesOutcome.playerASeriesWins,
     playerBSeriesWins: seriesOutcome.playerBSeriesWins,
     winnerPlayerId: seriesOutcome.winnerPlayerId
@@ -260,10 +271,8 @@ const mapGameForScoresheet = (
         ? String(game.winnerTeamId)
         : null,
     status: resolveGameDisplayStatus(game),
-    isBye: Boolean(game.isBye) ||
-      (Boolean(game.playerAId || game.teamAId) !== Boolean(game.playerBId || game.teamBId) &&
-        Boolean(game.playerAId || game.teamAId || game.playerBId || game.teamBId)),
-    canEditMatch,
+    isBye: !fedByPreviousMatch && (Boolean(game.isBye) || oneSideOnly),
+    canEditMatch: scoreBlockedReason ? false : canEditMatch,
     canScheduleMatch: resolvedCanScheduleMatch,
     scheduledStartAt: game.scheduledStartAt ? new Date(game.scheduledStartAt).toISOString() : null,
     scoreEntries: (game.scoreEntries || []).map((entry) => ({

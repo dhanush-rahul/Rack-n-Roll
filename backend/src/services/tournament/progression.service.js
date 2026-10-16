@@ -28,6 +28,10 @@ const {
   splitGroupAdvancement,
   mergeBypassParticipants,
 } = require('./groupAdvancement.service');
+const {
+  materializeNextKnockoutPendingGames,
+  refreshMaterializedStageSlots,
+} = require('./pendingProgressionGames.service');
 
 const hasStartedPostGroupStage = (tournament) => {
   const stages = getOrderedStages(tournament);
@@ -567,6 +571,34 @@ const startProgressionStage = async (tournamentId, hostUserId, stageId, payload 
     }
   }
 
+  const existingStageGames = await Game.find(buildStageGameFilter(tournamentId, stageId)).lean();
+  const adoptingExistingFixtures = stage.status === 'pending' && existingStageGames.length > 0;
+
+  if (adoptingExistingFixtures) {
+    await refreshMaterializedStageSlots(existingStageGames, isDoubles);
+    await markStageActive(tournamentId, stageId);
+
+    if (stageFormat === 'knockout') {
+      await materializeNextKnockoutPendingGames({
+        tournamentId,
+        sourceStageId: stageId,
+        isDoubles,
+      });
+    }
+
+    return {
+      tournamentId: String(tournamentId),
+      stageId: String(stageId),
+      stageName: stage.name,
+      format: stage.format,
+      participantCount: participantIds.length,
+      gameCount: existingStageGames.length,
+      divisionId: null,
+      bypassCount: split?.bypassIds?.length || 0,
+      pools: split?.pools?.map((pool) => ({ key: pool.key, label: pool.label, count: pool.participantIds.length })) || [],
+    };
+  }
+
   const effectiveExpectedCount =
     manualSelection?.length > 0 ? manualSelection.length : expectedCount;
 
@@ -688,6 +720,14 @@ const startProgressionStage = async (tournamentId, hostUserId, stageId, payload 
 
   await markStageActive(tournamentId, stageId);
 
+  if (stageFormat === 'knockout') {
+    await materializeNextKnockoutPendingGames({
+      tournamentId,
+      sourceStageId: stageId,
+      isDoubles,
+    });
+  }
+
   return {
     tournamentId: String(tournamentId),
     stageId: String(stageId),
@@ -782,6 +822,12 @@ const regenerateProgressionStageFixtures = async (tournamentId, hostUserId, stag
   if (gameCount === 0) {
     throw new ApiError(409, 'INSUFFICIENT_PARTICIPANTS', 'Need at least 2 participants to regenerate fixtures');
   }
+
+  await materializeNextKnockoutPendingGames({
+    tournamentId,
+    sourceStageId: stageId,
+    isDoubles,
+  });
 
   return {
     tournamentId: String(tournamentId),

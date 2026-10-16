@@ -31,7 +31,7 @@ const {
   isStageProctored,
 } = require('./shared');
 const { GROUP_STAGE_ID } = require('./progressionPlan.utils');
-const { advanceKnockoutWinner } = require('./knockoutFixtures.service');
+const { buildPendingMatchMeta, getProgressionScoreBlockReason, syncDownstreamProgressionGame } = require('./pendingProgressionGames.service');
 
 const loadTournamentScoresheet = async (tournamentId, userId, query = {}) => {
   const canEdit = userId ? await canUserEditTournamentScores(tournamentId, userId) : false;
@@ -145,6 +145,8 @@ const loadTournamentScoresheet = async (tournamentId, userId, query = {}) => {
     games.flatMap((game) => [game.teamAId, game.teamBId].filter(Boolean))
   );
 
+  const isDoublesFormat = tournamentMeta?.competitionConfig?.format === 'doubles';
+  const pendingMetaByGameId = await buildPendingMatchMeta(games, isDoublesFormat);
   const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
   const editorUserIds = (tournamentMeta?.scoreEditorUserIds || []).map((value) => String(value));
   const editorSummaryById = await buildUserSummaryById(editorUserIds);
@@ -185,6 +187,7 @@ const loadTournamentScoresheet = async (tournamentId, userId, query = {}) => {
         teamSummaryById,
         tournamentMeta,
         viewerUserId: userId,
+        pendingMeta: pendingMetaByGameId.get(String(game._id)) || null,
       })
     ),
     pagination: { page, pageSize, total, totalPages },
@@ -237,6 +240,12 @@ const updateGameScores = async (tournamentId, gameId, userId, payload = {}) => {
   }
 
   await assertCanEditGameScores(tournamentId, userId, existingGame);
+
+  const progressionBlockReason = await getProgressionScoreBlockReason(existingGame);
+
+  if (progressionBlockReason) {
+    throw new ApiError(409, 'PROGRESSION_MATCH_PENDING', progressionBlockReason);
+  }
 
   const scoringStyle =
     tournament.competitionConfig?.scoringStyle === 'totalPoints' ? 'totalPoints' : 'individualGames';
@@ -291,9 +300,9 @@ const updateGameScores = async (tournamentId, gameId, userId, payload = {}) => {
 
   invalidateScoresheetCache(tournamentId);
 
-  if (nextStatus === 'completed' && updatedGame.nextWinnerGameId) {
+  if (nextStatus === 'completed') {
     const isDoubles = Boolean(updatedGame.teamAId || updatedGame.teamBId);
-    await advanceKnockoutWinner(updatedGame, isDoubles);
+    await syncDownstreamProgressionGame(updatedGame, isDoubles);
   }
 
   const playerSummaryById = await buildPlayerSummaryById(
@@ -319,6 +328,12 @@ const updateGameSchedule = async (tournamentId, gameId, userId, payload = {}) =>
   }
 
   await assertUserCanScheduleMatch(tournamentId, userId, existingGame);
+
+  const progressionBlockReason = await getProgressionScoreBlockReason(existingGame);
+
+  if (progressionBlockReason) {
+    throw new ApiError(409, 'PROGRESSION_MATCH_PENDING', progressionBlockReason);
+  }
 
   let scheduledStartAt = null;
 

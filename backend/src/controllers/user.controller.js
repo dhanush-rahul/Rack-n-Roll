@@ -1,4 +1,4 @@
-const { getUserProfile, getPublicUserProfile, updateUserHandicap, updateUserEmail } = require('../services/user.service');
+const { getUserProfile, getPublicUserProfile, updateUserHandicap, updateUserEmail, getAccountDeletionPreview, deleteMyAccount } = require('../services/user.service');
 const { setAccountPassword, changeAccountPassword } = require('../services/auth.service');
 const { changeUsername } = require('../services/username.service');
 
@@ -79,6 +79,32 @@ const updateMyEmailController = async (req, res, next) => {
   }
 };
 
+const getAccountDeletionPreviewController = async (req, res, next) => {
+  try {
+    const result = await getAccountDeletionPreview(req.auth?.userId);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const deleteMyAccountController = async (req, res, next) => {
+  try {
+    const result = await deleteMyAccount(req.auth?.userId, req.body || {});
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const getPublicUserProfileController = async (req, res, next) => {
   try {
     const result = await getPublicUserProfile(req.params.username);
@@ -99,4 +125,6 @@ module.exports = {
   setMyPasswordController,
   changeMyUsernameController,
   updateMyEmailController,
+  getAccountDeletionPreviewController,
+  deleteMyAccountController,
 };

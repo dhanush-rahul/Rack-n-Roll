@@ -2,6 +2,7 @@ const {
   signup,
   login,
   signInWithGoogle,
+  signInWithApple,
   requestPasswordReset,
   validatePasswordResetPin,
   resetPasswordWithToken,
@@ -80,6 +81,18 @@ const googleSignInController = async (req, res, next) => {
   }
 };
 
+const appleSignInController = async (req, res, next) => {
+  try {
+    const result = await signInWithApple(req.body);
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 const checkUsernameController = async (req, res, next) => {
   try {
     const purpose = String(req.query.purpose || 'signup').trim().toLowerCase() === 'guest' ? 'guest' : 'signup';
@@ -98,6 +111,7 @@ module.exports = {
   signupController,
   loginController,
   googleSignInController,
+  appleSignInController,
   checkUsernameController,
   requestPasswordResetController,
   validatePasswordResetPinController,
