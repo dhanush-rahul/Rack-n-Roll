@@ -140,6 +140,17 @@ const validateCreateTournament = (req) => {
     throw new ApiError(400, 'INVALID_STARTS_AT', 'startsAt must be a valid date-time');
   }
 
+  const endsAtValue = body.endsAt;
+  const parsedEndsAt = endsAtValue instanceof Date ? endsAtValue : new Date(endsAtValue);
+
+  if (!parsedEndsAt || Number.isNaN(parsedEndsAt.getTime())) {
+    throw new ApiError(400, 'INVALID_ENDS_AT', 'endsAt must be a valid date-time');
+  }
+
+  if (parsedEndsAt.getTime() <= parsedStartsAt.getTime()) {
+    throw new ApiError(400, 'INVALID_ENDS_AT', 'endsAt must be after startsAt');
+  }
+
   const groupStageBestOf =
     body.competitionConfig?.groupStageBestOf ?? body.groupStageBestOf;
 
@@ -260,13 +271,23 @@ const validateRemoveGuestParticipant = (req) => {
 const validateUpdateHostTournamentSettings = (req) => {
   ensureObjectIdParam(req, 'tournamentId');
   const body = parseBody(req);
+  const hasMaxParticipants = body.maxParticipants !== undefined;
+  const hasEndsAt = body.endsAt !== undefined;
 
-  if (body.maxParticipants === undefined) {
-    throw new ApiError(400, 'INVALID_MAX_PARTICIPANTS', 'maxParticipants is required');
+  if (!hasMaxParticipants && !hasEndsAt) {
+    throw new ApiError(400, 'NO_SETTINGS_TO_UPDATE', 'No supported settings were provided');
   }
 
-  if (!ensurePositiveInteger(Number(body.maxParticipants))) {
+  if (hasMaxParticipants && !ensurePositiveInteger(Number(body.maxParticipants))) {
     throw new ApiError(400, 'INVALID_MAX_PARTICIPANTS', 'maxParticipants must be an integer greater than 0');
+  }
+
+  if (hasEndsAt) {
+    const parsedEndsAt = body.endsAt instanceof Date ? body.endsAt : new Date(body.endsAt);
+
+    if (!parsedEndsAt || Number.isNaN(parsedEndsAt.getTime())) {
+      throw new ApiError(400, 'INVALID_ENDS_AT', 'endsAt must be a valid date-time');
+    }
   }
 };
 

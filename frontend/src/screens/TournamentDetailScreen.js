@@ -24,7 +24,8 @@ import { SCORESHEET_STALE_TIME_MS } from '../config/queryClient';
 import { useFetchScoresheetPages } from '../hooks/queries/useScoresheetPages';
 import { useTournamentTeamsData } from '../hooks/queries/useTournamentTeamsData';
 import { useScoreInputs } from '../hooks/useScoreInputs';
-import { updateTournamentGameSchedule, regenerateProgressionStageFixtures } from '../services/tournamentService';
+import { updateHostTournamentSettings, updateTournamentGameSchedule, regenerateProgressionStageFixtures } from '../services/tournamentService';
+import { ExtendEndDateSection } from '../components/tournament/ExtendEndDateSection';
 import {
   useExportActions,
   useProgressionActions,
@@ -358,6 +359,21 @@ export function TournamentDetailScreen({ route, navigation }) {
   const loadDetail = useCallback(async () => {
     await refetchDetail();
   }, [refetchDetail]);
+
+  const onExtendEndDate = useCallback(
+    async (nextEndsAt) => {
+      try {
+        clearAll();
+        await updateHostTournamentSettings(tournamentId, { endsAt: nextEndsAt });
+        showSuccess('End date extended.');
+        await loadDetail();
+      } catch (error) {
+        showError(formatApiError(error, 'Unable to extend the end date'));
+        throw error;
+      }
+    },
+    [clearAll, loadDetail, showError, showSuccess, tournamentId]
+  );
 
   const loadRegistrations = useCallback(async () => {
     await refetchRegistrations();
@@ -1298,6 +1314,14 @@ export function TournamentDetailScreen({ route, navigation }) {
         showGamesTab={hasGroupFixtures}
       >
         <SuccessBanner message={successMessage} />
+
+      {activeTab === 'registrations' && isHost ? (
+        <ExtendEndDateSection
+          startsAt={detail?.startsAt}
+          endsAt={detail?.endsAt}
+          onExtend={onExtendEndDate}
+        />
+      ) : null}
 
       {activeTab === 'registrations' && (
         <RegistrationsTab

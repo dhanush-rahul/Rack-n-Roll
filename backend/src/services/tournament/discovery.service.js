@@ -14,6 +14,7 @@ const {
   assertHostAccess,
   parsePositiveInteger,
   normalizeTournamentInput,
+  parseEndsAt,
   mapTournamentForDiscovery,
   mapHostTournamentDetail,
   buildDiscoverFilter,
@@ -54,6 +55,7 @@ const createTournament = async (payload, hostUserId) => {
     },
     status: createdTournament.status,
     startsAt: createdTournament.startsAt,
+    endsAt: createdTournament.endsAt || null,
     scoreEditorUserIds: createdTournament.scoreEditorUserIds,
     createdAt: createdTournament.createdAt,
   };
@@ -434,6 +436,34 @@ const updateHostTournamentSettings = async (tournamentId, hostUserId, payload = 
     }
 
     updates.maxParticipants = maxParticipants;
+  }
+
+  if (payload.endsAt !== undefined) {
+    const endsAt = parseEndsAt(payload.endsAt);
+    const current = await Tournament.findOne({ _id: tournamentId, hostUserId })
+      .select({ startsAt: 1, endsAt: 1 })
+      .lean();
+
+    if (!current) {
+      throw new ApiError(404, 'TOURNAMENT_NOT_FOUND', 'Tournament not found');
+    }
+
+    const currentEndsAt = current.endsAt ? new Date(current.endsAt) : null;
+    const startsAt = new Date(current.startsAt);
+    const minimum =
+      currentEndsAt && !Number.isNaN(currentEndsAt.getTime()) ? currentEndsAt : startsAt;
+
+    if (Number.isNaN(minimum.getTime()) || endsAt.getTime() <= minimum.getTime()) {
+      throw new ApiError(
+        400,
+        'INVALID_ENDS_AT',
+        currentEndsAt
+          ? 'New end date must be after the current end date'
+          : 'endsAt must be after the start date'
+      );
+    }
+
+    updates.endsAt = endsAt;
   }
 
   if (Object.keys(updates).length === 0) {

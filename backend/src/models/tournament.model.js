@@ -135,6 +135,10 @@ const tournamentSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    endsAt: {
+      type: Date,
+      index: true,
+    },
     status: {
       type: String,
       enum: ['draft', 'active', 'completed', 'cancelled'],

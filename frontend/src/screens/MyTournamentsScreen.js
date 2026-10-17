@@ -166,7 +166,9 @@ function TournamentRow({ item, colors, onPress }) {
 
           <Text style={{ fontSize: 16, fontWeight: '800', color: colors.text }}>{item.name}</Text>
 
-          <Text style={{ fontSize: 13, color: colors.textMuted }}>{formatStartsAt(item.startsAt)}</Text>
+          <Text style={{ fontSize: 13, color: colors.textMuted }}>
+            {item.endsAt ? `${formatStartsAt(item.startsAt)} – ${formatStartsAt(item.endsAt)}` : formatStartsAt(item.startsAt)}
+          </Text>
 
           <Text style={{ fontSize: 12, color: colors.textMuted }}>{formatLastActivity(item.lastMatchActivityAt)}</Text>
 

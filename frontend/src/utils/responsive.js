@@ -22,20 +22,20 @@ export function getWebUiScale(width) {
   return 1;
 }
 
-/** Scale body text on tablets and large native screens (e.g. iPad). Web uses compact desktop scaling. */
+/** Modest type scale on native tablets so an iPad stays readable. Web uses compact desktop scaling. */
 export function getFontScale(width, platform = Platform.OS) {
   if (platform === 'web') {
     return getWebUiScale(width);
   }
 
   if (width >= BREAKPOINTS.xlarge) {
-    return 1.9;
+    return 1.15;
   }
   if (width >= BREAKPOINTS.large) {
-    return 1.75;
+    return 1.12;
   }
   if (width >= BREAKPOINTS.tablet) {
-    return 1.55;
+    return 1.1;
   }
   if (width >= BREAKPOINTS.wide) {
     return 1.25;
@@ -49,13 +49,13 @@ export function getSpacingScale(width, platform = Platform.OS) {
   }
 
   if (width >= BREAKPOINTS.xlarge) {
-    return 1.5;
+    return 1.1;
   }
   if (width >= BREAKPOINTS.large) {
-    return 1.4;
+    return 1.1;
   }
   if (width >= BREAKPOINTS.tablet) {
-    return 1.3;
+    return 1.1;
   }
   if (width >= BREAKPOINTS.wide) {
     return 1.15;

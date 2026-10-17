@@ -39,6 +39,8 @@ export const ScreenScrollShell = forwardRef(function ScreenScrollShell(
       removeClippedSubviews={false}
       showsVerticalScrollIndicator={Platform.OS === 'web'}
       {...scrollProps}
+      keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
     >
       {children}
     </ScrollView>

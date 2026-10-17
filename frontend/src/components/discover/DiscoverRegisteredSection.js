@@ -100,7 +100,7 @@ function RegisteredTournamentRow({ item, onPress }) {
               <AppIcon name="calendar" size={15} color={tournamentColors.textMuted} />
             </View>
             <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: tournamentColors.text, fontWeight: '600' }}>
-              {formatStartsAt(item.startsAt)}
+              {item.endsAt ? `${formatStartsAt(item.startsAt)} – ${formatStartsAt(item.endsAt)}` : formatStartsAt(item.startsAt)}
             </Text>
           </View>
 

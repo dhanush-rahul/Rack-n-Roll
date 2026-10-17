@@ -49,6 +49,21 @@ const buildDefaultStartsAt = () => {
   return defaultStart;
 };
 
+const buildDefaultEndsAt = (start) => {
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  end.setHours(22, 0, 0, 0);
+  return end;
+};
+
+const ensureEndAfterStart = (start, end) => {
+  if (end instanceof Date && !Number.isNaN(end.getTime()) && end.getTime() > start.getTime()) {
+    return end;
+  }
+
+  return buildDefaultEndsAt(start);
+};
+
 const formatPickerDate = (date) =>
   date.toLocaleDateString(undefined, {
     weekday: 'short',
@@ -108,6 +123,63 @@ function PickerField({ label, value, onPress }) {
       <FieldLabel>{label}</FieldLabel>
       <Text style={{ fontSize: 15, fontWeight: '600', color: tournamentColors.text }}>{value}</Text>
     </Pressable>
+  );
+}
+
+function NativeSchedulePair({
+  dateLabel,
+  timeLabel,
+  value,
+  datePickerKey,
+  timePickerKey,
+  activePicker,
+  onToggle,
+  onChange,
+  minimumDate,
+}) {
+  const openKey =
+    activePicker === datePickerKey || activePicker === timePickerKey ? activePicker : null;
+
+  return (
+    <>
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <PickerField label={dateLabel} value={formatPickerDate(value)} onPress={() => onToggle(datePickerKey)} />
+        <PickerField label={timeLabel} value={formatPickerTime(value)} onPress={() => onToggle(timePickerKey)} />
+      </View>
+
+      {openKey ? (
+        <View
+          style={{
+            borderWidth: 1,
+            borderColor: tournamentColors.border,
+            borderRadius: 12,
+            overflow: 'hidden',
+            backgroundColor: tournamentColors.inputFill,
+          }}
+        >
+          <DateTimePicker
+            value={value}
+            mode={openKey === datePickerKey ? 'date' : 'time'}
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={onChange}
+            minimumDate={openKey === datePickerKey ? minimumDate : undefined}
+          />
+          {Platform.OS === 'ios' && (
+            <Pressable
+              onPress={() => onToggle(null)}
+              style={{
+                paddingVertical: 12,
+                alignItems: 'center',
+                borderTopWidth: 1,
+                borderTopColor: tournamentColors.borderLight,
+              }}
+            >
+              <Text style={{ fontWeight: '700', color: tournamentColors.primary }}>Done</Text>
+            </Pressable>
+          )}
+        </View>
+      ) : null}
+    </>
   );
 }
 
@@ -193,6 +265,7 @@ export function CreateTournamentScreen({ navigation, route }) {
   const [registrationMode, setRegistrationMode] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [startsAt, setStartsAt] = useState(defaultStartsAt);
+  const [endsAt, setEndsAt] = useState(() => buildDefaultEndsAt(defaultStartsAt));
   const [activePicker, setActivePicker] = useState(null);
   const [venue, setVenue] = useState('');
   const [groupStageBestOf, setGroupStageBestOf] = useState('');
@@ -214,6 +287,7 @@ export function CreateTournamentScreen({ navigation, route }) {
   });
 
   const previewStartsAt = useMemo(() => formatPreviewDateTime(startsAt), [startsAt]);
+  const previewEndsAt = useMemo(() => formatPreviewDateTime(endsAt), [endsAt]);
 
   const isFormatSelected = competitionFormat === 'singles' || competitionFormat === 'doubles';
   const isScoringStyleSelected = scoringStyle === 'individualGames' || scoringStyle === 'totalPoints';
@@ -229,7 +303,9 @@ export function CreateTournamentScreen({ navigation, route }) {
       if (tabId === 'details') {
         if (trimmedName.length < 3) return false;
         if (!Number.isInteger(parsedPlayers) || parsedPlayers < 1) return false;
-        if (Number.isNaN(startsAt.getTime())) return false;
+        if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) || endsAt.getTime() <= startsAt.getTime()) {
+          return false;
+        }
         if (!trimmedVenue) return false;
         return true;
       }
@@ -273,6 +349,7 @@ export function CreateTournamentScreen({ navigation, route }) {
       name,
       pairFormationMode,
       progressionState,
+      endsAt,
       registrationMode,
       scoringStyle,
       startsAt,
@@ -310,30 +387,48 @@ export function CreateTournamentScreen({ navigation, route }) {
     [activeWizardTab, isTabValid, visitedWizardTabs]
   );
 
+  const toggleSchedulePicker = (pickerKey) => {
+    if (!pickerKey) {
+      setActivePicker(null);
+      return;
+    }
+
+    setActivePicker((current) => (current === pickerKey ? null : pickerKey));
+  };
+
   const onSchedulePickerChange = (event, selectedDate) => {
+    const picker = activePicker;
+
     if (Platform.OS === 'android') {
       setActivePicker(null);
     }
 
-    if (event?.type === 'dismissed') {
+    if (event?.type === 'dismissed' || !selectedDate || !picker) {
       return;
     }
 
-    if (!selectedDate) {
-      return;
-    }
-
-    setStartsAt((previous) => {
+    const isEnd = picker.startsWith('end');
+    const isDate = picker.endsWith('Date');
+    const applyPart = (previous) => {
       const next = new Date(previous);
 
-      if (activePicker === 'date') {
+      if (isDate) {
         next.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
-      } else if (activePicker === 'time') {
+      } else {
         next.setHours(selectedDate.getHours(), selectedDate.getMinutes(), 0, 0);
       }
 
       return next;
-    });
+    };
+
+    if (isEnd) {
+      setEndsAt(applyPart);
+    } else {
+      const nextStart = applyPart(startsAt);
+      setStartsAt(nextStart);
+      setEndsAt((currentEnd) => ensureEndAfterStart(nextStart, currentEnd));
+    }
+
     setFieldErrors((current) => ({ ...current, schedule: '' }));
   };
 
@@ -350,8 +445,10 @@ export function CreateTournamentScreen({ navigation, route }) {
       if (!Number.isInteger(parsedPlayers) || parsedPlayers < 1) {
         nextErrors.maxParticipants = 'Enter a whole number of players (at least 1).';
       }
-      if (Number.isNaN(startsAt.getTime())) {
-        nextErrors.schedule = 'Pick a valid start date and time.';
+      if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime())) {
+        nextErrors.schedule = 'Pick a valid start and end date.';
+      } else if (endsAt.getTime() <= startsAt.getTime()) {
+        nextErrors.schedule = 'End date must be after the start date.';
       }
       if (!trimmedVenue) {
         nextErrors.venue = 'Tell players where the tournament is held.';
@@ -472,8 +569,10 @@ export function CreateTournamentScreen({ navigation, route }) {
       nextErrors.maxParticipants = 'Enter a whole number of players (at least 1).';
     }
 
-    if (Number.isNaN(startsAt.getTime())) {
-      nextErrors.schedule = 'Pick a valid start date and time.';
+    if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime())) {
+      nextErrors.schedule = 'Pick a valid start and end date.';
+    } else if (endsAt.getTime() <= startsAt.getTime()) {
+      nextErrors.schedule = 'End date must be after the start date.';
     }
 
     if (!trimmedVenue) {
@@ -537,7 +636,7 @@ export function CreateTournamentScreen({ navigation, route }) {
       return null;
     }
 
-    return { trimmedName, parsedPlayers, trimmedVenue, startsAt };
+    return { trimmedName, parsedPlayers, trimmedVenue, startsAt, endsAt };
   };
 
   const onSubmit = async () => {
@@ -558,6 +657,7 @@ export function CreateTournamentScreen({ navigation, route }) {
         registrationMode,
         registrationStatus: 'open',
         startsAt: validated.startsAt.toISOString(),
+        endsAt: validated.endsAt.toISOString(),
         ...(registrationMode === 'inviteOnly' ? { inviteCode: inviteCode.trim().toUpperCase() } : {}),
         location: {
           formattedAddress: validated.trimmedVenue,
@@ -754,66 +854,56 @@ export function CreateTournamentScreen({ navigation, route }) {
         </View>
       </SectionCard>
 
-      <SectionCard title="Schedule" subtitle="Pick when play begins.">
+      <SectionCard title="Schedule" subtitle="Pick when play begins and when it should end. You can extend the end date later.">
         {Platform.OS === 'web' ? (
-          <WebScheduleInputs
-            value={startsAt}
-            onChange={(nextDate) => {
-              setStartsAt(nextDate);
-              setFieldErrors((current) => ({ ...current, schedule: '' }));
-            }}
-            dateLabel="Start date"
-            timeLabel="Start time"
-            minDate={new Date()}
-          />
+          <View style={{ gap: 12 }}>
+            <WebScheduleInputs
+              value={startsAt}
+              onChange={(nextDate) => {
+                setStartsAt(nextDate);
+                setEndsAt((current) => ensureEndAfterStart(nextDate, current));
+                setFieldErrors((current) => ({ ...current, schedule: '' }));
+              }}
+              dateLabel="Start date"
+              timeLabel="Start time"
+              minDate={new Date()}
+            />
+            <WebScheduleInputs
+              value={endsAt}
+              onChange={(nextDate) => {
+                setEndsAt(nextDate);
+                setFieldErrors((current) => ({ ...current, schedule: '' }));
+              }}
+              dateLabel="End date"
+              timeLabel="End time"
+              minDate={startsAt}
+            />
+          </View>
         ) : (
-          <>
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <PickerField
-                label="Start date"
-                value={formatPickerDate(startsAt)}
-                onPress={() => setActivePicker((current) => (current === 'date' ? null : 'date'))}
-              />
-              <PickerField
-                label="Start time"
-                value={formatPickerTime(startsAt)}
-                onPress={() => setActivePicker((current) => (current === 'time' ? null : 'time'))}
-              />
-            </View>
-
-            {activePicker && (
-              <View
-                style={{
-                  borderWidth: 1,
-                  borderColor: tournamentColors.border,
-                  borderRadius: 12,
-                  overflow: 'hidden',
-                  backgroundColor: tournamentColors.inputFill,
-                }}
-              >
-                <DateTimePicker
-                  value={startsAt}
-                  mode={activePicker}
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  onChange={onSchedulePickerChange}
-                  minimumDate={activePicker === 'date' ? new Date() : undefined}
-                />
-                {Platform.OS === 'ios' && (
-                  <Pressable
-                    onPress={() => setActivePicker(null)}
-                    style={{
-                      paddingVertical: 12,
-                      alignItems: 'center',
-                      borderTopWidth: 1,
-                      borderTopColor: tournamentColors.borderLight,
-                    }}
-                  >
-                    <Text style={{ fontWeight: '700', color: tournamentColors.primary }}>Done</Text>
-                  </Pressable>
-                )}
-              </View>
-            )}
-          </>
+          <View style={{ gap: 12 }}>
+            <NativeSchedulePair
+              dateLabel="Start date"
+              timeLabel="Start time"
+              value={startsAt}
+              datePickerKey="startDate"
+              timePickerKey="startTime"
+              activePicker={activePicker}
+              onToggle={toggleSchedulePicker}
+              onChange={onSchedulePickerChange}
+              minimumDate={new Date()}
+            />
+            <NativeSchedulePair
+              dateLabel="End date"
+              timeLabel="End time"
+              value={endsAt}
+              datePickerKey="endDate"
+              timePickerKey="endTime"
+              activePicker={activePicker}
+              onToggle={toggleSchedulePicker}
+              onChange={onSchedulePickerChange}
+              minimumDate={startsAt}
+            />
+          </View>
         )}
 
         {Boolean(fieldErrors.schedule) && <Text style={errorTextStyle}>{fieldErrors.schedule}</Text>}
@@ -1046,7 +1136,7 @@ export function CreateTournamentScreen({ navigation, route }) {
           {name.trim() || 'Your tournament name'}
         </Text>
         <Text style={{ color: tournamentColors.textMuted }}>
-          {maxParticipants || '—'} players · {previewStartsAt}
+          {maxParticipants || '—'} players · {previewStartsAt} – {previewEndsAt}
         </Text>
         <Text style={{ color: tournamentColors.textMuted }}>
           {venue.trim() || 'Venue not set yet'}

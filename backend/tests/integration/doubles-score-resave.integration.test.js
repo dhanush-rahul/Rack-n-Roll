@@ -10,6 +10,7 @@ const buildDoublesPayload = (overrides = {}) => ({
   registrationMode: 'public',
   registrationStatus: 'open',
   startsAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+  endsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
   location: { formattedAddress: 'Vancouver Community Centre, Vancouver, BC, Canada' },
   competitionConfig: {
     format: 'doubles',

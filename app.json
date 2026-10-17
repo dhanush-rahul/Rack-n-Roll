@@ -4,6 +4,12 @@
       "eas": {
         "projectId": "6a3ff7f2-a0a6-4c74-a73e-ab8e06537c89"
       }
+    },
+    "ios": {
+      "bundleIdentifier": "com.dhanushcharipally.racknroll",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     }
   }
 }

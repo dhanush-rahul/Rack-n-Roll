@@ -191,6 +191,8 @@ export function DiscoverTournamentCard({
   onRequestRegistration,
 }) {
   const startsAtLabel = formatStartsAt(item.startsAt);
+  const endsAtLabel = formatStartsAt(item.endsAt);
+  const scheduleLabel = startsAtLabel && endsAtLabel ? `${startsAtLabel} – ${endsAtLabel}` : startsAtLabel;
   const startsAtRelative = formatStartsAtRelative(item.startsAt);
   const locationLabel = formatLocation(item.location);
   const accentColor = getAccentColor(item, isHostTournament);
@@ -323,7 +325,7 @@ export function DiscoverTournamentCard({
           >
             <View style={{ gap: 8, marginTop: 10 }}>
               <MetaRow icon="location" label={locationLabel} />
-              {Boolean(startsAtLabel) && <MetaRow icon="calendar" label={startsAtLabel} emphasis />}
+              {Boolean(scheduleLabel) && <MetaRow icon="calendar" label={scheduleLabel} emphasis />}
               <MetaRow icon="players" label={`Up to ${item.maxParticipants} players`} />
             </View>
 

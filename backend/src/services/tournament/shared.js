@@ -38,6 +38,16 @@ const parseStartsAt = (value) => {
   return parsedDate;
 };
 
+const parseEndsAt = (value) => {
+  const parsedDate = value instanceof Date ? value : new Date(value);
+
+  if (!(parsedDate instanceof Date) || Number.isNaN(parsedDate.getTime())) {
+    throw new ApiError(400, 'INVALID_ENDS_AT', 'endsAt must be a valid date-time');
+  }
+
+  return parsedDate;
+};
+
 const parseBestOf = (value, fallbackValue = 1) => {
   const parsedValue = Number.parseInt(value, 10);
 
@@ -108,6 +118,13 @@ const normalizeTournamentInput = (input, hostUserId) => {
     null
   );
 
+  const startsAt = parseStartsAt(input?.startsAt);
+  const endsAt = parseEndsAt(input?.endsAt);
+
+  if (endsAt.getTime() <= startsAt.getTime()) {
+    throw new ApiError(400, 'INVALID_ENDS_AT', 'endsAt must be after startsAt');
+  }
+
   const progressionPlan = input?.progressionPlan
     ? require('./progressionPlan.utils').normalizeProgressionPlanInput(input.progressionPlan)
     : { stages: [] };
@@ -130,7 +147,8 @@ const normalizeTournamentInput = (input, hostUserId) => {
         : undefined,
     registrationStatus: input?.registrationStatus === 'closed' ? 'closed' : 'open',
     location: normalizeLocation(input?.location),
-    startsAt: parseStartsAt(input?.startsAt),
+    startsAt,
+    endsAt,
     status: 'draft',
     progressionPlan,
     competitionConfig: {
@@ -214,6 +232,7 @@ const mapTournamentForDiscovery = (tournament, currentUserRegistrationStatus = n
   },
   status: tournament.status,
   startsAt: tournament.startsAt,
+  endsAt: tournament.endsAt || null,
   createdAt: tournament.createdAt,
 });
 
@@ -239,6 +258,8 @@ const mapHostTournamentDetail = (tournament, pendingParticipantsCount = 0) => ({
     formattedAddress: tournament.location?.formattedAddress,
   },
   status: tournament.status,
+  startsAt: tournament.startsAt,
+  endsAt: tournament.endsAt || null,
   progressionState: tournament.progressionState || 'registration',
   activeStageId: tournament.activeStageId || null,
   progressionPlan: {
@@ -412,8 +433,10 @@ const buildDiscoverFilter = (query = {}) => {
 
   const ongoingFlag = String(query.ongoing || '').trim().toLowerCase();
   if (ongoingFlag === 'true' || ongoingFlag === '1') {
-    filter.startsAt = { $lte: new Date() };
+    const now = new Date();
+    filter.startsAt = { $lte: now };
     filter.status = { $nin: ['completed', 'cancelled'] };
+    filter.$or = [{ endsAt: null }, { endsAt: { $gt: now } }];
   }
 
   const registrationOpenFlag = String(query.registrationOpen || '').trim().toLowerCase();
@@ -803,6 +826,7 @@ const pickDivisionForNewTeam = (inputDivisions = []) => {
 module.exports = {
   normalizeLocation,
   parseStartsAt,
+  parseEndsAt,
   parseBestOf,
   parsePositiveInteger,
   shuffleArray,

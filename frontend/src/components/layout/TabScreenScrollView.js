@@ -15,6 +15,8 @@ export const TabScreenScrollView = forwardRef(function TabScreenScrollView(
       contentContainerStyle={contentContainerStyle}
       showsVerticalScrollIndicator={Platform.OS !== 'web'}
       {...rest}
+      keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
     >
       {children}
     </ScrollView>

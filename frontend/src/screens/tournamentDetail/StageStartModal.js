@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } from 'react-native';
 import { ScaledText as Text } from '../../components/ui/ScaledText';
 import { AppIcon } from '../../components/ui/AppIcon';
 import { ActionButton, ChipSelector } from '../../components/tournament/TournamentChrome';
@@ -213,12 +213,21 @@ export function StageStartModal({
       visible={visible}
       onRequestClose={step === 'confirm' ? handleBackFromConfirm : handleClose}
     >
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
       <View style={[tournamentUi.modalOverlay, webModal?.overlay, { backgroundColor: colors.drawerOverlay }]}>
         <Pressable
           style={tournamentUi.modalBackdrop}
           onPress={step === 'confirm' ? handleBackFromConfirm : handleClose}
         />
-        <View style={modalCardStyle}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+          style={{ maxHeight: '85%', width: '100%', flexGrow: 0 }}
+          contentContainerStyle={[modalCardStyle, { maxHeight: undefined }]}
+        >
           {step === 'confirm' ? (
             <>
               <View
@@ -355,7 +364,12 @@ export function StageStartModal({
                 <Text style={{ marginTop: 8, color: colors.textMuted }}>Loading candidates…</Text>
               ) : null}
 
-              <ScrollView style={{ marginTop: 12, maxHeight: 320 }}>
+              <ScrollView
+                style={{ marginTop: 12, maxHeight: 320 }}
+                keyboardShouldPersistTaps="handled"
+                automaticallyAdjustKeyboardInsets
+                nestedScrollEnabled
+              >
                 {groupStandings.map((group) => {
                   const entries = isDoubles ? group.teamStandings || [] : group.standings || [];
 
@@ -449,8 +463,9 @@ export function StageStartModal({
               </View>
             </>
           )}
-        </View>
+        </ScrollView>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

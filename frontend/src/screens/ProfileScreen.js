@@ -139,6 +139,8 @@ export function ProfileScreen({ navigation }) {
         contentContainerStyle={{ paddingBottom: scrollPaddingBottom }}
         refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => refetch()} />}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
       >
         <PageColumn insetStyle={tournamentUi.content}>
         <View style={[discoverUi.hero, { marginBottom: 16 }]}>

@@ -29,6 +29,19 @@
       "expo-web-browser",
       "expo-secure-store",
       "expo-apple-authentication",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "extraPods": [
+              {
+                "name": "AppCheckCore",
+                "version": "11.2.0"
+              }
+            ]
+          }
+        }
+      ],
       "./plugins/withLargeScreenSupport"
     ],
     "extra": {
@@ -37,7 +50,8 @@
       }
     },
     "android": {
-      "versionCode": 23,
+      "softwareKeyboardLayoutMode": "resize",
+      "versionCode": 24,
       "package": "com.dhanushcharipally.racknroll",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
@@ -45,7 +59,8 @@
       }
     },
     "ios": {
-      "buildNumber": "23",
+      "supportsTablet": true,
+      "buildNumber": "24",
       "usesAppleSignIn": true,
       "bundleIdentifier": "com.dhanushcharipally.racknroll",
       "infoPlist": {

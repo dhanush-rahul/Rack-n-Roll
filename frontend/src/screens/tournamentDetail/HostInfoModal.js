@@ -15,6 +15,25 @@ import { ActionButton, formatProgressionLabel } from '../../components/tournamen
 import { useResponsiveLayout } from '../../utils/responsive';
 import { tournamentColors, tournamentUi } from '../../styles/tournamentUi';
 
+function formatDateTime(value) {
+  if (!value) {
+    return 'Not set';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return 'Not set';
+  }
+
+  return date.toLocaleString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 function formatRegistrationMode(mode) {
   if (mode === 'inviteOnly') {
     return 'Invite only';
@@ -344,6 +363,11 @@ export function HostInfoModal({
               <StatChip label="Pending" value={String(detail?.pendingParticipantsCount ?? 0)} accent={tournamentColors.warning} />
               <StatChip label="Target" value={String(detail?.maxParticipants ?? '—')} />
             </View>
+
+            <SnapshotSection title="Schedule">
+              <InfoRow label="Starts" value={formatDateTime(detail?.startsAt)} />
+              <InfoRow label="Ends" value={formatDateTime(detail?.endsAt)} isLast />
+            </SnapshotSection>
 
             <SnapshotSection title="Overview">
               <InfoRow label="Registration mode" value={formatRegistrationMode(detail?.registrationMode)} />

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, View } from 'react-native';
+import { CommonActions, useNavigation } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import { ScaledText as Text } from '../components/ui/ScaledText';
 import { useTheme } from '../context/ThemeContext';
@@ -23,6 +24,7 @@ import {
 } from '../utils/authValidation';
 
 export function SettingsScreen() {
+  const navigation = useNavigation();
   const { colors } = useTheme();
   const { currentUser, signOut } = useAuth();
   const queryClient = useQueryClient();
@@ -88,6 +90,8 @@ export function SettingsScreen() {
         centeredContentStyle(contentMaxWidth),
       ]}
       refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={() => refetch()} tintColor={colors.primary} />}
+      keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
     >
       <Text style={{ fontSize: 24, fontWeight: '800', color: colors.text, marginBottom: 16 }}>Settings</Text>
 
@@ -209,12 +213,18 @@ export function SettingsScreen() {
         ) : null}
 
         <DeleteAccountSection
-          onDeleted={() =>
-            signOut({
+          onDeleted={async () => {
+            await signOut({
               title: 'Account deleted',
               message: 'Your account has been deleted. Tournament results stay, under the name Deleted player.',
-            })
-          }
+            });
+            navigation.dispatch(
+              CommonActions.reset({
+                index: 0,
+                routes: [{ name: 'MainTabs', params: { screen: 'Discover' } }],
+              })
+            );
+          }}
         />
       </View>
     </ScrollView>
